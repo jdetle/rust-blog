@@ -1,0 +1,71 @@
+---
+description: All plans must be committed to the plans/ folder and version-controlled with an associated PR
+alwaysApply: true
+---
+
+# Plan Versioning — Plans Are Version-Controlled Artifacts
+
+Every plan the agent produces — architecture proposals, migration strategies, implementation roadmaps, spike findings — MUST be committed to the `plans/` folder and associated with a pull request. Plans are not ephemeral chat artifacts; they are versioned documents that can be reviewed, referenced, and diffed.
+
+## Workflow
+
+1. **Write the plan** to `plans/<slug>.md` using kebab-case naming (e.g., `plans/auth-migration.md`, `plans/mcp-server-redesign.md`).
+2. **Include YAML frontmatter** with metadata:
+   ```yaml
+   ---
+   title: Short descriptive title
+   status: draft | proposed | accepted | superseded
+   created: 2026-03-10T14:00:00
+   updated: 2026-03-10T14:00:00
+   pr: ""
+   supersedes: ""
+   ---
+   ```
+3. **Commit the plan** on a branch following the agent-branching rule. Use the `docs/` prefix: `docs/plan-<slug>`.
+4. **Push and open a PR** for the plan. Fill in the `pr:` frontmatter field with the PR URL once created.
+5. **Return the PR URL** to the user so they can review, comment, and approve.
+
+## Plan Lifecycle
+
+| Status | Meaning |
+|---|---|
+| `draft` | Work in progress, not yet ready for review |
+| `proposed` | PR is open, awaiting review and approval |
+| `accepted` | PR merged, plan is the agreed approach |
+| `superseded` | A newer plan replaces this one (link via `supersedes:` in the new plan) |
+
+Update the `status` field as the plan moves through its lifecycle. When a plan is superseded, update both the old plan (add a note at the top pointing to the replacement) and the new plan (`supersedes:` field).
+
+## Naming Conventions
+
+- `plans/auth-migration.md` — migration plan
+- `plans/mcp-server-redesign.md` — architecture proposal
+- `plans/spike-pdf-rendering.md` — spike/research findings
+- `plans/rollout-feature-flags.md` — rollout strategy
+
+Keep names short (3-5 words), lowercase, hyphen-separated. Prefix with the plan type when it aids discoverability (`spike-`, `rollout-`, `migration-`).
+
+## What Counts as a Plan
+
+Any document that proposes a future course of action or captures a technical decision:
+
+- Architecture proposals
+- Migration strategies
+- Implementation roadmaps
+- Spike/research findings with recommendations
+- Rollout strategies
+- Trade-off analyses where a decision needs to be recorded
+
+## What Does NOT Need a Plan
+
+- One-line decisions made in chat ("let's use Zod for validation")
+- Bug fix descriptions (those go in PR summaries)
+- Changelogs and release notes (those have their own conventions)
+
+## Rules
+
+1. Never leave a plan only in chat or in an agent transcript. If you wrote something that reads like a plan, move it to `plans/`.
+2. Every plan file must have the YAML frontmatter with at least `title`, `status`, `created`, and `updated`.
+3. Plans follow the same markdown backup rules as other markdown files — back up before overwriting.
+4. When implementing a plan, reference it in the implementation PR: "Implements `plans/auth-migration.md`".
+5. Do not delete old plans. Superseded plans are historical records. Mark them `superseded` and cross-reference.

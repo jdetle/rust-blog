@@ -1,0 +1,83 @@
+---
+description: "Cinema learning experience animations must respect prefers-reduced-motion"
+globs: "src/app/learn/(cinema)/**/*.{tsx,css}"
+alwaysApply: false
+---
+
+# Reduced Motion — Cinema Animations Must Respect User Preference — Learned from a11y review
+
+CSS animations in the cinema learning experience (continuous spins, pulses, cascading gradients) can trigger vestibular disorders and motion sickness for users who have `prefers-reduced-motion: reduce` enabled. All continuous or decorative animations must be paused or replaced with static alternatives when this preference is active.
+
+## The Rule
+
+Every `@keyframes` animation used in `cinema-theme.css` or cinema components MUST have a corresponding `@media (prefers-reduced-motion: reduce)` block that sets `animation: none` and applies a reasonable static fallback.
+
+### Required pattern
+
+```css
+/* Normal animation */
+.my-animation {
+  animation: my-keyframes 4s linear infinite;
+}
+
+/* Reduced motion override */
+@media (prefers-reduced-motion: reduce) {
+  .my-animation {
+    animation: none;
+    /* Static fallback — e.g., keep the glow but don't animate it */
+  }
+}
+```
+
+### What to disable
+
+| Animation type | Reduced motion behavior |
+|---|---|
+| Continuous rotation (flywheel spin) | `animation: none` — show static icon |
+| Pulsing glow (constraint pulse) | `animation: none` — keep box-shadow at resting state |
+| Gradient flow (cascade line) | `animation: none; background-size: 100% 100%` — show static gradient |
+| Text glow oscillation | `animation: none` — keep text-shadow at a fixed level |
+| Badge pulse | `animation: none` |
+
+### What to keep
+
+Framer Motion `whileInView` entrance animations (fade-in, slide-up) are one-shot and typically acceptable under reduced motion, but should use `transition: { duration: 0 }` when `useReducedMotion()` returns `true` for the most accessible experience.
+
+## Examples
+
+### Wrong (caused the issue)
+
+```css
+.tenet-flywheel-icon {
+  animation: tenet-flywheel-spin 12s linear infinite;
+}
+/* No reduced-motion override — spins forever for all users */
+```
+
+### Right (prevents recurrence)
+
+```css
+.tenet-flywheel-icon {
+  animation: tenet-flywheel-spin 12s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tenet-flywheel-icon {
+    animation: none;
+  }
+}
+```
+
+## Origin
+
+- **Failure**: Cinema page animations (flywheel spin, constraint pulse, cascade flow) ignored `prefers-reduced-motion`, violating WCAG 2.3.3
+- **Date**: 2026-03-12
+- **Root cause**: New CSS animations added to `cinema-theme.css` without reduced-motion media query overrides
+- **PR**: feat/tenet-page
+
+## Detection Acceleration
+
+- **Level**: CI (e2e test)
+- **What was added**: `tenet-page.spec.ts` — "animations are disabled when prefers-reduced-motion is set" test uses `page.emulateMedia({ reducedMotion: "reduce" })` and verifies computed `animationName` is `none`.
+- **Diagnosis time before**: Manual testing only — user with motion sensitivity would discover the issue
+- **Diagnosis time after**: Immediate test failure if reduced-motion override is removed

@@ -1,0 +1,73 @@
+---
+description: MCP server patterns — stdio server alongside REST API
+globs: src/mcp/**
+alwaysApply: false
+slug: mcp-server
+title: MCP Server Pattern
+domain: api-design
+ruleType: narrow
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - mcp
+  - model-context-protocol
+  - stdio
+  - api
+---
+
+# MCP Server Pattern
+
+The project runs a standard MCP server in parallel with the Next.js REST API. Both expose the same data through different transports: HTTP for the web UI, stdio for AI agents.
+
+## Architecture
+
+```
+┌─────────────┐    stdio     ┌──────────────┐
+│ Cursor / AI │◄────────────►│ src/mcp/     │
+│   client    │              │ server.ts    │──┐
+└─────────────┘              └──────────────┘  │  ┌──────────┐
+                                               ├─►│ lib/db   │
+┌─────────────┐    HTTP      ┌──────────────┐  │  │ lib/skills│
+│  Browser    │◄────────────►│ app/api/     │──┘  └──────────┘
+└─────────────┘              └──────────────┘
+```
+
+Both sides share `lib/db`, `lib/skills`, and `types/`. No duplication.
+
+## Rules
+
+1. **Use `@modelcontextprotocol/sdk`** — the official MCP SDK with stdio transport. No browser-only solutions (WebMCP, etc.) that couple AI tooling to the web app.
+
+2. **Direct database access** — MCP tools query SQLite directly through `lib/skills.ts`, not via HTTP round-trips to the API. The server runs in the same process as the database.
+
+3. **One tool per operation** — each tool maps to a single user intent: search, get detail, list categories, install, changelog. Keep tools focused.
+
+4. **Return JSON text content** — tool handlers return `{ content: [{ type: "text", text: JSON.stringify(data) }] }`. This is the standard MCP response shape.
+
+5. **Validate inputs with Zod** — the SDK uses Zod schemas for tool input validation. Match the schemas to what the corresponding API routes accept.
+
+6. **Error responses use `isError`** — when a tool can't fulfill a request (e.g., skill not found), return `isError: true` with a human-readable message.
+
+## Running
+
+- Dev: `npm run mcp:dev` (or `npx tsx src/mcp/server.ts`)
+- Cursor config: `.cursor/mcp.json` points to the server
+- The MCP server and `next dev` run as separate processes — start both during development
+
+## Adding a New Tool
+
+```typescript
+server.tool(
+  "tool_name",
+  "Description of what this tool does and when to use it",
+  { param: z.string().describe("What this param is") },
+  async ({ param }) => {
+    const result = await someQuery(param);
+    return {
+      content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+    };
+  },
+);
+```
+
+When adding a new API route, consider whether it should also be an MCP tool. If the data is useful to an AI agent, add both.

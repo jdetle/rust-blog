@@ -1,0 +1,96 @@
+---
+description: Playwright testMatch regexes match against filenames, not full paths — use filename-only patterns
+globs: "**/playwright.config.{ts,js}"
+alwaysApply: false
+slug: playwright-project-matching
+title: Playwright Project Test Matching
+domain: testing
+ruleType: narrow
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - playwright
+  - testing
+  - configuration
+---
+
+# Playwright Project Matching — Learned from "No tests found" debugging
+
+A `testMatch` regex of `/^e2e\/lighthouse-audit/` produced "No tests found" because Playwright resolves `testMatch` against the test file's path relative to `testDir`, not against the full file path or the project root. When `testDir` is unset, it defaults to the config file's directory — so a test at `e2e/lighthouse-audit.spec.ts` is matched as `e2e/lighthouse-audit.spec.ts` relative to the project root, but the `^e2e\/` anchor failed to match consistently across platforms and invocation methods.
+
+## The Rule
+
+Always use **filename-only** patterns in `testMatch` — never prefix with directory paths.
+
+### Correct patterns
+
+```typescript
+// Match by filename — works reliably across all invocation methods
+{
+  name: "lighthouse",
+  testMatch: /lighthouse-audit\.spec/,
+},
+{
+  name: "webhint",
+  testMatch: /webhint-audit/,
+},
+{
+  name: "unlighthouse",
+  testMatch: /unlighthouse-audit/,
+},
+```
+
+### Wrong patterns
+
+```typescript
+// Path-prefixed — fragile, breaks with -g flags and when testDir changes
+{
+  name: "lighthouse",
+  testMatch: /^e2e\/lighthouse-audit/,
+},
+// Overly broad — matches unrelated files containing the substring
+{
+  name: "lighthouse",
+  testMatch: /lighthouse/,
+},
+```
+
+### How `testMatch` resolves
+
+1. Playwright discovers test files using `testDir` (defaults to config directory)
+2. Each discovered file's path relative to `testDir` is tested against each project's `testMatch`
+3. If `testMatch` matches, the file is assigned to that project
+4. If no project matches, the file falls through to the default project
+
+The regex is tested against the **relative path string**, which includes directory separators. But the exact format depends on the OS and how Playwright normalizes paths internally. Filename-only patterns avoid this ambiguity entirely.
+
+### Excluding audit tests from the default project
+
+Use `grepInvert` on the default project to prevent audit tests from running in the standard suite:
+
+```typescript
+{
+  name: "chromium",
+  use: { ...devices["Desktop Chrome"] },
+  grepInvert: /demo|execution|sso|lighthouse-audit|webhint-audit|unlighthouse-audit/,
+},
+```
+
+`grepInvert` matches against the **test title** (the string passed to `test()`), not the filename. This is a different matching surface than `testMatch`.
+
+### `testMatch` vs `grepInvert` vs `-g`
+
+| Mechanism | Matches against | Purpose |
+|---|---|---|
+| `testMatch` | File path (relative to testDir) | Assign files to projects |
+| `grepInvert` | Test title string | Exclude tests from a project |
+| `-g` CLI flag | Test title string | Run only matching tests |
+
+When combining `testMatch` with `-g`, both must match: the file must match `testMatch` to be included in the project, AND the test title must match `-g` to run.
+
+## Origin
+
+- **Failure**: `bunx playwright test --project=lighthouse -g "homepage"` returned "No tests found" — the `testMatch` regex `/^e2e\/lighthouse-audit/` failed to match the test file
+- **Date**: 2026-03-16
+- **Root cause**: `testMatch` with a path-prefix anchor didn't match the file's path as Playwright resolved it
+- **PR**: feat/quality-audit-tests (#211)

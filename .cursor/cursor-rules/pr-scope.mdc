@@ -1,0 +1,49 @@
+---
+description: Keep PRs focused on a single problem domain — never conflate unrelated changes in one PR
+alwaysApply: true
+---
+
+# PR Scope — One Problem Per PR
+
+Every pull request MUST solve **one problem**. A reviewer should be able to describe the PR's purpose in a single sentence without using "and."
+
+## The Rule
+
+Before creating a branch or starting work, identify the **single concern** the PR will address. If the task spans multiple independent concerns, split it into separate branches and PRs — even if the changes are small.
+
+## What Counts as One Problem
+
+- A bug fix (including its tests and docs)
+- A new feature or capability (including its tests and docs)
+- A refactor that improves structure without changing behavior
+- A dependency upgrade
+- A documentation or rule update
+- A CI/tooling change
+
+Tests, docs, and changelogs that directly support the primary change belong in the same PR — they're part of solving that one problem.
+
+## What Violates This Rule
+
+- A PR that fixes a bug AND adds an unrelated feature
+- A PR that refactors module A AND fixes a bug in module B (unless the refactor is a prerequisite for the fix)
+- A PR that updates a Cursor rule AND modifies skill scripts
+- A PR that upgrades a dependency AND changes business logic
+- Bundling "while I'm here" drive-by fixes with the main change
+
+## How to Handle Discoveries Mid-Work
+
+When you discover an unrelated issue while working on a focused PR:
+
+1. **Note it** — mention it to the user or add a TODO comment
+2. **Don't fix it in the current PR** — context-switching within a PR creates review burden
+3. **Open a separate branch** for the discovered issue after the current PR is done (or in parallel if independent)
+
+## Self-Check Before Pushing
+
+Before pushing a branch, ask:
+
+1. Can I describe this PR in one sentence without "and"?
+2. If I removed any commit, would the remaining commits still form a coherent change?
+3. Would a reviewer need context from two unrelated areas to understand this PR?
+
+If the answer to #1 is no, #2 is no, or #3 is yes — split the PR.

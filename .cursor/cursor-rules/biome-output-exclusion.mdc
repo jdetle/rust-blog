@@ -1,0 +1,133 @@
+---
+description: When adding tools that generate output directories, exclude them from Biome — not just .gitignore
+globs: "**/biome.json"
+alwaysApply: false
+slug: biome-output-exclusion
+title: Biome Output Directory Exclusion
+domain: tooling
+ruleType: narrow
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - biome
+  - lint
+  - tooling
+---
+
+# Biome Output Exclusion — Learned from .unlighthouse flooding lint with 901 errors
+
+Adding `@unlighthouse/cli` generated HTML reports into `.unlighthouse/`. The directory was gitignored but Biome scanned it anyway, producing 901 lint errors and 24,275 warnings that blocked all commits via the pre-commit hook. Biome does not respect `.gitignore` — it has its own file exclusion system in `biome.json`.
+
+## The Rule
+
+When adding any tool that generates output files (test reports, coverage, build artifacts, scan results), exclude its output directory in **both** `.gitignore` **and** `biome.json`. Neither is sufficient alone.
+
+### Where to exclude
+
+| File | Syntax | Purpose |
+|---|---|---|
+| `.gitignore` | `.unlighthouse/` | Prevents committing generated files |
+| `biome.json` → `files.includes` | `"!!.unlighthouse"` | Prevents Biome from scanning the directory |
+
+The `!!` prefix in Biome's `files.includes` array means "exclude this path." It is a negation pattern — the rest of the array is implicitly `**` (include everything), so `!!` entries carve out exclusions.
+
+### Checklist when adding a new tool
+
+1. Does the tool create an output directory? (e.g., `.unlighthouse/`, `coverage/`, `.nyc_output/`, `playwright-report/`)
+2. Add the directory to `.gitignore`
+3. Add `"!!<dirname>"` to the `files.includes` array in `biome.json`
+4. Run `bun run lint` to verify the file count is unchanged (compare against `main`)
+
+### Currently excluded in biome.json
+
+```json
+{
+  "files": {
+    "includes": [
+      "**",
+      "!!.next",
+      "!!out",
+      "!!build",
+      "!!playwright-report",
+      "!!test-results",
+      "!!coverage",
+      "!!screenshots",
+      "!!e2e/.auth-state.json",
+      "!!external-skills",
+      "!!tools/notify-agent/target",
+      "!!tools/teams-notify/target",
+      "!!tools/ado-reparent/target",
+      "!!tools/boss-deliberate/target",
+      "!!tools/dns-registrar/target",
+      "!!agent-os/target",
+      "!!agent-os/src",
+      "!!SkillsHubSetup/.build",
+      "!!SkillsHubSetup/.swiftpm",
+      "!!apps/l1-triage/build",
+      "!!apps/setup/.build",
+      "!!apps/setup/.swiftpm",
+      "!!.unlighthouse"
+    ]
+  }
+}
+```
+
+### Why `.gitignore` isn't enough
+
+Biome is a standalone linter — it resolves its own file list using the `files` configuration in `biome.json`, not git's tracking rules. A directory can be:
+
+| In `.gitignore`? | In `biome.json` excludes? | Result |
+|---|---|---|
+| Yes | Yes | Correct — not committed, not linted |
+| Yes | No | **Problem** — not committed but linted, blocks commits |
+| No | Yes | Not linted but committed — usually wrong (generated files shouldn't be committed) |
+| No | No | Committed and linted — correct for source code |
+
+## Examples
+
+### Wrong (caused the failure)
+
+```
+# .gitignore — has the exclusion
+.unlighthouse/
+
+# biome.json — missing the exclusion
+{
+  "files": {
+    "includes": ["**", "!!.next", "!!coverage"]
+  }
+}
+```
+
+Biome scans `.unlighthouse/reports/*.html`, finds 901 errors in generated Lighthouse HTML reports, and the pre-commit hook rejects the commit.
+
+### Right (prevents recurrence)
+
+```
+# .gitignore
+.unlighthouse/
+
+# biome.json
+{
+  "files": {
+    "includes": ["**", "!!.next", "!!coverage", "!!.unlighthouse"]
+  }
+}
+```
+
+## Detection
+
+After adding a new tool, run:
+
+```bash
+bun run lint 2>&1 | tail -3
+```
+
+Compare the "Checked N files" count against main. If the count jumped significantly, the tool's output directory is being scanned.
+
+## Origin
+
+- **Failure**: Adding `@unlighthouse/cli` generated `.unlighthouse/reports/` with HTML files. Biome scanned them, found 901 errors, and blocked all commits via the pre-commit hook. The directory was in `.gitignore` but not in `biome.json`.
+- **Date**: 2026-03-16
+- **Root cause**: Biome does not respect `.gitignore` — it uses its own `files.includes` exclusion list in `biome.json`
+- **PR**: feat/quality-audit-tests (#211)

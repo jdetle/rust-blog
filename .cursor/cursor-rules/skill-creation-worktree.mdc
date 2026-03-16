@@ -1,0 +1,34 @@
+---
+description: Enforce worktree-per-skill when creating new Cursor skills
+globs:
+alwaysApply: true
+---
+
+# Skill Creation — Always Use a Dedicated Worktree
+
+When the user asks to create a new skill (project or personal), **set up a dedicated worktree before writing any files**. Each skill gets its own branch, its own worktree, and its own PR.
+
+## Workflow
+
+1. **Create the worktree** using the `feat/` prefix and the skill name:
+   ```bash
+   bash scripts/setup-worktree.sh feat/<skill-name>-skill <short-name>
+   cd /Users/jdetlefs001/one/skills-hub-wt/<short-name>
+   ```
+
+2. **Create the skill** in the worktree — `SKILL.md`, scripts, `CHANGELOG.md`, and any supporting files.
+
+3. **Commit, push, and open a PR** from the worktree following the standard branching workflow.
+
+## Why
+
+- Skills often touch multiple files (SKILL.md, scripts, rules, seed data, changelogs). A dedicated branch keeps the diff reviewable.
+- Multiple skills can be developed in parallel without branch switching.
+- The user can review each skill as an isolated PR before merging to main.
+
+## What This Means in Practice
+
+- `create a skill` = create a worktree first, then build the skill inside it
+- `update a skill` that already has an open PR = `cd` into its existing worktree
+- `update a skill` on main = create a new worktree (e.g., `fix/<skill-name>-update`)
+- Never create or modify skill files in the primary worktree

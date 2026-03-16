@@ -1,0 +1,225 @@
+---
+description: TypeScript safety patterns enforced by Biome — no non-null assertions, no explicit any, no implicit any let, no assignment in expressions, Node.js import protocol
+globs: "**/*.{ts,tsx}"
+alwaysApply: false
+slug: biome-typescript-safety
+title: Biome TypeScript Safety
+domain: typescript
+ruleType: narrow
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - biome
+  - typescript
+  - safety
+---
+
+# Biome TypeScript Safety — Learned from 231 biome warnings
+
+A codebase-wide biome audit found widespread TypeScript safety violations configured as warnings: non-null assertions masking null checks, `any` types erasing type safety, untyped `let` declarations, and Node.js imports missing the `node:` protocol. This rule teaches the correct patterns so they are written right the first time.
+
+## The Rules
+
+### 1. Never use the `!` non-null assertion operator
+
+The `!` operator tells TypeScript "trust me, this isn't null" — but TypeScript already has narrowing. If you need `!`, you haven't narrowed properly.
+
+```typescript
+// WRONG — masks a potential null at runtime
+const name = user!.name;
+const el = document.getElementById("app")!;
+process.env.DATABASE_URL!;
+
+// RIGHT — optional chaining (when null is acceptable)
+const name = user?.name;
+
+// RIGHT — explicit null check (when null is an error)
+const el = document.getElementById("app");
+if (!el) throw new Error("Missing #app element");
+el.textContent = "loaded";
+
+// RIGHT — default value
+const dbUrl = process.env.DATABASE_URL ?? "";
+
+// RIGHT — early return
+function getUser(id: string) {
+  const user = users.get(id);
+  if (!user) return null;
+  return user.name;
+}
+```
+
+**When refactoring existing `!` usage:**
+
+| Pattern | Replacement |
+|---|---|
+| `obj!.prop` | `obj?.prop` or `if (!obj) return/throw` |
+| `array[i]!` | `const item = array[i]; if (!item) ...` |
+| `process.env.VAR!` | `const v = process.env.VAR; if (!v) throw ...` or `?? fallback` |
+| `ref.current!` | `if (!ref.current) return;` then use `ref.current` |
+| `map.get(key)!` | `const v = map.get(key); if (!v) throw ...` |
+
+**Biome rule**: `style/noNonNullAssertion`
+
+### 2. Never use `any` — use `unknown` or a concrete type
+
+`any` silently disables all type checking for the value and everything it touches. It propagates: `any` assigned to a typed variable makes that variable `any` too.
+
+```typescript
+// WRONG — any spreads and disables safety
+function parse(data: any) { return data.items; }
+const result: any = fetch("/api");
+} catch (err: any) {
+
+// RIGHT — unknown forces narrowing before use
+function parse(data: unknown) {
+  if (!isItemsResponse(data)) throw new Error("Invalid response");
+  return data.items;
+}
+
+// RIGHT — concrete type
+interface ApiResponse { items: Item[]; total: number; }
+const result: ApiResponse = await fetch("/api").then(r => r.json());
+
+// RIGHT — for catch blocks, narrow the error
+} catch (err: unknown) {
+  const message = err instanceof Error ? err.message : String(err);
+}
+
+// RIGHT — for library callbacks with opaque params, use Parameters<>
+type ResolveParams = Parameters<typeof originalResolve>;
+```
+
+**Common `any` replacements:**
+
+| `any` usage | Replacement |
+|---|---|
+| Catch clause `catch (e: any)` | `catch (e: unknown)` + narrowing |
+| JSON parse result | Define an interface, validate with Zod |
+| Event handler `(e: any)` | `React.MouseEvent`, `React.ChangeEvent<HTMLInputElement>`, etc. |
+| Library callback params | `Parameters<typeof fn>[N]` or the library's exported types |
+| Generic utility | `<T>` type parameter |
+| Dynamic object | `Record<string, unknown>` |
+
+**Biome rule**: `suspicious/noExplicitAny`
+
+### 3. Always annotate `let` declarations
+
+A bare `let x;` gets type `any` implicitly. Always provide an initial value or a type annotation.
+
+```typescript
+// WRONG — implicit any
+let result;
+let count;
+
+// RIGHT — type annotation
+let result: string | undefined;
+let count: number = 0;
+
+// RIGHT — initialized (TypeScript infers the type)
+let result = "";
+let count = 0;
+
+// RIGHT — when the value comes later but the type is known
+let connection: pg.PoolClient | undefined;
+try {
+  connection = await pool.connect();
+  // ...
+} finally {
+  connection?.release();
+}
+```
+
+**Biome rule**: `suspicious/noImplicitAnyLet`
+
+### 4. No assignments inside expressions
+
+Assignments inside `while`, `if`, or `for` conditions are error-prone — they look like equality checks (`==`) and hide side effects.
+
+```typescript
+// WRONG — assignment in while condition
+let match;
+while ((match = pattern.exec(text)) !== null) {
+  process(match);
+}
+
+// RIGHT — assign before the loop, update at the end
+let match = pattern.exec(text);
+while (match !== null) {
+  process(match);
+  match = pattern.exec(text);
+}
+
+// RIGHT — for-of with matchAll (preferred for regex iteration)
+for (const match of text.matchAll(pattern)) {
+  process(match);
+}
+
+// WRONG — assignment in if condition
+let result;
+if ((result = compute()) !== null) { ... }
+
+// RIGHT — assign, then check
+const result = compute();
+if (result !== null) { ... }
+```
+
+**Biome rule**: `suspicious/noAssignInExpressions`
+
+### 5. Use the `node:` protocol for Node.js built-in imports
+
+The `node:` prefix disambiguates Node.js built-ins from npm packages with the same name and makes the import's origin explicit.
+
+```typescript
+// WRONG — ambiguous, could be an npm package
+import fs from "fs";
+import path from "path";
+import { createHash } from "crypto";
+import Module from "module";
+
+// RIGHT — explicit Node.js built-in
+import fs from "node:fs";
+import path from "node:path";
+import { createHash } from "node:crypto";
+import Module from "node:module";
+```
+
+This applies to all Node.js built-in modules: `fs`, `path`, `crypto`, `os`, `http`, `https`, `url`, `util`, `stream`, `events`, `buffer`, `child_process`, `module`, `net`, `dns`, `tls`, `zlib`, `assert`, `querystring`, `string_decoder`, `timers`, `worker_threads`, `perf_hooks`, `async_hooks`.
+
+**Biome rule**: `style/useNodejsImportProtocol`
+
+### 6. No control characters in regex
+
+Control characters (`\x00`–`\x1f`) in regex patterns are almost always typos. They match invisible characters that rarely appear in real data.
+
+```typescript
+// WRONG — likely a typo (matches ASCII control char SOH)
+const pattern = /\x01/;
+
+// RIGHT — if you genuinely need to match control chars, use Unicode escapes and comment why
+const pattern = /\u0001/; // Match SOH delimiter in legacy binary protocol
+```
+
+**Biome rule**: `suspicious/noControlCharactersInRegex`
+
+## Self-Check Before Committing TypeScript
+
+1. Search for `!.` and `!;` — every non-null assertion needs justification or replacement
+2. Search for `: any` and `as any` — replace with concrete types or `unknown`
+3. Search for `let ` without `=` or `:` — add a type annotation or initial value
+4. Search for `import ... from "fs"` (etc.) without `node:` prefix — add the prefix
+5. Check `while (` and `if (` for `=` that should be `===`
+
+## Origin
+
+- **Failure**: 231 biome warnings accumulated across 113 files, including `noNonNullAssertion` (masking null checks), `noExplicitAny` (erasing type safety), `noImplicitAnyLet` (untyped lets), `noAssignInExpressions` (assignments in conditions), `useNodejsImportProtocol` (missing node: prefix), `noControlCharactersInRegex` (suspicious regex patterns)
+- **Date**: 2026-03-15
+- **Root cause**: Agents wrote TypeScript using shortcut patterns (`!`, `any`, bare `let`) instead of the safer alternatives — warnings were configured but not enforced
+- **PR**: cinema branch biome cleanup
+
+## Detection Acceleration
+
+- **Level**: Pre-commit (editor + CI)
+  **What was added**: All rules listed here are enforced by Biome as warnings in `biome.json`. The `.husky/pre-commit` hook runs `bun run lint` which invokes `biome check .` — violations block the commit.
+  **Diagnosis time before**: Warnings accumulated silently; only caught during manual audit
+  **Diagnosis time after**: Blocked at commit time with specific file, line, and rule name

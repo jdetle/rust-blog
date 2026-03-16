@@ -1,0 +1,50 @@
+---
+description: Merge main into feature branches before pushing to catch drift from refactors, renames, and schema changes.
+globs: []
+alwaysApply: true
+---
+
+# Merge Main Before Push
+
+Before pushing a feature branch, always merge `origin/main` into it and verify the build still succeeds. Refactors on main (component reorganizations, import path changes, schema migrations) silently break feature branches that haven't rebased.
+
+## Why This Exists
+
+When main reorganizes components into new folder structures (e.g., `@/components/UsageStats` → `@/components/analytics/UsageStats`), any feature branch still using the old import paths will fail to build in CI. The branch looks fine locally because the developer hasn't pulled main, but CI builds against the merged result and fails.
+
+This pattern also catches:
+- Schema changes that require seed updates
+- Deleted or renamed exports
+- New dependencies added on main that a branch needs
+- Merge conflicts that block CI entirely (GitHub skips checks on conflicting PRs)
+
+## Workflow
+
+Before every `git push` on a feature branch:
+
+```bash
+git fetch origin main
+git merge origin/main --no-edit
+# If conflicts arise, resolve them
+bun run build   # Verify the merged result compiles
+git push
+```
+
+If the build fails after merging main, fix the issues before pushing. Common fixes:
+- Update import paths to match main's component organization
+- Add missing dependencies from main
+- Resolve TypeScript errors from renamed types or interfaces
+
+## When Conflicts Arise
+
+If `git merge origin/main` produces conflicts:
+1. Resolve each conflict, preferring main's version for infrastructure changes (imports, config, schema) and the branch's version for feature logic
+2. Run `bunx biome check --write` on all conflicted files
+3. Run `bun run build` to verify
+4. Commit the merge resolution
+
+## Exception
+
+Skip this step only when:
+- The branch was created from main within the last hour AND no PRs have merged since
+- The push is a force-push for an interactive rebase that already incorporated main

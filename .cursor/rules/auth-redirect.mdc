@@ -1,0 +1,101 @@
+---
+description: Always return users to their intended destination after login/SSO
+alwaysApply: true
+slug: auth-redirect
+title: Auth Redirect — Return to Intended Destination
+domain: security
+ruleType: narrow
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - auth
+  - redirect
+  - login
+  - sso
+---
+
+# Auth Redirect — Return to Intended Destination
+
+After any auth flow (SSO, email login, session expiry re-auth), the user must land on the page they were trying to reach — not a generic home page or dashboard.
+
+## Mechanism: `redirectTo` Query Param
+
+Store the intended URL in a `redirectTo` query parameter throughout the auth flow.
+
+### 1. Capture the intended URL
+
+When an unauthenticated user hits a protected route, redirect to the login page with their original URL encoded as `redirectTo`:
+
+```tsx
+// middleware.ts — protecting routes
+const url = request.nextUrl.clone();
+const intended = url.pathname + url.search;
+url.pathname = "/login";
+url.searchParams.set("redirectTo", intended);
+return NextResponse.redirect(url);
+```
+
+### 2. Preserve through the login form
+
+The login page reads `redirectTo` and includes it in the auth request:
+
+```tsx
+const searchParams = useSearchParams();
+const redirectTo = searchParams.get("redirectTo") ?? "/";
+
+async function handleLogin(credentials: FormData) {
+  const res = await fetch("/api/auth/session", {
+    method: "POST",
+    body: JSON.stringify({ ...credentials, redirectTo }),
+  });
+  if (res.ok) {
+    window.location.href = redirectTo;
+  }
+}
+```
+
+### 3. Server-side redirect (preferred)
+
+When possible, redirect server-side after setting the session cookie to avoid cookie timing issues:
+
+```tsx
+// API route — after successful auth
+const redirectTo = validateRedirectTo(body.redirectTo);
+const response = NextResponse.redirect(new URL(redirectTo, request.url));
+response.cookies.set(sessionCookieOptions(token, expiresAt));
+return response;
+```
+
+## Security: Validate `redirectTo`
+
+Never redirect to an arbitrary URL. Validate that `redirectTo` is a safe, relative path on the same origin.
+
+```typescript
+function validateRedirectTo(value: string | undefined | null): string {
+  if (!value) return "/";
+  if (!value.startsWith("/")) return "/";
+  if (value.startsWith("//")) return "/";
+  if (value.includes("://")) return "/";
+  return value;
+}
+```
+
+**Reject**: absolute URLs (`https://evil.com`), protocol-relative URLs (`//evil.com`), anything containing `://`. **Default**: fall back to `/`.
+
+## Rules
+
+1. Every auth gate (middleware, API route, client-side check) must capture the current URL before redirecting to login.
+2. The login page/component must read `redirectTo` from its URL and carry it through the entire auth flow.
+3. After successful authentication, redirect to `redirectTo` (validated). Never drop it.
+4. Prefer server-side redirects (`NextResponse.redirect`) over client-side (`router.push`) after setting cookies.
+5. For inline login forms (e.g., sign-in shown on the same page), preserve the current URL + query params so the page state survives the auth round-trip.
+
+## SSO / OAuth Flows
+
+For OAuth or SAML SSO, the same principle applies:
+
+1. Store `redirectTo` in the session or `state` parameter before redirecting to the identity provider.
+2. The callback route reads it back after the IdP returns.
+3. Final redirect lands the user on their intended page.
+
+The OAuth `state` parameter is the standard way to carry `redirectTo` through an external IdP redirect — encode it there rather than relying on cookies or server-side session storage alone.

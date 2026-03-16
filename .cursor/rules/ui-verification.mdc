@@ -1,0 +1,69 @@
+---
+description: Enforces UI verification after every major frontend change. Requires running the app, checking pages visually, and ensuring Playwright tests pass before considering work complete.
+globs: src/app/**/*.tsx, src/components/**/*.tsx, src/app/globals.css
+alwaysApply: false
+slug: ui-verification
+title: UI Verification Required
+domain: testing
+ruleType: narrow
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - ui
+  - verification
+  - playwright
+  - visual-check
+---
+
+# UI Verification Required
+
+Every major UI change must be verified before it is considered complete. Do not move on until verification passes.
+
+## Definition of "Major UI Change"
+
+Any change that affects what users see: new pages, layout modifications, component additions/removals, style changes, data display changes, or route changes.
+
+## Verification Steps
+
+After making UI changes, execute these steps in order:
+
+### 1. Dev Server Running
+
+Ensure the dev server is running (`bun run dev`). If it's not, start it and wait for the "Ready" message. The dev server uses `https://skills-hub.local:<port>` when TLS certs are present, or `http://localhost:<port>` otherwise.
+
+### 2. Route Smoke Check
+
+Verify every affected route returns HTTP 200. Use the URL shown in the dev server banner (the `-k` flag tolerates self-signed certs):
+
+```bash
+curl -sk -o /dev/null -w "%{http_code}" https://skills-hub.local:3000
+curl -sk -o /dev/null -w "%{http_code}" https://skills-hub.local:3000/skills
+curl -sk -o /dev/null -w "%{http_code}" https://skills-hub.local:3000/changelog
+```
+
+Any non-200 response is a blocker. Fix before proceeding.
+
+### 3. Visual Verification
+
+Use the browser MCP tools to navigate to each affected page and take a snapshot. Confirm:
+- Page renders without blank screens or error messages
+- Layout is intact (header, footer, content areas present)
+- Data displays correctly (skill cards, changelogs, detail pages)
+- No console errors visible
+
+### 4. Playwright Tests
+
+Run the Playwright test suite:
+
+```bash
+bunx playwright test
+```
+
+All tests must pass. If any fail, fix the issue and re-run.
+
+## Rules
+
+- **Never skip verification** — even for "small" CSS changes.
+- **Fix regressions immediately** — do not accumulate broken UI states.
+- **If the browser MCP is unavailable**, use `curl` to verify HTML content includes expected headings and data.
+- **After database changes**, re-seed (`bun run db:seed`) and re-verify.

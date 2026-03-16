@@ -1,0 +1,149 @@
+---
+description: "Prevent layout jank when hover interactions reveal new content"
+globs: "src/**/*.tsx"
+alwaysApply: true
+---
+
+# Hover Content Jank — Learned from layout shifts across multiple components
+
+Multiple components conditionally render DOM elements on hover (`{hovered && <div>}`), causing layout reflows, content pop-in, and visual jank. The PlatformFlywheel mounts a detail block on hover that shifts all content below it. The SkillEvolutionChart mounts inline text that widens its row. The SkillCard tooltip flickers on fast mouse movement across the card grid because there is no hover intent delay.
+
+## The Rules
+
+### 1. Never conditionally render DOM on hover
+
+Content revealed by hover must always exist in the DOM, hidden via `opacity-0`, `invisible`, `scale-0`, or `pointer-events-none`. Toggle visibility with CSS transitions — never mount/unmount React elements in response to `onMouseEnter`/`onMouseLeave`.
+
+```tsx
+// WRONG — mounts/unmounts on hover, causes layout reflow
+{isHovered && (
+  <div className="ml-3 text-xs text-muted">
+    {entries.map((e) => <span key={e.type}>{e.count} {e.label}</span>)}
+  </div>
+)}
+
+// RIGHT — always in DOM, opacity transition, no layout shift
+<div
+  className={cn(
+    "ml-3 text-xs text-muted transition-opacity duration-200",
+    isHovered ? "opacity-100" : "opacity-0 pointer-events-none"
+  )}
+>
+  {entries.map((e) => <span key={e.type}>{e.count} {e.label}</span>)}
+</div>
+```
+
+### 2. Reserve layout space for hover-revealed content
+
+If hover-revealed content occupies flow space (not absolute/fixed positioned), the container must have a fixed height or min-height that accommodates the content. Otherwise, the content appearing will push surrounding elements.
+
+Preferred strategies in order:
+
+1. **Absolute positioning** — tooltip/popover floats above/below the trigger, no layout impact
+2. **Fixed-height container** — reserve the space whether content is visible or not
+3. **`visibility: hidden`** — element keeps its box model but is invisible (`invisible` in Tailwind)
+
+```tsx
+// WRONG — detail block appears and shifts content below
+{activeItem && (
+  <div className="mt-6 max-w-2xl">
+    <p>{activeItem.detail}</p>
+  </div>
+)}
+
+// RIGHT — container always rendered with fixed height, content fades in
+<div className="mt-6 h-20 max-w-2xl">
+  <div
+    className={cn(
+      "transition-opacity duration-200",
+      activeItem ? "opacity-100" : "opacity-0"
+    )}
+  >
+    {activeItem && <p>{ITEMS.find(s => s.id === activeItem)?.detail}</p>}
+  </div>
+</div>
+```
+
+### 3. Debounce hover intent for grids and repeated items
+
+When hovering across a row or grid of items that each reveal rich hover content (tooltips, detail panels, stat breakdowns), use the `useHoverIntent` hook with a 100–200ms delay. This prevents rapid state thrashing as the cursor crosses multiple items.
+
+```tsx
+import { useHoverIntent } from "@/hooks/useHoverIntent";
+
+function StageGrid({ stages }: Props) {
+  const { activeItem, getHandlers } = useHoverIntent<string>(150);
+
+  return (
+    <div className="grid grid-cols-6">
+      {stages.map((stage) => (
+        <button key={stage.id} {...getHandlers(stage.id)}>
+          {stage.title}
+        </button>
+      ))}
+    </div>
+  );
+}
+```
+
+When NOT to debounce:
+- Single isolated hover targets (one button, one card in isolation)
+- Hover effects that only change CSS properties (color, opacity, transform) without state updates
+- `group-hover` patterns that use pure CSS and no React state
+
+### 4. Never animate max-height for show/hide
+
+The `max-h-0` to `max-h-[N]` pattern forces layout recalculation every animation frame because the browser must compute the element's actual height at each step. Use `grid-template-rows: 0fr / 1fr` instead — the browser can interpolate the grid track without triggering full layout.
+
+```tsx
+// WRONG — layout recalculation every frame
+<div className={cn(
+  "overflow-hidden transition-all duration-300",
+  open ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+)}>
+  {content}
+</div>
+
+// RIGHT — GPU-friendly grid interpolation
+<div
+  className={cn(
+    "grid transition-[grid-template-rows,opacity] duration-300",
+    open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+  )}
+>
+  <div className="overflow-hidden">
+    {content}
+  </div>
+</div>
+```
+
+### 5. Use compositor-only properties for hover transitions
+
+Only `opacity` and `transform` (translate, scale, rotate) are handled by the GPU compositor without triggering layout or paint. All other properties (`width`, `height`, `margin`, `padding`, `border-width`, `box-shadow`) trigger layout or paint recalculation.
+
+| Property | Triggers | GPU composited? |
+|---|---|---|
+| `opacity` | Composite only | Yes |
+| `transform` | Composite only | Yes |
+| `color`, `background-color` | Paint | No |
+| `box-shadow` | Paint | No |
+| `width`, `height` | Layout + Paint | No |
+| `margin`, `padding` | Layout + Paint | No |
+
+For hover effects, prefer `opacity` and `transform` transitions. Color and shadow transitions are acceptable (paint-only, no layout) but should use specific transition classes, not `transition-all`.
+
+## Known Violations (fixed)
+
+| Component | File | Fix applied |
+|---|---|---|
+| PlatformFlywheel | `src/components/landing/PlatformFlywheel.tsx` | Always-rendered detail container with opacity/transform transition + useHoverIntent |
+| SkillEvolutionChart | `src/components/analytics/SkillEvolutionChart.tsx` | Replaced conditional render with opacity toggle for entry breakdown |
+| ConceptContext | `src/components/shared/ConceptContext.tsx` | Replaced max-h accordion with grid-rows-[0fr]/[1fr] |
+| SkillCard | `src/components/skills/SkillCard.tsx` | Added transition delay to prevent tooltip flicker |
+
+## Origin
+
+- **Failure**: Hovering icons in the PlatformFlywheel caused visible layout shifts as a detail block mounted below the grid. SkillEvolutionChart bars shifted when hover text appeared inline. Fast mouse movement across SkillCard grids caused tooltip flicker.
+- **Date**: 2026-03-16
+- **Root cause**: Conditional rendering (`{condition && <div>}`) used for hover-revealed content instead of always-in-DOM with opacity transitions; no hover intent debounce for grid interactions; `max-height` animations triggering layout recalculation every frame.
+- **PR**: fix/hover-animation-jank

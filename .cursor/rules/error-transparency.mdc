@@ -1,0 +1,136 @@
+---
+description: "API routes must return appropriate HTTP error codes on failure — never mask errors as 200 with empty data"
+alwaysApply: true
+---
+
+# Error Transparency — Learned from silent error swallowing
+
+The `GET /api/feedback` route catches all database errors and returns `{ status: 200, body: { feedback: [], total: 0 } }`. Callers cannot distinguish "no feedback exists" from "the database is down." This pattern was found in multiple locations across the codebase, including grounding verification, companion apps JSON parsing, and MCP popularity recomputation.
+
+## The Rule
+
+API route error handlers must return the correct HTTP status code. Never mask a server-side failure as a successful empty response.
+
+### Status code requirements
+
+| Scenario | Status | Response shape |
+|---|---|---|
+| Success with data | 200 | `{ data: [...] }` |
+| Success with no data | 200 | `{ data: [], total: 0 }` |
+| Client error (bad input) | 400 | `{ error: "description" }` |
+| Authentication required | 401 | `{ error: "Authentication required" }` |
+| Forbidden | 403 | `{ error: "Forbidden" }` |
+| Not found | 404 | `{ error: "Not found" }` |
+| Rate limited | 429 | `{ error: "Too many requests", retryAfter: "..." }` |
+| Server error (DB down, unhandled) | 500 | `{ error: "Failed to ..." }` |
+
+### The pattern to use
+
+```typescript
+export async function GET(request: NextRequest) {
+  try {
+    const data = await fetchFromDb();
+    return NextResponse.json({ data });
+  } catch (err) {
+    console.error("Route description:", err);
+    return NextResponse.json(
+      { error: "Failed to fetch data" },
+      { status: 500 },
+    );
+  }
+}
+```
+
+### The pattern to avoid
+
+```typescript
+export async function GET(request: NextRequest) {
+  try {
+    const data = await fetchFromDb();
+    return NextResponse.json({ data });
+  } catch {
+    // WRONG: returns 200 with empty data — caller thinks everything is fine
+    return NextResponse.json({ data: [], total: 0 });
+  }
+}
+```
+
+## Silent Catch Classification
+
+Not all `catch` blocks are equal. Use this guide:
+
+| Pattern | Acceptable? | When |
+|---|---|---|
+| Return 5xx with error message | Yes | API route handlers — always |
+| Log and return fallback | Sometimes | Background tasks where the caller can retry (e.g., popularity recompute) |
+| Return `false` silently | Rarely | Validation helpers where `false` is a valid semantic return (e.g., fingerprint check) |
+| Return empty array/200 | Never | API routes — this hides failures from monitoring and callers |
+
+When a silent catch is intentional (background task, optional enrichment), add a comment explaining why:
+
+```typescript
+try {
+  await recomputePopularity();
+} catch {
+  // Non-critical: popularity is eventually consistent. Next request retriggers.
+}
+```
+
+## Known Violations
+
+| File | Pattern | Fix |
+|---|---|---|
+| `src/app/api/feedback/route.ts` (GET) | Returns 200 + empty on DB error | Return 500 + error message |
+| `src/lib/grounding.ts` (verifyFingerprint) | Returns `false` on HMAC key error | Acceptable — but log a warning |
+| `src/mcp/server.ts` (recomputePopularity) | Silent catch on DB timeout | Acceptable — add comment explaining why |
+| `src/lib/companion-apps.ts` (parseFeatures) | Returns `[]` on JSON parse error | Acceptable — JSON fallback is intentional |
+
+## Examples
+
+### Wrong (caused the deficiency)
+
+```typescript
+// src/app/api/feedback/route.ts — GET handler
+export async function GET(request: NextRequest) {
+  try {
+    const allFeedback = await getAllFeedback();
+    const page = allFeedback.slice(offset, offset + limit);
+    return NextResponse.json({ feedback: page, total: allFeedback.length });
+  } catch {
+    return NextResponse.json({ feedback: [], total: 0 });
+    //     ^^^^^^^^^^^^^^^^^ 200 status — indistinguishable from empty
+  }
+}
+```
+
+### Right (prevents recurrence)
+
+```typescript
+export async function GET(request: NextRequest) {
+  try {
+    const allFeedback = await getAllFeedback();
+    const page = allFeedback.slice(offset, offset + limit);
+    return NextResponse.json({ feedback: page, total: allFeedback.length });
+  } catch (err) {
+    console.error("Failed to fetch feedback:", err);
+    return NextResponse.json(
+      { error: "Failed to fetch feedback" },
+      { status: 500 },
+    );
+  }
+}
+```
+
+## Origin
+
+- **Failure**: `GET /api/feedback` returns 200 with empty data on database errors — monitoring sees no failures, callers display "no feedback" instead of an error state
+- **Date**: 2026-03-13
+- **Root cause**: Catch block uses `NextResponse.json({ feedback: [], total: 0 })` without a status code, defaulting to 200
+- **PR**: feat/adversarial-deficiency-tests
+
+## Detection Acceleration
+
+- **Level**: Unit test (CI)
+  **What was added**: `src/__tests__/adversarial/contracts/error-transparency.test.ts` and `src/__tests__/adversarial/chaos/error-swallowing.test.ts` — verify that error handlers return 5xx codes and document all known silent-catch locations.
+  **Diagnosis time before**: Errors only discoverable through user reports ("I see no feedback") or manual log inspection
+  **Diagnosis time after**: Test failure with clear message: "current behavior: DB failure returns 200 with empty array"

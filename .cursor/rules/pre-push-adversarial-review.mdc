@@ -1,0 +1,17 @@
+---
+description: Require adversarial-review before any user-requested git push
+alwaysApply: true
+---
+
+# Pre-Push Adversarial Review
+
+Before executing any `git push` requested by the user, always run an `adversarial-review` of the pending changes with high rigor.
+
+Required pre-push checklist:
+- Run adversarial-review using offense -> defense -> synthesis.
+- Use `chaos_mode: high` unless the user explicitly requests a lower level.
+- Save the review to `docs/adversarial-review/reviews/<yyyy-mm-dd>-<slug>.md`.
+- Add/update top-level summary entry in `docs/adversarial-review/reviews/TLDR.md`.
+- Report key findings, decision, unresolved risk, and follow-up action before pushing.
+
+Do not push until the above checklist is complete.

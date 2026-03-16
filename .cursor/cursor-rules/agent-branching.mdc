@@ -1,0 +1,68 @@
+---
+description: Agents must work in worktrees on branches and open PRs — never commit in the primary worktree or directly to main
+alwaysApply: true
+---
+
+# Agent Branching Workflow
+
+Every **top-level** agent session that produces code changes MUST work in a **dedicated git worktree** on a dedicated branch. Never commit in the primary worktree. Never commit directly to `main`.
+
+**Subagents are exempt.** Subagents (launched via the Task tool) inherit the parent agent's workspace and worktree. They do not create their own worktrees — they commit, edit, and run commands in whatever worktree the parent is already using. The `enforce-worktree` hook automatically allows subagent commands through.
+
+## Workflow
+
+1. **Create the worktree FIRST — before any edits.** The very first action in any code-producing session is creating the worktree. Do not read files, do not edit files, do not run exploratory commands in the primary worktree and "move changes later." Set up the worktree, `cd` into it, then start working.
+   ```bash
+   bash scripts/setup-worktree.sh <type>/<branch-name> <short-name>
+   cd /Users/jdetlefs001/one/skills-hub-wt/<short-name>
+   ```
+   This creates a worktree with its own port, database, and environment. Use conventional branch prefixes: `feat/`, `fix/`, `refactor/`, `chore/`, `docs/`, `test/`.
+
+   If the branch already has a worktree, `cd` into it: check `git worktree list` first.
+
+2. **Work in the worktree.** All edits, commits, and dev server runs happen there — not in the primary checkout.
+
+3. **Commit as you go** following the conventional commits rule.
+
+4. **When work is complete**, push and open a PR:
+   ```bash
+   git push -u origin HEAD
+   gh pr create --title "<title>" --body "<summary>"
+   ```
+   Follow the PR formatting rules in `pull-requests.mdc`.
+
+5. **Return the PR URL** to the user.
+
+## Why Worktrees
+
+- The primary worktree stays on `main` — clean, always runnable, the production baseline.
+- Each worktree gets its own `node_modules`, `.next` cache, dev server port, and database.
+- Multiple agents (or one agent + one human) can work on different features in parallel without branch switching, stash juggling, or port conflicts.
+- A Cursor hook (`.cursor/hooks/enforce-worktree.sh`) blocks `git commit` and `git checkout -b` in the primary worktree.
+
+## Branch Naming
+
+- `feat/branch-specific-db` — new capability
+- `fix/seed-crash-on-empty` — bug fix
+- `refactor/extract-db-path` — restructuring
+- `chore/update-deps` — maintenance
+
+Keep names short (3-5 words), lowercase, hyphen-separated.
+
+## What NOT to Do
+
+- Do not edit files in the primary worktree — not even "just to check something." Create the worktree first, then edit.
+- Do not commit in the primary worktree — the `enforce-worktree` hook will block it.
+- Do not use `git checkout -b` in the primary worktree — use `scripts/setup-worktree.sh` instead.
+- Do not commit to `main` directly — even "small" changes.
+- Do not make edits on `main` and copy them to a worktree later — this wastes time and risks forgetting files.
+- Do not leave uncommitted changes and tell the user to handle it.
+- Do not create a branch without eventually pushing and opening a PR (unless the user cancels the task).
+
+## Cleanup
+
+After a PR is merged:
+```bash
+git worktree remove ../skills-hub-wt/<short-name>
+git branch -d <branch-name>
+```

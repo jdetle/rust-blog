@@ -1,0 +1,31 @@
+# GitHub Organization URL
+
+All PwC GitHub links MUST use the `pwc-us-adv-genai-commercial-factory` organization. Never use `pwc-us/` as the org prefix — it is incorrect.
+
+## Canonical Values
+
+| Identifier | Value |
+|---|---|
+| GitHub org | `pwc-us-adv-genai-commercial-factory` |
+| Base URL | `https://github.com/pwc-us-adv-genai-commercial-factory` |
+| Skills repo | `pwc-us-adv-genai-commercial-factory/agentos-te-skills` |
+
+## Shared Constants
+
+Import from `src/lib/github.ts` — never hard-code the org or repo slug:
+
+```typescript
+import { GITHUB_ORG, GITHUB_BASE_URL, SKILL_REPO, SKILL_REPO_URL } from "@/lib/github";
+```
+
+## Rules
+
+1. **Never hard-code `pwc-us/`** anywhere in TypeScript, seed data, or configuration. Always reference the constants in `src/lib/github.ts`.
+2. **Seed data** uses the full URL form: `https://github.com/pwc-us-adv-genai-commercial-factory/agentos-te-skills`.
+3. **Runtime code** imports the constant rather than constructing the URL from a string literal.
+4. **A unit test** (`src/__tests__/github-org.test.ts`) scans all `.ts` and `.tsx` files for stale `pwc-us/` references. It will fail the build if the old org surfaces again.
+5. When adding a new PwC repository reference, add it to the seed `repos` array with `owner: "pwc-us-adv-genai-commercial-factory"`.
+
+## Quick Self-Check
+
+Before shipping any code that references GitHub: "Am I using `pwc-us-adv-genai-commercial-factory`, not `pwc-us`?"

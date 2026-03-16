@@ -1,0 +1,118 @@
+---
+description: "Every API route handler must explicitly handle authentication — either enforce it or document why the route is public"
+alwaysApply: true
+---
+
+# API Route Auth Guard — Learned from auth gap audit
+
+An adversarial audit found 10+ API routes exposing sensitive data or accepting mutations without any authentication check. The middleware (`middleware.ts`) only protects `/api/governance` and `/api/auth/impersonate`. All other routes pass through the middleware unauthenticated and must enforce auth in their handler. Several routes — feedback GET (emails), logs (application internals), contributions PATCH (review approval), DORA POST (metric injection) — were left completely open.
+
+## The Rule
+
+Every API route handler under `src/app/api/` must do one of the following:
+
+### 1. Enforce authentication (default for sensitive routes)
+
+```typescript
+import { getSessionFromCookies } from "@/lib/auth";
+
+export async function POST(request: NextRequest) {
+  const session = await getSessionFromCookies();
+  if (!session) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  }
+  // ... handler logic
+}
+```
+
+### 2. Mark as intentionally public with a comment
+
+```typescript
+// AUTH: Public — catalog data, no PII, read-only
+export async function GET(request: NextRequest) {
+  // ... handler logic
+}
+```
+
+There is no third option. A route without either an auth check or an `AUTH:` comment is a deficiency.
+
+## Classification Guide
+
+| Route type | Auth required? | Example |
+|---|---|---|
+| Public catalog reads (skills, rules, MCP servers) | No | `GET /api/skills`, `GET /api/rules` |
+| User-submitted content reads (feedback, contributions) | Yes — contains PII | `GET /api/feedback` |
+| Any mutation (POST, PATCH, PUT, DELETE) | Yes | `POST /api/contributions` |
+| Administrative data (logs, DORA metrics, usage) | Yes — internal data | `GET /api/logs` |
+| Health check | No | `GET /api/health` |
+
+## Routes Currently Missing Auth
+
+| Route | Method | Severity | Issue |
+|---|---|---|---|
+| `/api/feedback` | GET | Critical | Exposes user emails |
+| `/api/logs` | GET | Critical | Exposes application logs |
+| `/api/logs/streams` | GET | Critical | Exposes log streams |
+| `/api/logs/stats` | GET | Critical | Exposes log statistics |
+| `/api/logs/groups` | GET | Critical | Exposes log groups |
+| `/api/contributions` | POST | High | Anonymous contribution creation |
+| `/api/contributions/[id]` | PATCH | Critical | Anonymous review approval |
+| `/api/dora/incidents` | POST | High | Fake metric injection |
+| `/api/dora/deployments` | POST | High | Fake metric injection |
+| `/api/suggestions/[id]` | PATCH | High | Anonymous accept/dismiss |
+
+## Middleware Is Not Sufficient
+
+The middleware only blocks unauthenticated requests to paths matching `PROTECTED_MUTATION_PREFIXES`. Adding a route to the middleware prefix list protects it at the infrastructure level, but handler-level auth is still required because:
+
+1. The middleware allows all reads (GET) through — sensitive data endpoints need handler-level auth
+2. Middleware prefix matching is coarse — it can't distinguish between public and private sub-routes
+3. Handler-level auth gives access to the session object for authorization (role checks, ownership)
+
+## Examples
+
+### Wrong (caused the deficiency)
+
+```typescript
+// No auth check — anyone can read all feedback including emails
+export async function GET(request: NextRequest) {
+  try {
+    const allFeedback = await getAllFeedback();
+    return NextResponse.json({ feedback: allFeedback });
+  } catch {
+    return NextResponse.json({ feedback: [], total: 0 });
+  }
+}
+```
+
+### Right (prevents recurrence)
+
+```typescript
+export async function GET(request: NextRequest) {
+  const session = await getSessionFromCookies();
+  if (!session) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  }
+
+  try {
+    const allFeedback = await getAllFeedback();
+    return NextResponse.json({ feedback: allFeedback });
+  } catch {
+    return NextResponse.json({ error: "Failed to fetch feedback" }, { status: 500 });
+  }
+}
+```
+
+## Origin
+
+- **Failure**: Adversarial audit found 10+ routes with no auth — feedback emails, application logs, contribution approvals, and DORA metrics all accessible to anonymous callers
+- **Date**: 2026-03-13
+- **Root cause**: Middleware only protects governance and impersonation routes; handler-level auth was applied inconsistently (some routes check, others don't)
+- **PR**: feat/adversarial-deficiency-tests
+
+## Detection Acceleration
+
+- **Level**: Unit test (CI)
+  **What was added**: `src/__tests__/adversarial/evil-user/unauthenticated-routes.test.ts` and `src/__tests__/adversarial/security/unauthenticated-mutations.test.ts` — maintain an inventory of all routes and their auth status. When a new route is added, it must be added to the inventory with its auth classification.
+  **Diagnosis time before**: No systematic way to detect auth gaps — discovered only during manual security review
+  **Diagnosis time after**: Test failure with descriptive message identifying the unprotected route

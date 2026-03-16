@@ -1,0 +1,92 @@
+---
+description: React component design — composition, server/client boundary, naming, props
+globs: "**/*.tsx"
+alwaysApply: false
+slug: react-components
+title: React Component Design
+domain: react
+ruleType: broad
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - react
+  - components
+  - composition
+  - server-components
+---
+
+# React Component Design
+
+## Server-First by Default
+
+Components are Server Components unless they need interactivity. Only add `"use client"` when the component uses hooks, browser APIs, or event handlers. When a Server Component needs an interactive child, pass the Server Component as `children` rather than importing it inside the Client Component.
+
+```
+┌─ Server Component (default) ──────────────────────┐
+│  Data fetching, DB access, async/await             │
+│                                                    │
+│  ┌─ Client Component ("use client") ─────────┐    │
+│  │  useState, onClick, useEffect              │    │
+│  │  Receives Server Components via {children} │    │
+│  └────────────────────────────────────────────┘    │
+└────────────────────────────────────────────────────┘
+```
+
+## Composition Over Configuration
+
+Prefer composable APIs over prop-heavy components. A component with more than 5-7 props is a signal to decompose.
+
+```tsx
+// ❌ Prop-heavy — "apropcalypse" (Kent Dodds)
+<Card
+  title="Deploy"
+  subtitle="v2.1"
+  icon={<Rocket />}
+  showBadge
+  badgeColor="green"
+  badgeText="New"
+  onClickAction={handleDeploy}
+/>
+
+// ✅ Composable — structure matches the UI
+<Card>
+  <Card.Header>
+    <Rocket />
+    <Card.Title>Deploy</Card.Title>
+    <Badge color="green">New</Badge>
+  </Card.Header>
+  <Card.Action onClick={handleDeploy} />
+</Card>
+```
+
+## Component Naming and Exports
+
+- One component per file. File name matches the export: `SkillCard.tsx` → `export function SkillCard`.
+- Use named exports, not default exports. Named exports are refactor-safe and greppable.
+- Name components after what they render, not what data they consume.
+
+## Props
+
+- Define props as an inline type or a colocated `type` (not `interface`) when the shape is component-specific. Use shared types from `@/types` when the shape crosses module boundaries.
+- Destructure props in the function signature.
+- Use `children: React.ReactNode` for composition. Avoid `React.FC` — it obscures the signature and adds implicit `children`.
+
+```tsx
+type SkillCardProps = {
+  skill: SkillSummary;
+  highlight?: boolean;
+};
+
+export function SkillCard({ skill, highlight = false }: SkillCardProps) {
+  // ...
+}
+```
+
+## Keep Components Focused
+
+A component should do one of these, not multiple:
+1. **Fetch data** — async Server Component that queries and passes data down
+2. **Manage state** — Client Component with hooks, passes values to presentational children
+3. **Render UI** — pure function of props, no side effects
+
+When a component does more than one, split it (Fowler's Separated Presentation).

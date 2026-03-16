@@ -1,0 +1,155 @@
+---
+description: Tailwind CSS class management — cn() composition, class length limits, design token usage, and anti-patterns
+globs: "**/*.tsx,**/*.css"
+alwaysApply: false
+slug: tailwind-classes
+title: Tailwind CSS Class Management
+domain: react
+ruleType: narrow
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - tailwind
+  - css
+  - cn
+  - class-composition
+---
+
+# Tailwind CSS Class Management
+
+This project uses Tailwind CSS v4 with CSS-first configuration (`@theme inline` in `globals.css`). All class composition goes through the `cn()` helper.
+
+## Always Use `cn()` for Conditional Classes
+
+Never use template literal ternaries for className composition. The `cn()` helper from `@/lib/cn` combines `clsx` (conditional logic) with `tailwind-merge` (conflict resolution).
+
+```tsx
+// Wrong — template literal
+className={`px-4 py-2 ${isActive ? "bg-primary text-white" : "bg-secondary text-muted"}`}
+
+// Wrong — string concatenation
+className={"px-4 py-2 " + (isActive ? "bg-primary" : "bg-secondary")}
+
+// Correct — cn()
+className={cn("px-4 py-2", isActive ? "bg-primary text-white" : "bg-secondary text-muted")}
+
+// Correct — boolean shorthand for single class
+className={cn("h-4 w-4 transition-transform", open && "rotate-180")}
+```
+
+`cn()` also resolves conflicts: `cn("px-2", "px-4")` returns `"px-4"`, not both. This matters when consumers override classes on shared components.
+
+## Composing External Classes
+
+When a component accepts a `className` prop, merge it last so consumer overrides win:
+
+```tsx
+function MyComponent({ className, ...props }: { className?: string }) {
+  return <div className={cn("base-classes", className)} {...props} />;
+}
+```
+
+## Class Length Limit
+
+If a `className` exceeds ~80 characters, the element needs refactoring:
+
+| Signal | Action |
+|---|---|
+| Long class string on a `<button>` | Use `<Button variant="..." size="...">` from `ui/button` |
+| Long class string on an `<input>` or `<textarea>` | Use `<Input>` / `<Textarea>` from `ui/input` |
+| Long class string with conditional logic | Extract to `cn()` with named parts or a CVA variant |
+| Same class pattern in 3+ places | Extract to a shared component in `src/components/ui/` |
+
+## Use Design Tokens, Not Arbitrary Values
+
+Prefer theme-defined colors and spacing over Tailwind arbitrary values. If an arbitrary value appears 3+ times, add it to the `@theme` block in `globals.css`.
+
+```tsx
+// Wrong — hardcoded color
+className="bg-[#D04A02]"
+
+// Correct — uses theme token
+className="bg-primary"
+
+// Acceptable — truly one-off value
+className="max-w-[140px]"
+```
+
+The design tokens are defined as CSS custom properties in `:root` and mapped to Tailwind via `@theme inline`. All semantic colors (`primary`, `secondary`, `accent`, `muted`, `border`, `card`, `success`, `warning`, `error`) are available as Tailwind utilities.
+
+### Color Contrast — Text-Safe Variants
+
+Semantic colors like `success`, `warning`, `error`, and `accent` are too bright to use as text colors on light backgrounds. Each has a contrast-safe `-text` variant for use in text contexts:
+
+| Background use | Text use |
+|---|---|
+| `bg-primary` | `text-primary-text` (not `text-primary` for body text) |
+| `bg-success` | `text-success-text` (not `text-success`) |
+| `bg-warning` | `text-warning-text` (not `text-warning`) |
+| `bg-accent` | `text-accent-text` (not `text-accent`) |
+| `bg-error` | `text-error-text` (not `text-error`) |
+
+These `-text` tokens auto-switch between darker (light mode) and lighter (dark mode) shades via CSS custom properties. See `color-contrast.mdc` for the full approved pairing table with computed contrast ratios.
+
+## No `@apply` for Component Styles
+
+`@apply` copies utility classes into a CSS rule — it looks like abstraction but breaks component colocation and makes overrides harder.
+
+```css
+/* Wrong — @apply in globals.css */
+.btn-primary {
+  @apply rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white;
+}
+```
+
+Instead, extract a React component with CVA variants. The component encapsulates both structure and styling, and consumers override via `className` + `cn()`.
+
+## Class Ordering Convention
+
+Follow the logical order that Tailwind's Prettier plugin enforces:
+
+1. **Layout** — `flex`, `grid`, `block`, `inline-flex`, `absolute`, `relative`
+2. **Sizing** — `w-full`, `h-10`, `min-w-0`, `max-w-md`
+3. **Spacing** — `p-4`, `px-3`, `m-2`, `gap-2`
+4. **Typography** — `text-sm`, `font-medium`, `truncate`, `leading-relaxed`
+5. **Colors** — `bg-card`, `text-foreground`, `border-border`
+6. **Borders & shadows** — `rounded-lg`, `border`, `shadow-sm`
+7. **Transitions** — `transition-all`, `duration-300`
+8. **States** — `hover:`, `focus:`, `disabled:`, `group-hover:`
+
+## Inline Styles
+
+Only use `style={{}}` for values that are truly dynamic at runtime (computed from JavaScript, not from a fixed set of options):
+
+```tsx
+// Acceptable — width comes from data
+style={{ width: `${percentage}%` }}
+
+// Acceptable — staggered animation delay
+style={{ transitionDelay: `${index * 100}ms` }}
+
+// Wrong — should be a Tailwind class
+style={{ padding: "16px" }}  // Use p-4
+style={{ color: "#D04A02" }} // Use text-primary
+```
+
+## Dark Mode
+
+This project uses CSS variable theming with `data-theme` attribute and `prefers-color-scheme` media query. Dark mode overrides are defined in `globals.css` by reassigning CSS custom properties.
+
+For component-level dark overrides, use Tailwind's `dark:` modifier:
+
+```tsx
+className="bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-200"
+```
+
+When the same light/dark pair appears in 3+ places, consider adding it as a semantic token in the `@theme` block.
+
+## Anti-Patterns
+
+- **Template literal classNames** — always use `cn()` instead
+- **Duplicate long class strings** — extract to a shared UI component
+- **`@apply` for reusable styles** — use React component extraction
+- **Arbitrary values for theme colors** — add to `@theme` instead
+- **`!important` overrides** — fix specificity with proper `cn()` ordering instead
+- **Conditional classes without `cn()`** — even `clsx` alone doesn't resolve Tailwind conflicts; always use `cn()` which wraps `tailwind-merge`

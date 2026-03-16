@@ -1,0 +1,46 @@
+# Build & Test Queue
+
+When working in a worktree (not the primary checkout on `main`), use queue-aware `q:*` scripts for all heavy operations. These scripts check system resource pressure via crib and OS metrics, and only queue operations when resources are strained.
+
+## When to Use
+
+Use `q:*` variants for these operations in worktrees:
+
+| Instead of | Use |
+|---|---|
+| `bun test` | `bun run q:test` or `make q-test` |
+| `bun run build` | `bun run q:build` or `make q-build` |
+| `bun run db:seed` | `bun run q:seed` or `make q-seed` |
+| `bun run db:reset` | `bun run q:reset` |
+| `bun run test:e2e` | `bun run q:e2e` or `make q-e2e` |
+| `bun run dev` | `bun run q:dev` or `make q-dev` |
+
+In the primary worktree on `main`, bare commands are fine — there's only one primary.
+
+## How It Works
+
+1. The `run-queued.ts` wrapper reads `~/.crib/state.json` (written by the crib daemon) plus `os.loadavg()` and `os.freemem()` to classify system pressure as `clear`, `strained`, or `critical`.
+2. If `clear`, the command runs immediately with near-zero overhead.
+3. If `strained` or `critical`, the command enters a file-based queue (`~/.crib/queue/`) and waits for a slot. Higher-priority operations (tests) run before lower-priority ones (dev servers).
+4. Write-heavy DB operations (`db:seed`, `db:reset`) also acquire a per-DB advisory lock to prevent concurrent seeding of the same database.
+
+## Checking Resource Pressure
+
+Run `bun run q:probe` or `make q-probe` to see the current verdict without running any operation.
+
+## When NOT to Use
+
+- `bun run lint` — lightweight, no queuing needed
+- `bun run start` — production start, not a dev operation
+- Reading/editing files — not a heavy operation
+- Any operation in the primary worktree on `main`
+
+## Priority Order
+
+When queued, operations drain in this order:
+
+1. Unit tests (fastest feedback)
+2. Database seed/reset (prerequisite for tests)
+3. Build (prerequisite for e2e)
+4. E2E / Playwright tests (heavy, long-running)
+5. Dev server startup (can wait longest)

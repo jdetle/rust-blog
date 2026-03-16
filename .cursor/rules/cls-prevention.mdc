@@ -1,0 +1,173 @@
+# CLS Prevention — Learned from Lighthouse audit enforcement
+
+Cumulative Layout Shift (CLS) is the most heavily weighted performance metric in Lighthouse (weight=25). Two patterns in the codebase caused CLS scores of 0.25+ (the "good" threshold is < 0.1): client components that start hidden then appear after mount, and Suspense boundaries with no height placeholder. Both patterns cause visible content to shift after the initial paint.
+
+## The Rules
+
+### 1. Never use `useState(false)` → `useEffect` → `setState(true)` for conditional UI
+
+When a client component starts with `useState(false)` and then shows itself in `useEffect`, SSR renders nothing. After hydration, the component appears and pushes all content below it down — a textbook layout shift.
+
+**Invert the default.** Start visible during SSR, then hide on the client if the user previously dismissed it. For new visitors (and Lighthouse), the content is present from the first paint.
+
+```tsx
+// WRONG — hidden during SSR, appears after mount, causes CLS
+export function Banner() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (!localStorage.getItem("dismissed")) {
+      setVisible(true);
+    }
+  }, []);
+
+  if (!visible) return null;
+  return <div>Banner content</div>;
+}
+
+// RIGHT — visible during SSR, hides after mount if dismissed
+export function Banner() {
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    if (localStorage.getItem("dismissed")) {
+      setDismissed(true);
+    }
+  }, []);
+
+  if (dismissed) return null;
+  return <div>Banner content</div>;
+}
+```
+
+**When to apply:** Any component that conditionally shows based on a client-only signal (localStorage, cookies, feature flags read client-side, auth state). The question is: "What should the server render?" The answer should be the **most common case** for first-time visitors.
+
+**Exception:** Components that should genuinely be hidden by default (modals, dropdowns, tooltips) start as `null` and that's correct — they aren't part of the page layout until triggered.
+
+### 2. Never use `Suspense fallback={null}` for content that occupies layout space
+
+When a dynamically imported component renders inside `<Suspense fallback={null}>`, the page renders with no space reserved. When the component loads, it expands and pushes content below it — a layout shift.
+
+**Always provide a fallback that reserves the expected height.**
+
+```tsx
+// WRONG — no space reserved, content shifts when chart loads
+<div className="mb-6">
+  <Suspense fallback={null}>
+    <CategoryBarChart categories={categories} />
+  </Suspense>
+</div>
+
+// RIGHT — reserves approximate height, no shift when chart loads
+<div className="mb-6 min-h-[52px]">
+  <Suspense fallback={<div className="h-[52px]" />}>
+    <CategoryBarChart categories={categories} />
+  </Suspense>
+</div>
+```
+
+**How to choose the fallback height:**
+
+1. Render the component normally and measure its height at the target viewport
+2. Use that measurement as a `min-h-[]` on the wrapper and `h-[]` on the fallback
+3. It doesn't need to be pixel-perfect — within 20% is enough to prevent CLS
+
+**When `fallback={null}` is acceptable:**
+
+- The component is below the fold (not visible during initial viewport render)
+- The component is inside a fixed-height container that won't shift
+- The component replaces existing content (e.g., a tab panel swap) rather than inserting new content
+
+### 3. Use `display: "optional"` for Next.js fonts, never `display: "swap"`
+
+`font-display: swap` shows the fallback font immediately, then swaps to the web font when loaded. The swap causes text to reflow — different glyph widths shift surrounding content. This is a measurable CLS source.
+
+`font-display: optional` gives the browser a very short window (~100ms) to load the font. If it misses, the fallback is used for the entire page load — no swap, no reflow, no CLS. On subsequent navigations the font is cached and loads instantly.
+
+```tsx
+// WRONG — swap causes text reflow CLS
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+// RIGHT — optional eliminates font-swap CLS
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+  display: "optional",
+});
+```
+
+**Trade-off:** First-time visitors on slow connections may see the system font instead of the web font. This is acceptable — no CLS is better than a prettier font that shifts the page.
+
+### 4. Reserve viewport height on `<main>` to prevent footer shifting
+
+When the `<main>` content area starts small during SSR (e.g., a skeleton or loading state) and expands during hydration, the `<footer>` shifts from inside the viewport to below it. Lighthouse measures this as CLS because the footer's position changes between the initial and final render.
+
+Fix: set `minHeight` on `<main>` to push the footer below the fold from the first paint:
+
+```tsx
+// WRONG — footer starts inside viewport, shifts down as content loads
+<main id="main-content" className="min-w-0 flex-1">
+  {children}
+</main>
+<Footer />
+
+// RIGHT — footer starts below fold, no shift regardless of content loading
+<main
+  id="main-content"
+  className="min-w-0 flex-1"
+  style={{ minHeight: "calc(100dvh - 3.5rem)" }}
+>
+  {children}
+</main>
+<Footer />
+```
+
+The `3.5rem` accounts for the header height. Adjust if the header height differs. Use `100dvh` (dynamic viewport height) not `100vh` to handle mobile browser chrome correctly.
+
+### 5. Audit CLS sources when adding client components to server-rendered pages
+
+When adding a new client component to a server-rendered page (especially in the root layout or high-traffic pages like `/skills`, `/rules`):
+
+1. Check if the component's initial client state differs from its SSR output
+2. If it renders `null` during SSR and content on mount → CLS risk
+3. If it changes height/width between SSR and client hydration → CLS risk
+4. Run `bun run test:lighthouse` to verify CLS stays below 0.1
+
+## Common CLS Sources in Next.js
+
+| Source | Mechanism | Fix |
+|---|---|---|
+| Banners/alerts that appear after mount | `useState(false)` → `useEffect` → `setState(true)` | Invert: default visible, dismiss on client |
+| Dynamic imports with `Suspense fallback={null}` | No space reserved for lazy component | Add height-matching fallback |
+| Client-only auth UI (login button vs avatar) | Different HTML between SSR and hydration | Use skeleton with same dimensions |
+| Font loading (`font-display: swap`) | Fallback font → web font causes text reflow | Use `display: "optional"` in `next/font` config |
+| Footer shifting during hydration | Content expands post-SSR, pushes footer down | `minHeight: calc(100dvh - header)` on `<main>` |
+| Images without dimensions | Browser doesn't know size until image loads | Use `next/image` with `width`/`height` or `fill` |
+| Animations that trigger on mount | `framer-motion` initial → animate changes layout | Use `layout` prop or set initial state to final position |
+| CSS grid/flex transitions on mount | `grid-template-rows: 0fr → 1fr` causes measurable shift | Avoid animating layout properties; use `transform` instead |
+
+## Anti-Pattern: CSS Grid Transitions to "Fix" CLS
+
+An early attempt to fix the WhatsNewBanner CLS used `grid-template-rows: 0fr → 1fr` to smoothly expand the banner after mount. This **worsened** CLS from 0.25 to 0.35 because the grid expansion itself is a layout shift — Lighthouse measures the movement of downstream elements, not whether the transition is smooth.
+
+The lesson: layout shifts are measured by the **displacement of elements**, not by the visual smoothness of the displacement. A perfectly smooth CSS transition that moves content 50px is the same CLS as a sudden 50px jump.
+
+## Origin
+
+- **Failure 1**: Lighthouse performance score of 86/100 on `/skills` — CLS of 0.269 from WhatsNewBanner appearing after mount and CategoryBarChart loading with no placeholder
+- **Failure 2**: Attempted grid-template-rows fix worsened CLS to 0.35 — smooth transitions still count as layout shifts
+- **Failure 3**: Consistent CLS of 0.248 across all pages caused by footer shifting during hydration as content expanded
+- **Date**: 2026-03-16
+- **Root cause**: (1) WhatsNewBanner used `useState(false)` → `useEffect` → `setVisible(true)`. (2) CategoryBarChart `Suspense fallback={null}`. (3) Font `display: "swap"` causing text reflow. (4) `<main>` had no minimum height, so footer started in-viewport and shifted down.
+- **PR**: test/lighthouse-enforcement (#209), feat/quality-audit-tests (#211)
+
+## Detection Acceleration
+
+- **Level**: E2E test (CI)
+  **What was added**: `e2e/lighthouse-audit.spec.ts` — Lighthouse audit enforcing 90+ scores in performance, accessibility, best practices, and SEO across 7 routes. CLS above 0.1 drops performance below 90.
+  **Diagnosis time before**: CLS issues only discoverable through manual Lighthouse runs or user reports of "jumpy" pages
+  **Diagnosis time after**: CI fails with specific CLS score, weight, and improvement opportunities listed in the error message

@@ -1,0 +1,57 @@
+---
+description: "Enforce valid PostgreSQL DATABASE_URL in .env and .env.local — prevent stale SQLite URLs from breaking the app"
+alwaysApply: true
+---
+
+# PostgreSQL DATABASE_URL — Learned from DB migration drift
+
+After migrating from SQLite to PostgreSQL, `.env` retained a stale `file:./dev.db` URL. The `pg` driver, `db-reset.ts`, and every query module silently received an unparseable connection string, producing `TypeError: <url> cannot be parsed` and `database "dev.db" does not exist` errors on fresh start.
+
+## The Rule
+
+`DATABASE_URL` must always be a valid PostgreSQL connection string in every env file (`.env`, `.env.local`, `.env.example`).
+
+### Required format
+
+```
+postgresql://<user>:<password>@<host>:<port>/<dbname>
+```
+
+### Validation checklist
+
+When editing `.env`, `.env.local`, or `.env.example`:
+
+1. `DATABASE_URL` must start with `postgresql://` or `postgres://` — never `file:`, `sqlite:`, or any other scheme.
+2. The database name (path component after the last `/`) must match the expected naming convention: `skills_hub_dev` for the primary worktree, `skills_hub_<branch_slug>` for feature worktrees.
+3. The port must match the Docker Compose PostgreSQL port (`5433` by default, not the PostgreSQL standard `5432`).
+
+### When creating a new worktree
+
+`scripts/setup-worktree.sh` generates `.env.local` with the correct `DATABASE_URL` for the branch. Never override it manually with a SQLite URL.
+
+### When `.env.example` changes
+
+If `.env.example` updates `DATABASE_URL` (e.g., new port, new credentials), verify that `.env` and `.env.local` are updated to match. `.env.example` is the source of truth for connection string format.
+
+## Examples
+
+### Wrong (caused the failure)
+
+```env
+# Stale SQLite URL from before the PG migration
+DATABASE_URL="file:./dev.db"
+```
+
+### Right (prevents recurrence)
+
+```env
+# PostgreSQL (local Docker Compose instance on port 5433)
+DATABASE_URL="postgresql://skills_hub:skills_hub@localhost:5433/skills_hub_dev" # pragma: allowlist secret
+```
+
+## Origin
+
+- **Failure**: Fresh-start script failed — `pg-connection-string` threw `TypeError` on `file:./dev.db`, then `db-reset.ts` errored with `database "dev.db" does not exist`
+- **Date**: 2026-03-11
+- **Root cause**: `.env` retained a SQLite `DATABASE_URL` after the project migrated to PostgreSQL; no validation caught the stale format before the `pg` driver tried to parse it
+- **PR**: fix/learn-pg-failures

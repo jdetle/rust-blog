@@ -1,0 +1,92 @@
+---
+description: Prevent missing imports in Next.js server components that cause runtime ReferenceError
+alwaysApply: true
+---
+
+# Server Component Import Safety — Learned from runtime ReferenceError
+
+`next build` uses SWC, not the TypeScript compiler. SWC does not catch undefined identifiers in server components — a `<Breadcrumbs />` tag without an import statement compiles successfully but crashes at runtime with `ReferenceError: Breadcrumbs is not defined`. The error only surfaces when a user visits the page, producing a fallback error boundary ("Failed to load") instead of the actual content.
+
+## The Rule
+
+After adding or modifying any JSX element in a server component (files without `"use client"`), verify every component used in the JSX has a corresponding import at the top of the file. Do not rely on `next build` to catch missing imports — it won't.
+
+### Verification checklist
+
+When editing a server component page (`src/app/**/page.tsx`):
+
+1. For every `<ComponentName` in the JSX, confirm an `import { ComponentName }` or `import ComponentName` exists in the file's import block.
+2. If you added a component that exists in the project (e.g., `Breadcrumbs`, `PageContainer`, `CategoryBadge`), add the import from the correct module path.
+3. Run `bun run typecheck` (which executes `tsc --noEmit`) on the specific file if in doubt — TypeScript catches `TS2304: Cannot find name` even when SWC doesn't.
+
+### Why `next build` misses this
+
+| Tool | Catches missing imports? | Why |
+|---|---|---|
+| `tsc --noEmit` | Yes | Full type checking, reports TS2304 |
+| `next build` (SWC) | No | SWC transpiles without full type resolution; treats unknown identifiers as runtime values |
+| Biome / ESLint | No | Linters check style, not type resolution across modules |
+| Runtime execution | Yes (too late) | `ReferenceError` when the component renders |
+
+## Examples
+
+### Wrong (caused the failure)
+
+```tsx
+// src/app/rules/[slug]/page.tsx — NO Breadcrumbs import
+import { PageContainer } from "@/components/ui/page-container";
+import { getRuleBySlug } from "@/lib/rules";
+
+export default async function RuleDetailPage({ params }: Props) {
+  const rule = await getRuleBySlug(slug);
+  return (
+    <PageContainer>
+      <Breadcrumbs items={[...]} />
+      {/* ^^^ ReferenceError at runtime — Breadcrumbs is not defined */}
+    </PageContainer>
+  );
+}
+```
+
+### Right (prevents recurrence)
+
+```tsx
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
+import { PageContainer } from "@/components/ui/page-container";
+import { getRuleBySlug } from "@/lib/rules";
+
+export default async function RuleDetailPage({ params }: Props) {
+  const rule = await getRuleBySlug(slug);
+  return (
+    <PageContainer>
+      <Breadcrumbs items={[...]} />
+    </PageContainer>
+  );
+}
+```
+
+## Origin
+
+- **Failure**: Every rule detail page (`/rules/[slug]`) showed "Failed to load rule" — `ReferenceError: Breadcrumbs is not defined` at runtime
+- **Date**: 2026-03-13
+- **Root cause**: `Breadcrumbs` component used in JSX without an import statement; `next build` (SWC) did not catch the missing identifier
+- **PR**: fix/rules-detail-breadcrumbs
+
+## Detection Acceleration
+
+Three improvements shift detection leftward:
+
+- **Level**: Build script
+  **What was added**: `"typecheck": "tsc --noEmit"` script in `package.json`. Developers can run `bun run typecheck` locally to catch missing imports that `next build` ignores. Full-project enforcement is blocked by 700+ pre-existing type errors; future work should incrementally fix those and add `bun run typecheck` to CI.
+  **Diagnosis time before**: Only discovered at runtime when visiting the affected page
+  **Diagnosis time after**: `bun run typecheck` catches TS2304 in ~7 seconds
+
+- **Level**: CI (smoke test)
+  **What was added**: `scripts/smoke.sh` now dynamically discovers detail page slugs from API responses and visits them. Previously it only checked listing pages (`/skills`, `/rules`), missing detail pages entirely.
+  **Diagnosis time before**: Smoke test passed because it never visited `/rules/<slug>`
+  **Diagnosis time after**: Smoke test visits at least one detail page per entity type — a ReferenceError returns non-200, failing the check
+
+- **Level**: Editor (this rule)
+  **What was added**: This Cursor rule fires on every agent edit, reminding the agent to verify imports match JSX usage in server components.
+  **Diagnosis time before**: Agent added `<Breadcrumbs>` without noticing the missing import
+  **Diagnosis time after**: Rule triggers before the edit is committed

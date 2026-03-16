@@ -1,0 +1,89 @@
+---
+description: Enforces Rust + TypeScript as the only two implementation languages. Rust replaces Python for all scripts.
+alwaysApply: true
+---
+
+# Language Policy — Rust and TypeScript Only
+
+Every piece of code in this repository must be written in **Rust** or **TypeScript**. No other implementation languages are permitted. Shell scripts (`.sh`) are allowed only as thin wrappers that delegate to a Rust binary or `bun run <script>`.
+
+## Language Selection
+
+| Domain | Language | Why |
+|---|---|---|
+| Web app (Next.js, React, API routes) | TypeScript | React ecosystem, server components, SSR |
+| CLI tools, daemons, performance-critical services | Rust | Memory safety, zero-cost abstractions, single binary deploys |
+| Build/automation scripts | Rust (preferred) or TypeScript via `bun run` | Type safety, no runtime deps |
+| Database migrations, schema | SQL (not a "language" for this rule) | Direct SQL per `database-direct.mdc` |
+| Config files | TOML, JSON, YAML | Standard formats, not executable code |
+
+## Rust Over Python — No Exceptions
+
+When a task could be solved in either Python or Rust, use Rust. This applies to:
+
+- Automation scripts (file processing, data transforms, API calls)
+- Background pollers and watchers
+- CLI utilities
+- Data parsing and validation
+- Anything that currently lives in a `.py` file
+
+### Migration Path for Existing Python
+
+Existing Python scripts under `.cursor/skills/` are grandfathered but should be rewritten in Rust when next modified. When touching a Python file:
+
+1. Assess whether the change is trivial (< 30 min to rewrite in Rust)
+2. If yes, rewrite the entire script in Rust and delete the `.py` file
+3. If no, make the Python change but file a TODO to rewrite
+
+### Why Not Python
+
+- Python requires a runtime and virtual environment on every machine
+- No compile-time type safety (mypy is opt-in and incomplete)
+- Dependency management fragility (pip, poetry, conda all solve the same problem differently)
+- Rust produces a single binary with no runtime deps — simpler to distribute and run
+
+## Script Organization
+
+| Type | Location | Runner |
+|---|---|---|
+| TypeScript scripts | `scripts/*.ts` | `bun run scripts/<name>.ts` |
+| Rust CLI tools | `tools/<name>/` | `cargo build --release` → `tools/<name>/target/release/<name>` |
+| Shell wrappers | `scripts/*.sh` | Delegate to Rust binary or `bun run` |
+
+### Rust Script Template
+
+New Rust scripts go in `tools/<name>/`:
+
+```
+tools/<name>/
+├── Cargo.toml
+├── Cargo.lock
+└── src/
+    └── main.rs
+```
+
+Use `clap` (derive API) for argument parsing, `anyhow` for error handling, and `serde` for config/data serialization.
+
+## When to Use Which
+
+| Signal | Use Rust | Use TypeScript |
+|---|---|---|
+| Needs React/Next.js | | x |
+| Runs in the browser | | x |
+| API route handler | | x |
+| CLI tool or daemon | x | |
+| CPU-bound processing | x | |
+| Needs single-binary distribution | x | |
+| One-off data transform script | x | |
+| Interacts heavily with Node ecosystem (npm packages) | | x |
+
+## Forbidden
+
+- Python (`.py`) for new code
+- Go, Ruby, Java, C#, or any other language
+- Bash scripts longer than 20 lines that aren't wrapping a Rust/TS command
+- `npx`/`bunx` to run random CLI tools — prefer a Rust binary or a `bun run` script
+
+## Swift Exception
+
+Swift is permitted exclusively for macOS-native GUI applications (`SkillsHubSetup/`, `apps/l1-triage/`, `DayPlanner/`). These are platform-specific UIs where Swift + SwiftUI is the only reasonable choice. No Swift outside of `.app` bundle projects.

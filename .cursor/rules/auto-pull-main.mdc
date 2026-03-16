@@ -1,0 +1,47 @@
+# Auto-Pull Main — Background LaunchAgent
+
+A macOS LaunchAgent keeps the primary worktree's local `main` in sync with `origin/main` automatically. It runs on login and stays alive in the background.
+
+## What It Does
+
+Every 60 seconds, `~/.cursor/scripts/auto-pull-main.sh` fetches `origin/main` and fast-forward merges the primary worktree. Feature worktrees always branch from a current `main` without manual `git pull`.
+
+## Locations
+
+| File | Purpose |
+|---|---|
+| `~/.cursor/scripts/auto-pull-main.sh` | The polling script (stable location, not branch-dependent) |
+| `~/Library/LaunchAgents/com.skills-hub.auto-pull-main.plist` | macOS LaunchAgent that starts it on login |
+| `~/.cursor/logs/auto-pull-main.log` | stdout/stderr log |
+| `scripts/auto-pull-main.sh` | Repo copy (canonical source — sync to `~/.cursor/scripts/` after changes) |
+
+## Management
+
+```bash
+# Check status
+launchctl list | grep auto-pull
+
+# View recent log
+tail -20 ~/.cursor/logs/auto-pull-main.log
+
+# Stop
+launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.skills-hub.auto-pull-main.plist
+
+# Start
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.skills-hub.auto-pull-main.plist
+
+# Restart (after editing the script)
+launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.skills-hub.auto-pull-main.plist
+cp scripts/auto-pull-main.sh ~/.cursor/scripts/auto-pull-main.sh
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.skills-hub.auto-pull-main.plist
+```
+
+## After Modifying the Script
+
+If `scripts/auto-pull-main.sh` is updated on a branch and merged to main, re-copy it to the stable location:
+
+```bash
+cp /Users/jdetlefs001/one/skills-hub/scripts/auto-pull-main.sh ~/.cursor/scripts/auto-pull-main.sh
+```
+
+The LaunchAgent picks up the change on next restart (or immediately if you `bootout` + `bootstrap`).

@@ -1,0 +1,52 @@
+---
+description: Ensure CTAs link to destinations and factual claims cite sources with verified URLs
+globs: "**/*.tsx"
+alwaysApply: false
+---
+
+# Actionable Links & Reference Citations
+
+Every call to action must link somewhere. Every factual claim about an external technology, standard, or organization must cite a source. Every link must resolve to a real page.
+
+## Calls to Action
+
+If text tells the user to do something — install, browse, submit, author, explore, get started — it must include a link to where they can do it.
+
+| Text pattern | Required link |
+|---|---|
+| "Install skills" / "Browse skills" | `/skills` |
+| "Submit feedback" / "gather feedback" | `/feedback` |
+| "View governance" / "Review queue" | `/governance` |
+| "MCP server" (as a feature reference) | `/mcp-servers` |
+| "See how it works" | `/about#stages` |
+| Specific skill name (e.g., "generate-uat") | `/skills/{slug}` |
+
+Use Next.js `<Link>` for internal routes. Style with `className="font-medium text-primary hover:underline"`.
+
+## Factual Claims & Technology References
+
+When copy references an external technology, standard, protocol, or organization by name, link to its official site on first mention within the component.
+
+| Reference | Verified URL |
+|---|---|
+| Model Context Protocol / MCP (spec) | `https://modelcontextprotocol.io` |
+| Anthropic | `https://www.anthropic.com` |
+| Cursor (general) | `https://cursor.com` |
+| Cursor MCP docs | `https://docs.cursor.com/en/context/mcp` |
+| Node.js | `https://nodejs.org` |
+| JSON-RPC | `https://www.jsonrpc.org/specification` |
+| GitHub tokens | `https://github.com/settings/tokens` |
+| Brave Search API | `https://brave.com/search/api` |
+| Slack API | `https://api.slack.com/apps` |
+
+Use `<a>` with `target="_blank" rel="noopener noreferrer"`. Style with `className="text-primary underline underline-offset-2 hover:text-primary-hover"`.
+
+## Before Adding a New External Link
+
+1. Verify the URL resolves (use `WebFetch` or `WebSearch`).
+2. Prefer official documentation over blog posts or third-party summaries.
+3. Link the most specific page (e.g., Cursor MCP docs, not just cursor.com) when the context warrants it.
+
+## Quick Self-Check
+
+Before shipping UI text, ask: "If I were a new user reading this, could I click through to do or learn what the text describes?" If not, add a link.

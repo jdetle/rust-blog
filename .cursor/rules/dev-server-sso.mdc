@@ -1,0 +1,20 @@
+# Dev Server — Always Start Mock SSO
+
+The `dev` script must always start both Next.js and the mock SSO server together. Never run Next.js alone as the default dev experience.
+
+## Script Layout
+
+| Script | What it does | When to use |
+|---|---|---|
+| `bun run dev` | Starts Next.js + mock SSO via `concurrently` | **Default — always use this** |
+| `bun run dev:next` | Starts Next.js only (no SSO) | Escape hatch for rare cases (e.g., debugging Next.js startup in isolation) |
+| `bun run sso:mock` | Starts mock SSO server only | Escape hatch for debugging SSO in isolation |
+
+## Rules
+
+1. **`dev` = both processes.** The `dev` script in `package.json` must run `concurrently` with both `dev:next` and `sso:mock`. If someone runs `bun run dev`, they get the full local environment including auth.
+2. **Never split them by default.** Don't create a `dev` script that only runs Next.js with a separate `dev:sso` that runs both. The combined behavior is the default, not the exception.
+3. **Makefile mirrors package.json.** `make dev` calls `bun run dev` (both). `make dev-next` calls `bun run dev:next` (Next.js only). No `make dev-sso` target.
+4. **Worktree setup prints `bun run dev`.** The `setup-worktree.sh` output tells users to run `bun run dev`, which starts both processes on the worktree's assigned ports.
+5. **`concurrently` is a devDependency.** It must be listed in `devDependencies` in `package.json`.
+6. **Port coordination.** The mock SSO server reads `MOCK_SSO_PORT` from the environment (default 4000). Worktrees use `.env.local` to assign unique port pairs (Next.js port + SSO port = Next.js port + 1000).

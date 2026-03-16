@@ -1,0 +1,55 @@
+---
+description: Prevent card Link elements from using inline display
+globs: ["src/**/*.tsx"]
+alwaysApply: false
+---
+
+# Card Link Display — Block-Level Links in Grid/Flex Layouts
+
+Next.js `<Link>` renders an `<a>` element, which defaults to `display: inline`. When a Link is styled as a card (with `bg-card`, `border`, `rounded-*`, `p-*`), the inline display causes the background and border to NOT fill the full grid cell. This produces partially-covered content — the background wraps the inline content box instead of filling the container.
+
+## The Rule
+
+Every `<Link>` that functions as a card — meaning it has a background color, border, padding, and multi-line content — MUST include an explicit display class:
+
+- `flex` (preferred for cards with vertically stacked content)
+- `block` (for simple cases)
+- `grid` (for complex layouts)
+
+### Correct
+
+```tsx
+<Link href="/skills" className="flex h-full flex-col rounded-xl border border-border bg-card p-5">
+  <div className="mb-3 flex items-center gap-2">...</div>
+  <p className="mb-auto text-xs text-muted">{description}</p>
+  <span className="mt-3 text-xs text-primary">Explore →</span>
+</Link>
+```
+
+### Wrong — inline display breaks card background
+
+```tsx
+<Link href="/skills" className="rounded-xl border border-border bg-card p-5">
+  <div className="mb-3 flex items-center gap-2">...</div>
+  <p className="text-xs text-muted">{description}</p>
+  <span className="mt-3 text-xs text-primary">Explore →</span>
+</Link>
+```
+
+## When This Applies
+
+- Any `<Link>` or `<a>` with `bg-card`, `bg-surface`, or any background color
+- Any `<Link>` inside a CSS Grid or Flexbox container
+- Any `<Link>` that contains block-level children (`<div>`, `<p>`, headings)
+
+## Additional Best Practices
+
+- Use `h-full` on card Links inside grids so all cards in a row have equal height
+- Use `flex flex-col` with `mb-auto` on the description to push the CTA to the bottom
+- The `e2e/card-layout.spec.ts` test enforces that card Links use block-level display
+
+## Origin
+
+- **Failure**: Card descriptions on the About page's "Get Started" section were partially hidden — the `<a>` element's `display: inline` caused `bg-card` to not fill the grid cell, leaving description text visible against the page background but overlapped by card border/background fragments
+- **Date**: 2026-03-11
+- **Root cause**: Next.js `<Link>` renders as `<a>` (inline by default); adding `bg-card`, `border`, and `rounded-xl` to an inline element doesn't create a proper box

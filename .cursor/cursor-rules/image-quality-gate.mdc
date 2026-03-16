@@ -1,0 +1,104 @@
+---
+description: Validate image quality and contextual relevance before committing cinema images or changing video IDs
+globs:
+  - public/cinema/**
+  - src/app/learn/(cinema)/_shared/cinema-data.ts
+alwaysApply: false
+---
+
+# Image Quality Gate — Resolution, Sharpness, and Relevance
+
+Every image added to `public/cinema/` and every YouTube `videoId` referenced in `cinema-data.ts` must pass three quality checks before committing: resolution floor, sharpness threshold, and contextual relevance. A fuzzy Star Trek thumbnail that doesn't show Captain Kirk is the class of failure this prevents.
+
+## The Three Checks
+
+### 1. Resolution Floor
+
+| Image source | Minimum resolution | How to verify |
+|---|---|---|
+| `public/cinema/*.jpg` (local overlays) | 1280 x 720 | `bun run scripts/validate-cinema-images.ts` or `sharp(path).metadata()` |
+| YouTube thumbnail (`maxresdefault.jpg`) | 1280 x 720 | HTTP HEAD check — if maxresdefault returns a 120x90 gray placeholder, the video lacks a high-res thumbnail and must be replaced |
+
+If a YouTube video doesn't have a `maxresdefault.jpg` (YouTube returns a small gray placeholder when it's missing), find an alternative clip that does. Never settle for `hqdefault.jpg` (480x360) as the canonical thumbnail.
+
+### 2. Sharpness (Laplacian Variance)
+
+Blurry images have low variance in their Laplacian (second derivative). The validation script computes this:
+
+| Score | Meaning |
+|---|---|
+| >= 500 | Sharp — crisp, detailed |
+| 100–499 | Acceptable — usable for 20% opacity overlays |
+| < 100 | Blurry — reject and find a better source |
+
+Run `bun run scripts/validate-cinema-images.ts` to check all images. The script reports per-image scores.
+
+### 3. Contextual Relevance (Vision Check)
+
+This check uses multimodal AI and cannot be automated in CI. The agent performs it at commit time.
+
+**Protocol when adding or changing an image:**
+
+1. **Read the image** using the Read tool (which supports jpeg/png/gif/webp)
+2. **Describe what you see**: identify people, setting, objects, movie/show if recognizable
+3. **Compare against metadata**: check the entry's `movie`, `scene`, `concept`, and `source` fields
+4. **Reject if the primary subject is not clearly identifiable**:
+   - If the entry says "Kirk cheats the Kobayashi Maru" and the image doesn't clearly show Kirk → reject
+   - If the entry says "The Borg" and the image shows a generic spaceship → reject
+   - If the entry says "The Dark Knight" and the image is from a different Batman film → reject
+5. **Document the result** in the commit message body: `Vision check: [description of what was verified]`
+
+### When to Run Each Check
+
+| Trigger | Resolution | Sharpness | Relevance |
+|---|---|---|---|
+| Adding/replacing `public/cinema/*.jpg` | Yes | Yes | Yes |
+| Changing a `videoId` in `cinema-data.ts` | Yes (check maxresdefault) | Yes (download and measure) | Yes |
+| Routine audit (`bun run scripts/validate-cinema-images.ts`) | Yes | Yes | No (manual) |
+
+## Running the Validation Script
+
+```bash
+bun run scripts/validate-cinema-images.ts
+```
+
+The script checks all local cinema images and all YouTube thumbnails referenced in `cinema-data.ts`. It reports a table with resolution, sharpness score, and pass/fail status. Non-zero exit code if any image fails.
+
+## Fixing Failures
+
+### YouTube thumbnail has no maxresdefault
+
+1. Search YouTube for an alternative clip of the same scene
+2. Verify the alternative has `maxresdefault.jpg`: `curl -sI "https://img.youtube.com/vi/NEW_ID/maxresdefault.jpg" | head -5`
+3. Check that the thumbnail isn't the 120x90 gray YouTube placeholder: `curl -s "https://img.youtube.com/vi/NEW_ID/maxresdefault.jpg" | identify -` (should be 1280x720)
+4. Update the `videoId` in `cinema-data.ts`
+
+### Local image is blurry or too small
+
+1. Find a higher-resolution source frame from the movie/show
+2. Resize to at least 1280x720 (prefer 1920x1080)
+3. Save as JPEG with quality >= 80
+4. Replace the file in `public/cinema/`
+
+### Image doesn't match its context
+
+1. Read the entry's `movie`, `scene`, and `concept` fields
+2. Search for a frame that clearly depicts the described scene
+3. The primary subject (character, ship, setting) must be immediately recognizable
+4. Prefer iconic frames: Kirk in the captain's chair, the Borg cube, the ferry with Joker
+
+## Anti-Patterns
+
+| Pattern | Problem | Fix |
+|---|---|---|
+| Using `hqdefault.jpg` because it's "good enough" | 480x360 is visibly pixelated on retina displays | Find a clip with `maxresdefault.jpg` |
+| Downloading a random Google Image result | Unknown resolution, potential copyright issues | Use YouTube thumbnails or properly licensed stills |
+| Accepting the first search result without vision check | Image may not show the expected subject | Always Read the image and verify content |
+| Using a movie poster instead of a scene frame | Posters don't convey the specific scene being discussed | Use an actual frame from the described scene |
+
+## Origin
+
+- **Failure**: `public/cinema/unwinnable-games.jpg` was a fuzzy, low-resolution thumbnail that didn't clearly show Captain Kirk in the Kobayashi Maru scene
+- **Date**: 2026-03-16
+- **Root cause**: No quality or relevance gate — images were committed without checking resolution, sharpness, or whether the content matched the entry's described scene
+- **PR**: fix/cinema-kobayashi-overlays (#197)

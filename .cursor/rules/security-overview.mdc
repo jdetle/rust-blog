@@ -1,0 +1,216 @@
+---
+description: Security architecture, validation strategy, and anti-hallucination system
+globs:
+alwaysApply: true
+slug: security-overview
+title: Security Overview
+domain: security
+ruleType: broad
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - security
+  - validation
+  - grounding
+  - threat-model
+---
+
+# Security Overview
+
+The Skills Hub serves data to both browsers (HTTP) and AI agents (MCP/stdio). Security threats come from two directions: traditional web attacks against the API, and hallucination risks when AI agents relay data to end users. The system addresses both with layered validation.
+
+## Threat Model
+
+| Threat | Vector | Mitigation |
+|--------|--------|------------|
+| SQL injection | Query params, slugs | Parameterized queries everywhere (better-sqlite3 `?` placeholders) |
+| Invalid enum values | Category, domain, status columns | Zod validation at API boundary + CHECK constraints in schema.sql |
+| XSS | Rendered skill/rule content | React auto-escapes all interpolated content; no `dangerouslySetInnerHTML` |
+| Oversized input | Search queries, feedback text | Zod `.max()` limits + SQL CHECK length constraints |
+| AI hallucination | LLM fabricates skills, versions, or properties | Grounding system: content fingerprints, source citations, verification tool |
+| Stale data presented as current | AI caches old responses | `retrievedAt` timestamp in grounding metadata; consumers can reject stale data |
+| Invalid data in DB | Seed or future write paths | SQL CHECK constraints enforce enum values and length bounds at storage layer |
+| Referential integrity violations | Orphaned versions, entries, deps | Foreign keys ON DELETE CASCADE enforced via `PRAGMA foreign_keys = ON` |
+
+## Validation Layers
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Layer 1: Input Validation (src/lib/validation.ts)          │
+│  Zod schemas validate all external input at the boundary    │
+│  - API routes: search params, slugs, pagination             │
+│  - MCP tools: query, category, limit, slug, method          │
+│  - Feedback: email, category, title, description            │
+├─────────────────────────────────────────────────────────────┤
+│  Layer 2: Type Safety (src/types/index.ts)                  │
+│  TypeScript interfaces mirror DB columns 1:1                │
+│  - Compile-time enforcement across all callsites            │
+│  - Union types for enums: Category, RuleDomain, etc.        │
+│  - Type assertions at DB boundary: `as SkillRow | undefined`│
+├─────────────────────────────────────────────────────────────┤
+│  Layer 3: Database Constraints (schema.sql)                 │
+│  SQL CHECK constraints are the last line of defense         │
+│  - Enum CHECK: category IN ('documentation', 'testing', ...)│
+│  - Length CHECK: length(name) BETWEEN 1 AND 256             │
+│  - Boolean CHECK: isDeprecated IN (0, 1)                    │
+│  - NOT NULL, UNIQUE, FOREIGN KEY with ON DELETE CASCADE     │
+├─────────────────────────────────────────────────────────────┤
+│  Layer 4: Grounding System (src/lib/grounding.ts)           │
+│  Anti-hallucination for AI consumers                        │
+│  - Content fingerprints (HMAC-SHA256) on every MCP response │
+│  - Source citations: { table, id, retrievedAt }             │
+│  - Verification tool: agents check claims before presenting │
+│  - Ground truth index: compact catalog for cross-reference  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Anti-Hallucination System
+
+### Problem
+
+When an AI agent queries the Skills Hub MCP server and relays results to a user, the LLM may:
+1. Fabricate a skill that doesn't exist ("the `auto-deploy-k8s` skill handles this")
+2. Misattribute properties ("this skill is in the testing category" when it's in devops)
+3. Invent version numbers or changelog entries
+4. Present stale cached data as current
+
+### Solution: Grounded Responses
+
+Every MCP tool response wraps data in a `GroundedResponse<T>` envelope:
+
+```json
+{
+  "data": { ... },
+  "_grounding": {
+    "fingerprint": "a3f8b2c1d4e5f6a7",
+    "sources": [
+      { "table": "Skill", "id": "clx...", "retrievedAt": "2026-02-22T..." }
+    ],
+    "retrievedAt": "2026-02-22T10:30:00.000Z",
+    "dataHash": "b7c8d9e0f1a2"
+  }
+}
+```
+
+- **fingerprint**: HMAC-SHA256 of canonical JSON (sorted keys) — verifies data was produced by this server, not fabricated. Requires `GROUNDING_HMAC_KEY` env var (min 32 chars).
+- **sources**: exact database table and row ID for every piece of data in the response
+- **retrievedAt**: when the data was read from the database — consumers can set a staleness window
+- **dataHash**: SHA-256 of the response content — detects any modification after retrieval
+
+### HMAC Key Configuration
+
+The HMAC key is loaded from the `GROUNDING_HMAC_KEY` environment variable. It must be at least 32 characters. There is no hardcoded default — the server will fail to start without it.
+
+```bash
+# Generate a key:
+openssl rand -base64 48
+```
+
+Add to `.env`:
+```
+GROUNDING_HMAC_KEY="your-generated-key-here"
+```
+
+### Verification Tools
+
+Three MCP tools exist specifically for hallucination prevention:
+
+**`skills_verify_claim`** — agents call this to verify a specific factual claim before presenting it:
+- `skill_exists`: does slug X exist in the database?
+- `skill_has_version`: does skill X have version Y?
+- `skill_in_category`: is skill X in category Y?
+- `rule_exists`: does rule slug X exist?
+- `rule_in_domain`: is rule X in domain Y?
+
+Returns `{ verified: true/false, evidence: "..." }` with the actual database value.
+
+**`skills_verify_fingerprint`** — agents call this to verify that a grounded response is authentic and unmodified. Pass the `data` object and `_grounding.fingerprint` / `_grounding.dataHash` from a prior response. Returns `{ fingerprintValid, dataHashValid, authentic }`.
+
+**`skills_ground_truth_index`** — returns a compact list of every skill slug/name/category and every rule slug/title/domain. Agents should fetch this before generating responses that reference specific skills or rules. If a slug isn't in the index, it doesn't exist.
+
+### Usage Pattern for AI Agents
+
+```
+1. Agent receives user question about skills
+2. Agent calls skills_ground_truth_index to get valid slugs
+3. Agent calls skills_search or skills_get_detail
+4. Agent calls skills_verify_fingerprint to confirm response authenticity
+5. Agent calls skills_verify_claim on any facts it plans to state
+6. Agent presents verified information with source citations
+```
+
+## Parameterized Queries
+
+All database access uses `better-sqlite3` prepared statements with `?` placeholders. No string concatenation of user input into SQL.
+
+```typescript
+// Correct — parameterized
+db.prepare("SELECT * FROM Skill WHERE slug = ?").get(slug)
+
+// Correct — dynamic IN clause with placeholder per value
+db.prepare(`SELECT * FROM ChangelogEntry WHERE versionId IN (${ids.map(() => "?").join(",")})`).all(...ids)
+```
+
+The `?` placeholder pattern is enforced project-wide. The database layer (`src/lib/skills.ts`, `src/lib/rules.ts`, `src/lib/feedback.ts`) contains all SQL — components and API routes never construct queries directly.
+
+## Input Validation (src/lib/validation.ts)
+
+Shared Zod schemas validate inputs at the API boundary. The same enum values used in Zod schemas match the CHECK constraints in `schema.sql` and the TypeScript union types in `src/types/index.ts` — one source of truth across all three layers.
+
+| Schema | Used by | Validates |
+|--------|---------|-----------|
+| `skillSearchParams` | `GET /api/skills` | `q` (max 256 chars), `category` (enum) |
+| `ruleSearchParams` | `GET /api/rules` | `q` (max 256 chars), `domain` (enum) |
+| `slugSchema` | Slug route params | Lowercase alphanumeric + hyphens, max 128 |
+| `feedbackInput` | Feedback submission | Email, category, title (3-256), description (10-5000) |
+| `paginationSchema` | Any paginated endpoint | `limit` (1-100), `offset` (>= 0) |
+
+Invalid input returns `400 Bad Request` with a structured error message.
+
+## Schema Constraints (schema.sql)
+
+Every enum column has a CHECK constraint. Every text column with user-facing content has length bounds. Boolean columns are constrained to `(0, 1)`. These constraints fire even if application validation is bypassed (direct DB access, seed scripts, migrations).
+
+## Authentication
+
+Skills Hub uses Microsoft Entra ID (Azure AD) for SSO via OIDC Authorization Code flow with PKCE.
+
+### Flow
+
+1. `AuthGate` (layout-level) redirects unauthenticated users to `/api/auth/sso/login`
+2. Login route generates PKCE `code_verifier`/`code_challenge`, stores verifier + nonce in httpOnly cookies, redirects to Entra ID's `/authorize` endpoint
+3. User authenticates with Microsoft, Entra ID redirects to `/api/auth/sso/callback` with an authorization code
+4. Callback exchanges code for tokens (with PKCE verifier), validates `id_token` (JWKS + nonce), checks group membership via Microsoft Graph
+5. Sets two cookies: `skills_hub_session` (DB-backed session) and `skills_hub_jwt` (signed JWT for governance routes)
+
+### Security Properties
+
+- **PKCE (S256)**: Prevents authorization code interception attacks. Verifier stored in httpOnly cookie, challenge sent to IdP.
+- **Nonce validation**: `id_token` nonce checked against cookie-stored nonce to prevent replay attacks.
+- **CSRF via cookie binding**: The nonce cookie is httpOnly + same-site, so cross-origin callbacks can't supply it.
+- **Group-based access**: Users must be members of the configured Entra security group (`SSO_GROUP_ID`). Admin features require membership in `SSO_ADMIN_GROUP_ID`.
+
+### Dual Cookie System
+
+| Cookie | Mechanism | Used by |
+|--------|-----------|---------|
+| `skills_hub_session` | DB-backed token, set on SSO callback | Session-based API routes (feedback, personas, subscriptions, secrets) |
+| `skills_hub_jwt` | Signed JWT (HS256), set on SSO callback | Middleware, governance routes, impersonation |
+
+Both cookies are set simultaneously on SSO login. Logout clears both.
+
+### Configuration
+
+See `docs/entra-id-setup.md` for the full Azure Portal registration walkthrough. Env vars: `SSO_ENABLED`, `SSO_TENANT_ID`, `SSO_CLIENT_ID`, `SSO_CLIENT_SECRET`, `SSO_AUTHORITY`, `SSO_REDIRECT_URI`, `SSO_GROUP_ID`, `SSO_ADMIN_GROUP_ID`, `SSO_GRAPH_URL`.
+
+For local development, `SSO_ENABLED=false` uses the mock SSO server (`scripts/mock-sso/`) which replicates the full OIDC flow including PKCE validation.
+
+## What We Don't Do (and Why)
+
+| Feature | Status | Rationale |
+|---------|--------|-----------|
+| Token refresh | Not implemented | Session expiry + re-auth is acceptable for a catalog app; refresh adds complexity without clear UX benefit |
+| MSAL library | Not used | Raw OIDC with `jose` is lighter and sufficient; MSAL adds ~200KB for features we don't need |
+| Rate limiting | Wired for auth, feedback | `RateLimitEntry` table used for `auth:login` and `feedback:submit` actions |
+| CSP headers | Configured in next.config.ts | `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Strict-Transport-Security`, `Permissions-Policy` |
+| CORS | Default Next.js behavior | Tighten when deploying behind a specific domain |

@@ -1,0 +1,31 @@
+---
+description: Positioning guide for any user-facing or marketing copy in Skills Hub
+alwaysApply: true
+slug: marketing-copy
+title: Marketing Copy — Audience Positioning
+domain: accessibility
+ruleType: narrow
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - copy
+  - audience
+  - inclusive-language
+  - marketing
+---
+
+# Marketing Copy — Audience Positioning
+
+Skills Hub serves all PwC professionals, not just engineers. Every piece of user-facing copy must reflect this.
+
+## Rules
+
+1. **Never frame Skills Hub as an engineering tool.** It is an AI skills platform for tax, audit, advisory, consulting, risk, and technology professionals alike.
+2. **Don't assume technical literacy.** Avoid jargon like "MCP server," "stdio transport," or "slug" in any copy a user would read. Translate to plain language: "AI-powered tools," "install this skill," "browse the catalog."
+3. **Lead with the workflow, not the technology.** Users care about what a skill does for their work — automating document reviews, generating reports, triaging tickets — not how it's implemented.
+4. **Use role-diverse examples.** When copy lists use cases or personas, always include at least one non-engineering example (e.g., "an audit manager reviewing workpapers" or "a tax associate generating client memos").
+5. **Hero and landing page copy must be domain-neutral.** No hero text should mention "developers," "engineers," or "coding" without equally representing other functions.
+
+## Quick Self-Check
+
+Before shipping any UI text, heading, or description, ask: "Would a senior manager in Advisory understand this and feel like it's for them?" If not, rewrite it.

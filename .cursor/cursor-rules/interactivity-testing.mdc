@@ -1,0 +1,98 @@
+---
+description: Every interactive component must have tests covering all exit paths, scroll restoration, and navigation side effects
+globs: "**/*.test.tsx"
+alwaysApply: false
+---
+
+# Interactivity Testing — Cover Every Exit Path
+
+Testing interactive components (overlays, modals, onboarding flows, drawers, accordions) for the happy path is not enough. The most dangerous bugs happen on the exit paths that nobody tests.
+
+## The Rule
+
+Every interactive component must be tested for its **complete lifecycle**: mount → all possible interactions → all possible exit paths → cleanup. If a user can reach a state, there must be a test that reaches it and verifies the aftermath.
+
+## Required Test Categories
+
+### 1. Mount state
+
+Verify the component renders correctly and applies any side effects (body scroll lock, focus trap, aria attributes).
+
+### 2. Happy path completion
+
+Test the intended flow end-to-end: user opens overlay → interacts → dismisses via primary CTA → component unmounts cleanly.
+
+### 3. Every exit path
+
+A component can be exited by more than the primary dismiss button. Test all of them:
+
+| Exit path | Example | What to verify |
+|---|---|---|
+| Primary CTA | "Enter Skills Hub" button | Dismisses, restores state, fires callbacks |
+| Close/X button | Top-right X icon | Same as primary CTA |
+| Escape key | `keydown` Escape event | Same as primary CTA |
+| Skip/shortcut | "Skip intro" link | Same as primary CTA |
+| Navigation away | `router.push` from inside the component | Side effects cleaned up before navigation |
+| Unmount by parent | Parent conditionally stops rendering the component | Effect cleanups run, no leaked state |
+| Browser back/forward | `popstate` event | Component handles or allows gracefully |
+
+### 4. Side effect cleanup
+
+Any side effect applied on mount or during interaction must be verified to be cleaned up on every exit path:
+
+| Side effect | Mount assertion | Cleanup assertion |
+|---|---|---|
+| `body.style.overflow = "hidden"` | `expect(document.body.style.overflow).toBe("hidden")` | `expect(document.body.style.overflow).toBe("")` |
+| Focus trap | `expect(document.activeElement).toBe(firstFocusable)` | Focus returns to trigger element |
+| Event listeners | N/A (test via interaction) | No orphaned listeners (test via unmount + interact) |
+| Timers | N/A | No pending timers post-unmount |
+| `aria-hidden` on siblings | Siblings have `aria-hidden="true"` | `aria-hidden` removed |
+
+### 5. Phase transitions (multi-step flows)
+
+For components with multiple phases/steps (onboarding, wizards, tutorials):
+
+- Test forward progression through every phase
+- Test backward navigation if supported
+- Test skip/jump if supported
+- Test that each phase transition preserves or correctly updates side effects
+- Test the boundary between the last interactive phase and cleanup/navigation
+
+### 6. State persistence
+
+If the component writes to `localStorage`, `sessionStorage`, cookies, or URL params:
+
+- Verify writes happen at the correct moment
+- Verify reads on re-mount produce the correct state
+- Verify clearing storage resets the component
+
+## Unmount Test Template
+
+Every component that applies body-level side effects must include this test pattern:
+
+```tsx
+test("cleans up on unmount without user interaction", () => {
+  const { unmount } = render(<Component />);
+  // Verify side effects are applied
+  expect(document.body.style.overflow).toBe("hidden");
+
+  // Simulate abrupt unmount (parent stops rendering, navigation, etc.)
+  unmount();
+
+  // Verify all side effects are cleaned up
+  expect(document.body.style.overflow).toBe("");
+});
+```
+
+## When This Applies
+
+- Writing tests for overlays, modals, drawers, sheets, tooltips
+- Writing tests for onboarding flows, tutorials, wizards
+- Writing tests for any component that uses `document.body.style`, `addEventListener` on `window`/`document`, or `setTimeout`/`setInterval`
+- Reviewing test coverage for interactive components
+
+## Relationship to Other Rules
+
+- **`scroll-lock-safety.mdc`** — specifically covers `body.style.overflow` mutations and their required cleanup + tests
+- **`responsive-testing.mdc`** — covers viewport-specific testing; interactivity tests should pass on all viewports
+- **`bun-testing-best-practices`** skill — covers general test quality principles

@@ -1,0 +1,80 @@
+---
+description: Conventional Commits - enforce commit format and PR commit storytelling
+alwaysApply: true
+---
+
+# Conventional Commits
+
+All commits in this repository MUST follow the [Conventional Commits](https://www.conventionalcommits.org/) specification.
+
+## Format
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+## Allowed Types
+
+| Type | When to use |
+|------|-------------|
+| `feat` | A new feature or capability |
+| `fix` | A bug fix |
+| `docs` | Documentation-only changes (README, SKILL.md, CHANGELOG, comments) |
+| `style` | Formatting, whitespace, linting — no logic changes |
+| `refactor` | Code restructuring without changing behavior |
+| `test` | Adding or updating tests |
+| `chore` | Build, CI, tooling, dependency updates |
+| `perf` | Performance improvements |
+| `ci` | CI/CD configuration changes |
+| `revert` | Reverting a previous commit |
+
+## Rules
+
+1. **Type is required** — every commit message starts with a type prefix followed by a colon and space.
+2. **Description is lowercase** — do not capitalize the first word after the colon (e.g., `feat: add miro skill` not `feat: Add miro skill`).
+3. **No period at the end** — the subject line does not end with a period.
+4. **Scope is optional** — use it to clarify which module/skill is affected (e.g., `fix(compare-deep-dives): handle empty cells`).
+5. **Breaking changes** — append `!` after the type/scope (e.g., `feat!: rename skill directory`) or add a `BREAKING CHANGE:` footer.
+6. **Body wraps at 72 characters** — the optional body provides context for *why*, not *what*.
+7. **Imperative mood** — write "add feature" not "added feature" or "adds feature".
+
+## PR Commit Storytelling
+
+Each PR's commits should read like a linear narrative — a reviewer reading them top-to-bottom should understand *how* the work evolved, not just *what* changed.
+
+### Principles
+
+1. **One logical change per commit.** A commit that adds a feature AND fixes a lint error is two commits.
+2. **Order commits by dependency.** Infrastructure before the code that uses it. Schema before queries. Types before implementations.
+3. **Scaffolding first, behavior second, polish last.** A typical PR reads:
+   - `chore:` or `refactor:` — prep work (new files, dependency changes, config)
+   - `feat:` or `fix:` — the core change
+   - `test:` — tests for the core change
+   - `docs:` — documentation, changelogs, README updates
+   - `style:` — formatting cleanup (always last)
+4. **Each commit should leave the repo in a passing state.** Don't commit broken code with a "fix it in the next commit" plan — squash or reorder so every commit is green.
+5. **Don't mix refactoring with behavior changes.** If you need to refactor something to enable a feature, that's two commits: one `refactor:` and one `feat:`.
+
+### Anti-patterns
+
+- **"WIP" commits** — squash these before pushing. The reviewer doesn't need your save points.
+- **"fix lint" after every feature commit** — run the formatter *before* committing the feature.
+- **One giant commit** — if the diff is 500+ lines, find the seams and split it.
+- **Interleaved concerns** — don't alternate between test/feat/test/feat. Group by concern.
+
+### Example: well-structured PR
+
+```
+chore: add python-docx dependency for UAT generation
+feat(generate-uat): implement core document builder
+feat(generate-uat): add chat export parser
+test(generate-uat): add parametrized tests for builder and parser
+docs(generate-uat): add SKILL.md and CHANGELOG entry
+docs(readme): add generate-uat to skills catalog
+```
+
+Each commit builds on the last. A reviewer can read them in order and understand exactly how the skill was built.

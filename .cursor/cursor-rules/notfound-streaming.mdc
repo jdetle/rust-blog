@@ -1,0 +1,26 @@
+# notFound() and Streaming — 404 Status Caveat
+
+When any route in the rendering chain has a `loading.tsx` file, Next.js wraps the page in a Suspense boundary and **streams** the response. The HTTP status code (200) is sent with the initial shell *before* the page component runs. If the page later calls `notFound()`, the not-found UI renders correctly but the **HTTP status remains 200**, not 404.
+
+This affects any dynamic route whose parent chain includes a `loading.tsx` — even the root `src/app/loading.tsx` propagates Suspense to all child routes.
+
+## Rules
+
+1. **Test not-found behavior by asserting UI content, not HTTP status.** For page-level routes with streaming, the HTTP status is unreliable. Assert the not-found heading and navigation elements instead:
+   ```typescript
+   await page.goto("/skills/nonexistent-slug");
+   await expect(page.locator("h1")).toContainText("Page not found");
+   ```
+2. **API routes CAN assert HTTP 404.** API routes don't use Suspense/streaming, so `expect(response.status()).toBe(404)` is correct for `/api/skills/:slug`.
+3. **Always call `notFound()` in the page component** even though the HTTP status is 200. The not-found UI still renders correctly for the user.
+4. **Do not add `loading.tsx` to `[slug]` directories.** While the parent loading.tsx already causes streaming, a local one adds unnecessary Suspense nesting and a misleading skeleton for routes that should show not-found.
+
+## Affected Routes
+
+| Route | Has notFound()? | Test strategy |
+|---|---|---|
+| `/skills/[slug]` | Yes | Assert "Page not found" text |
+| `/rules/[slug]` | Yes | Assert "Page not found" text |
+| `/personas/[id]` | Yes | Assert "Page not found" text |
+| `/api/skills/[slug]` | Yes (JSON 404) | Assert HTTP 404 status |
+| `/api/rules/[slug]` | Yes (JSON 404) | Assert HTTP 404 status |

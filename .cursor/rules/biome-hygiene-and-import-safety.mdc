@@ -1,0 +1,31 @@
+---
+description: Prevent recurring Biome and import-safety regressions
+alwaysApply: true
+---
+
+# Biome Hygiene and Import Safety
+
+Apply these rules to all JS/TS work, especially in `apps/command-center/modules/web`.
+
+## Required Workflow
+
+- Before finishing a JS/TS change, run:
+  - `bunx biome check --write .` in the touched package
+  - then `bun run lint` from that package
+- Never leave "would have printed" formatter diffs unresolved.
+- Never leave "organize imports" diagnostics unresolved.
+
+## Import Rules
+
+- Always use `node:` protocol for Node.js builtins (for example `node:path`, `node:fs`).
+- Keep imports sorted according to Biome's organize-imports output.
+
+## Safety Rules
+
+- Avoid non-null assertions (`!`) in DOM bootstrapping and runtime critical paths.
+- For React root mounting, guard `document.getElementById(...)` and throw a clear error if absent.
+
+## Enforcement
+
+- If Biome reports any error, warning, or info in changed files, the change is not done.
+- Prefer fixing issues with code changes rather than suppressing diagnostics.

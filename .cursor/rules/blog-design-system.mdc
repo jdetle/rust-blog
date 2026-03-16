@@ -1,0 +1,49 @@
+---
+description: Apply wabi-sabi mid-century editorial design system to homepage and all blog post pages
+alwaysApply: true
+---
+
+# Blog Design System
+
+Use this visual direction for all edits to `index.html` and `posts/*.html`:
+
+- Aesthetic: wabi-sabi + mid-century modern.
+- Inspiration baseline: New York Times editorial rhythm + Apple clarity and restraint.
+- Tone: calm, warm, imperfect-on-purpose, content-first.
+
+## Required Style System
+
+- Shared stylesheet source of truth: `posts/blog.css`.
+- Pages must link the shared stylesheet with:
+  - `<link rel="stylesheet" href="/posts/blog.css">`
+- Reuse existing CSS primitives instead of creating one-off inline styles:
+  - `.site-shell`, `.frame`, `.article`, `.eyebrow`, `.page-title`, `.byline`, `.article-content`, `.nav-row`
+
+## Required Structure For Posts
+
+For every `posts/<id>.html`:
+
+1. Use semantic sections:
+   - `main.site-shell`
+   - `div.frame.article`
+   - `header.list-header`
+   - `article.article-content`
+   - `nav.nav-row`
+2. Include navigation links to:
+   - `/posts`
+   - `/`
+3. Keep copy readable:
+   - body text line length near editorial width
+   - generous whitespace and clear hierarchy
+
+## Homepage Rules
+
+- `index.html` should use the same stylesheet and primitives.
+- Keep hierarchy clear: masthead -> leading statement -> concise context -> supporting panel.
+- Prefer muted, earthy palette and subtle texture over bright gradients or glassy effects.
+
+## Do Not
+
+- Do not add inline `<style>` blocks for blog/page styling unless fixing an urgent issue.
+- Do not switch to saturated neon palettes or heavy animation.
+- Do not break route assumptions (`/`, `/posts`, `/posts/:id`).

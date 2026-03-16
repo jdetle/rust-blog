@@ -1,0 +1,51 @@
+---
+description: Background conflict resolution — poll open PRs for merge conflicts and spawn subagents to resolve them
+alwaysApply: true
+---
+
+# Neat Queue — Background Conflict Resolution
+
+At the **start of every agent session** that will produce code changes (not read-only Q&A), and again **after every `git push`**, spawn a background subagent to detect and resolve merge conflicts across open PRs.
+
+## Trigger
+
+1. **Session start**: After setting up the worktree and before starting the primary task, launch a `generalPurpose` subagent with the prompt below.
+2. **Post-push**: After any `git push` (which may have introduced new conflicts on other branches), launch the same subagent.
+
+The subagent runs in parallel with the primary work — it should not block the main task.
+
+## Subagent Prompt
+
+Launch with `subagent_type: "generalPurpose"` and this prompt (fill in `{owner/repo}`):
+
+```
+Read the skill at .cursor/skills/neat-queue/SKILL.md, then:
+
+1. Run: bash .cursor/skills/neat-queue/scripts/detect-conflicts.sh {owner/repo}
+2. If no conflicts found, report "No conflicting PRs" and stop.
+3. For each conflicting PR (up to 3), follow the full resolution workflow in the skill:
+   - Fetch and attempt local merge to surface conflict markers
+   - Analyze each hunk using the decision framework (branch wins / base wins / compromise / flag for human)
+   - If NEAT_QUEUE_DRY_RUN is true (default), report what you would do without pushing
+   - If NEAT_QUEUE_DRY_RUN is false, validate with tests and push the resolution
+4. Return a summary: which PRs were checked, which had conflicts, what resolution was chosen per file, and whether anything was flagged for human review.
+```
+
+## Cadence
+
+| Event | Action |
+|---|---|
+| Agent session starts (code-producing) | Spawn subagent once |
+| After `git push` | Spawn subagent once |
+| Subagent reports conflicts resolved | No re-check needed this session |
+| Subagent reports human-review flags | Notify user via `hooks/notify.sh` |
+
+Do not poll in a loop — one check per trigger event is sufficient.
+
+## Opting Out
+
+Set `alwaysApply: false` in this rule's frontmatter to disable background polling. The skill at `.cursor/skills/neat-queue/SKILL.md` remains available for manual invocation.
+
+## Skill Reference
+
+See `.cursor/skills/neat-queue/SKILL.md` for the full conflict detection, analysis, and resolution workflow.

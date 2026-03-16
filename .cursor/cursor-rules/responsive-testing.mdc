@@ -1,0 +1,154 @@
+---
+description: Require mobile and tablet viewport testing in Playwright e2e tests, with intermittent OCR-based visual bug detection
+alwaysApply: true
+slug: responsive-testing
+title: Responsive & Visual Testing
+domain: testing
+ruleType: narrow
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - playwright
+  - viewport
+  - e2e
+  - visual-testing
+---
+
+# Responsive & Visual Testing
+
+Every Playwright e2e test that exercises UI must run against mobile, tablet, and desktop viewports. Intermittently use screenshot + vision analysis to catch design bugs that assertions alone miss.
+
+## Required Viewports
+
+The Playwright config must define three projects beyond any API-only project:
+
+| Name | Width × Height | Device | Use case |
+|---|---|---|---|
+| `mobile` | 375 × 812 | iPhone 14-class | Touch, stacked layouts, hamburger nav |
+| `tablet` | 768 × 1024 | iPad-class | Split layouts, sidebar collapse |
+| `desktop` | 1280 × 720 | Laptop | Full layout, multi-column grids |
+
+```typescript
+// playwright.config.ts — projects array
+import { devices } from "@playwright/test";
+
+projects: [
+  {
+    name: "mobile",
+    use: { ...devices["iPhone 14"] },
+  },
+  {
+    name: "tablet",
+    use: { ...devices["iPad (gen 7)"] },
+  },
+  {
+    name: "desktop",
+    use: { browserName: "chromium", viewport: { width: 1280, height: 720 } },
+  },
+]
+```
+
+## Writing Viewport-Aware Tests
+
+Tests should pass on all three viewports without modification. If a test needs viewport-specific logic, use `test.info().project.name`:
+
+```typescript
+test("navigation is accessible", async ({ page }) => {
+  await page.goto("/");
+  const project = test.info().project.name;
+
+  if (project === "mobile") {
+    await page.getByRole("button", { name: /menu/i }).click();
+  }
+
+  await expect(page.getByRole("link", { name: /skills/i })).toBeVisible();
+});
+```
+
+Avoid skipping viewports. If a feature genuinely doesn't apply at a breakpoint, use `test.skip()` with a reason, not `test.fixme()`.
+
+## OCR Visual Bug Detection
+
+After completing a batch of UI changes, intermittently run a screenshot sweep and analyze with vision to catch bugs that DOM assertions miss: text overflow, overlapping elements, broken alignment, invisible-on-background text, truncated cards, and z-index collisions.
+
+### When to Run
+
+- After any layout, spacing, or typography change
+- After adding new components or pages
+- Before opening a PR that touches `globals.css`, layout files, or shared components
+- At least once per PR that modifies `src/app/**/*.tsx` or `src/components/**/*.tsx`
+
+### How to Run
+
+1. **Capture screenshots** at each viewport for every affected route:
+
+```typescript
+// e2e/visual-sweep.spec.ts
+import { test } from "@playwright/test";
+
+const routes = [
+  "/",
+  "/skills",
+  "/skills/compare-deep-dives",
+  "/rules",
+  "/changelog",
+  "/feedback",
+  "/governance",
+  "/personas",
+  "/mcp-servers",
+];
+
+for (const route of routes) {
+  test(`visual sweep ${route}`, async ({ page }) => {
+    await page.goto(route);
+    await page.waitForLoadState("networkidle");
+    await page.screenshot({
+      path: `screenshots/${test.info().project.name}${route.replace(/\//g, "-") || "-home"}.png`,
+      fullPage: true,
+    });
+  });
+}
+```
+
+2. **Analyze with browser MCP vision** — open each screenshot and look for:
+   - Text clipped or overflowing its container
+   - Elements overlapping that shouldn't be
+   - Touch targets smaller than 44×44px on mobile
+   - Horizontal scroll on mobile (content wider than viewport)
+   - Blank areas where content should be
+   - Color contrast failures — verify text/background pairings against the approved table in `color-contrast.mdc`. Semantic colors (`success`, `warning`, `error`, `accent`) used as text must use their `-text` variants.
+   - Cards or grid items with inconsistent heights
+
+3. **Use `toHaveScreenshot()` for regression** — once a page looks correct, lock it in:
+
+```typescript
+test("home page visual regression", async ({ page }) => {
+  await page.goto("/");
+  await page.waitForLoadState("networkidle");
+  await expect(page).toHaveScreenshot({ maxDiffPixelRatio: 0.01 });
+});
+```
+
+### What to Fix Immediately
+
+- Horizontal overflow on mobile (anything causing a scrollbar)
+- Text truncated mid-word without ellipsis
+- Overlapping interactive elements (buttons, links)
+- Content invisible due to same-color text/background
+
+### What to Log as a Follow-Up
+
+- Minor alignment imperfections (1-2px)
+- Suboptimal but functional spacing
+- Aesthetic preferences without usability impact
+
+## Rules
+
+1. Never ship a Playwright config with only a desktop project. All three viewports are required.
+2. Every new e2e test file must pass on mobile, tablet, and desktop before merging.
+3. Run the visual sweep at least once per UI-touching PR. Fix blocking issues; log minor ones.
+4. When the browser MCP is available, prefer vision analysis over manual screenshot review.
+5. Store screenshots in `screenshots/` (gitignored) — they are ephemeral artifacts, not committed.
+6. After fixing any responsive issue, run `npx playwright test e2e/visual-sweep.spec.ts` to regenerate screenshots and verify the fix across all viewports.
+7. See `.cursor/rules/responsive-design.mdc` for implementation patterns (content priority tiers, breakpoint conventions, progressive hiding).
+8. See `.cursor/rules/color-contrast.mdc` for WCAG AA contrast requirements, approved text/background pairing table, and `-text` token variants for semantic colors.

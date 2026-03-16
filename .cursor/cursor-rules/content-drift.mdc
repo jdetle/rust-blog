@@ -1,0 +1,48 @@
+---
+description: Prevent content changes from being lost when feature branches sit unmerged
+globs:
+alwaysApply: true
+---
+
+# Content Drift — Learned from cinema overlay images & Kobayashi Maru swap lost across branches
+
+The cinema learning experience had two content changes (`feat/cinema-overlays` with 27 background images, and a planned WarGames→Kobayashi Maru swap) that lived on feature branches for weeks without being merged to `origin/main` via GitHub PR. A local "sweep everything" session merged them into a local `main` but the push either never happened or was overwritten by subsequent work. The content was silently lost — no error, no test failure, just missing images and stale data that only a human would notice.
+
+## The Rule
+
+Content-only branches (images, copy, data changes with no code dependencies) must be merged to `origin/main` within 24 hours of creation. They have no merge conflicts worth worrying about and no CI risk. Letting them sit on feature branches is how content gets lost.
+
+### Classification
+
+| Branch type | Max age before merge | Why |
+|---|---|---|
+| Content-only (images, copy, static data) | 24 hours | Zero conflict risk, zero test risk — merge immediately |
+| Feature + content (new page + its images) | Merge together as one PR | Content depends on the code — ship atomically |
+| Infrastructure / refactor | Normal PR review cycle | Needs careful review |
+
+### Prevention checklist
+
+When creating a branch that adds or modifies static content (`public/`, data files, copy in TSX):
+
+1. **Open the PR immediately** — don't wait for the code to be "ready." Content PRs are reviewable on their own.
+2. **Merge content PRs same-day** when possible. The longer a content branch lives, the more likely it drifts.
+3. **Never rely on local merges** — a `git merge` into your local `main` is not a merge. Only a squash-merged PR on GitHub counts.
+4. **After any "merge sweep" session**, verify with `git log origin/main --oneline -5` that the remote actually has the changes. If it doesn't, push.
+
+### Detection
+
+After completing cinema or learn content changes, verify the content exists on `origin/main`:
+
+```bash
+git fetch origin main
+git ls-tree --name-only origin/main -- public/cinema/ | wc -l
+```
+
+If the count is 0 and it shouldn't be, the content never made it to remote.
+
+## Origin
+
+- **Failure**: 27 cinema overlay images and a WarGames→Kobayashi Maru content swap lived on feature branches for weeks without reaching `origin/main`. A local merge sweep appeared to fix it but was never pushed or was overwritten. Content was silently lost.
+- **Date**: 2026-03-15
+- **Root cause**: Content-only branches treated with the same review cadence as code branches, plus reliance on local merges without verifying the remote.
+- **PR**: fix/cinema-kobayashi-overlays (#197)

@@ -1,0 +1,185 @@
+---
+description: WCAG 2.1 AA color contrast requirements — approved text/background pairings, semantic color usage, tinted background guidance, and dark mode compliance
+globs: "**/*.tsx,**/*.css"
+alwaysApply: true
+slug: color-contrast
+title: Color Contrast (A11y)
+domain: accessibility
+ruleType: broad
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - a11y
+  - contrast
+  - wcag
+  - color
+  - accessibility
+---
+
+# Color Contrast — WCAG 2.1 AA Compliance
+
+Every text element must meet WCAG 2.1 AA minimum contrast ratios against its rendered background. This applies to both light and dark modes.
+
+## Thresholds
+
+| Content type | Minimum ratio | Examples |
+|---|---|---|
+| Normal text (< 18px, or < 14px bold) | **4.5:1** | Body copy, labels, badges, captions |
+| Large text (>= 18px, or >= 14px bold) | **3:1** | Headings, hero text, large CTAs |
+| UI components and icons | **3:1** | Icon-only buttons, focus rings, borders conveying state |
+
+These are minimums. Aim for 7:1 (AAA) where practical, especially for body text.
+
+## Design Token Pairings — Light Mode
+
+The following table lists every approved text/background combination with its computed contrast ratio. Use only these pairings for semantic tokens.
+
+### High-contrast pairings (body text safe)
+
+| Text token | Hex | Background token | Hex | Ratio | Verdict |
+|---|---|---|---|---|---|
+| `text-foreground` | `#111827` | `bg-background` | `#f9fafb` | 17.4:1 | AA + AAA |
+| `text-foreground` | `#111827` | `bg-card` / `bg-surface` | `#ffffff` | 18.2:1 | AA + AAA |
+| `text-foreground` | `#111827` | `bg-secondary` | `#f3f4f6` | 16.5:1 | AA + AAA |
+| `text-muted` | `#6b7280` | `bg-background` | `#f9fafb` | 4.6:1 | AA |
+| `text-muted` | `#6b7280` | `bg-card` / `bg-surface` | `#ffffff` | 5.0:1 | AA |
+| `text-white` | `#ffffff` | `bg-primary` | `#d04a02` | 4.5:1 | AA |
+| `text-white` | `#ffffff` | `bg-foreground` | `#111827` | 18.2:1 | AA + AAA |
+
+### Semantic text-safe tokens (use `-text` variants for body text)
+
+| Text token | Hex | Background token | Hex | Ratio | Verdict |
+|---|---|---|---|---|---|
+| `text-primary-text` | `#c44000` | `bg-background` | `#f9fafb` | 4.9:1 | AA |
+| `text-primary-text` | `#c44000` | `bg-card` | `#ffffff` | 5.1:1 | AA |
+| `text-success-text` | `#15803d` | `bg-background` | `#f9fafb` | 4.8:1 | AA |
+| `text-success-text` | `#15803d` | `bg-card` | `#ffffff` | 5.1:1 | AA |
+| `text-warning-text` | `#b45309` | `bg-background` | `#f9fafb` | 4.8:1 | AA |
+| `text-warning-text` | `#b45309` | `bg-card` | `#ffffff` | 5.1:1 | AA |
+| `text-accent-text` | `#b45309` | `bg-background` | `#f9fafb` | 4.8:1 | AA |
+| `text-error-text` | `#dc2626` | `bg-background` | `#f9fafb` | 4.8:1 | AA |
+| `text-error-text` | `#dc2626` | `bg-card` | `#ffffff` | 5.0:1 | AA |
+
+### Borderline / restricted pairings
+
+| Text token | Hex | Background token | Hex | Ratio | Restriction |
+|---|---|---|---|---|---|
+| `text-muted` | `#6b7280` | `bg-secondary` | `#f3f4f6` | 4.4:1 | Large text or bold only (>= 18px / >= 14px bold) |
+| `text-primary` | `#d04a02` | `bg-background` | `#f9fafb` | 4.3:1 | Large text or bold only; use `text-primary-text` for body text |
+| `text-primary` | `#d04a02` | `bg-card` | `#ffffff` | 4.5:1 | AA pass on pure white only; prefer `text-primary-text` |
+
+### Failing pairings — never use for text
+
+| Text token | Hex | Background | Ratio | Why it fails |
+|---|---|---|---|---|
+| `text-success` | `#22c55e` | any light bg | 2.2:1 | Green-500 is too bright for text; use `text-success-text` |
+| `text-warning` | `#e88d14` | any light bg | 2.4:1 | Amber is too bright for text; use `text-warning-text` |
+| `text-accent` | `#e88d14` | any light bg | 2.4:1 | Same as warning; use `text-accent-text` |
+| `text-error` | `#ef4444` | any light bg | 3.6:1 | Red-400 fails for normal text; use `text-error-text` |
+
+## Design Token Pairings — Dark Mode
+
+Dark mode reassigns background tokens but keeps `--primary`, `--success`, `--warning`, `--error` unchanged. The `-text` variants switch to lighter shades that contrast against dark surfaces.
+
+### High-contrast pairings (body text safe)
+
+| Text token | Hex (dark) | Background token | Hex (dark) | Ratio | Verdict |
+|---|---|---|---|---|---|
+| `text-foreground` | `#f9fafb` | `bg-background` | `#111827` | 17.4:1 | AA + AAA |
+| `text-foreground` | `#f9fafb` | `bg-card` / `bg-surface` | `#1f2937` | 14.2:1 | AA + AAA |
+| `text-foreground` | `#f9fafb` | `bg-secondary` | `#1f2937` | 14.2:1 | AA + AAA |
+| `text-muted` | `#9ca3af` | `bg-background` | `#111827` | 7.2:1 | AA + AAA |
+| `text-muted` | `#9ca3af` | `bg-card` | `#1f2937` | 5.9:1 | AA |
+
+### Semantic text-safe tokens (dark mode values)
+
+| Text token | Hex (dark) | Background token | Hex (dark) | Ratio | Verdict |
+|---|---|---|---|---|---|
+| `text-primary-text` | `#f97316` | `bg-background` | `#111827` | 6.5:1 | AA + AAA (large) |
+| `text-primary-text` | `#f97316` | `bg-card` | `#1f2937` | 5.3:1 | AA |
+| `text-success-text` | `#4ade80` | `bg-background` | `#111827` | 10.4:1 | AA + AAA |
+| `text-success-text` | `#4ade80` | `bg-card` | `#1f2937` | 8.5:1 | AA + AAA |
+| `text-warning-text` | `#fbbf24` | `bg-background` | `#111827` | 10.9:1 | AA + AAA |
+| `text-warning-text` | `#fbbf24` | `bg-card` | `#1f2937` | 8.9:1 | AA + AAA |
+| `text-accent-text` | `#fbbf24` | `bg-background` | `#111827` | 10.9:1 | AA + AAA |
+| `text-error-text` | `#f87171` | `bg-background` | `#111827` | 6.6:1 | AA + AAA (large) |
+| `text-error-text` | `#f87171` | `bg-card` | `#1f2937` | 5.4:1 | AA |
+
+## Tinted Background Pattern
+
+The `bg-X/10 text-X` pattern (e.g., `bg-success/10 text-success`) is common for soft badges and status pills. However, the base semantic colors fail contrast on their own tinted backgrounds in light mode because the tinted bg is nearly white and the text color is too bright.
+
+### Correct tinted pairings
+
+```tsx
+// WRONG — text-success (#22c55e) on near-white bg is 2.2:1
+<span className="bg-success/10 text-success">Active</span>
+
+// CORRECT — use the -text variant
+<span className="bg-success/10 text-success-text">Active</span>
+
+// WRONG — text-warning on near-white bg is 2.4:1
+<span className="bg-warning/10 text-warning">Pending</span>
+
+// CORRECT
+<span className="bg-warning/10 text-warning-text">Pending</span>
+
+// WRONG — text-error on near-white bg is 3.6:1
+<span className="bg-error/10 text-error">Failed</span>
+
+// CORRECT
+<span className="bg-error/10 text-error-text">Failed</span>
+```
+
+Exception: `bg-primary/10 text-primary` is borderline (4.3–4.5:1 depending on the underlying background). Use `text-primary-text` for body-sized text; `text-primary` is acceptable when the text is >= 18px or >= 14px bold.
+
+## When to Use Base vs `-text` Variants
+
+| Base token (`--success`, etc.) | `-text` variant (`--success-text`, etc.) |
+|---|---|
+| Filled backgrounds (`bg-success`) | Text on light/dark backgrounds |
+| Icon fill on dark/contrasting bg | Standalone text labels, badge text |
+| Decorative accents, borders | Links, status indicators, inline labels |
+| Chart colors, data viz | Body copy with semantic meaning |
+
+The base token is the "brand" shade — vivid and recognizable. The `-text` variant is the contrast-safe shade — darker in light mode, lighter in dark mode.
+
+## Rules
+
+1. **Default to `text-foreground`** for all body text. It passes AAA on every standard background in both themes.
+2. **Use `text-muted`** for secondary/supporting text on `bg-background`, `bg-card`, or `bg-surface`. Avoid on `bg-secondary` unless the text is large/bold.
+3. **Never use `text-success`, `text-warning`, `text-accent`, or `text-error`** as text colors. Always use their `-text` variants (`text-success-text`, `text-warning-text`, `text-accent-text`, `text-error-text`).
+4. **Use `text-primary-text`** instead of `text-primary` for body-sized text. `text-primary` is allowed only for large/bold text (headings, hero text, large buttons).
+5. **White text** (`text-white`) may only appear on backgrounds with luminance <= 0.18 (dark enough). Safe backgrounds: `bg-primary`, `bg-foreground`, `bg-red-600`, `bg-green-600`, `bg-yellow-600`. Unsafe: `bg-secondary`, `bg-card`, `bg-accent`, any `/10` or `/20` tinted backgrounds.
+6. **Arbitrary hex colors** (`text-[#abc123]`) require a manual contrast check before use. Verify against the actual rendered background using the [WebAIM Contrast Checker](https://webaim.org/resources/contrastchecker/).
+7. **Dark mode** must be checked independently. The `-text` tokens auto-switch between light and dark variants via CSS custom properties, so using them is inherently safe.
+
+## Self-Check Workflow
+
+Before shipping any color change:
+
+1. Identify the text color and its rendered background color (including opacity, tints, and stacking).
+2. Look up the pairing in the tables above. If it's listed as "AA" or better, you're done.
+3. If the pairing isn't listed, compute the contrast ratio at [WebAIM Contrast Checker](https://webaim.org/resources/contrastchecker/) or [Colour Contrast Analyser](https://www.tpgi.com/color-contrast-checker/).
+4. Verify >= 4.5:1 for normal text or >= 3:1 for large text.
+5. Check both light and dark mode.
+6. If the ratio fails, switch to the appropriate `-text` variant or choose a different pairing from the approved table.
+
+## Anti-Patterns
+
+| Pattern | Problem | Fix |
+|---|---|---|
+| `text-success` on any background | 2.2:1 in light mode | `text-success-text` |
+| `text-warning` or `text-accent` as label text | 2.4:1 in light mode | `text-warning-text` / `text-accent-text` |
+| `text-error` on light background | 3.6:1, fails AA for normal text | `text-error-text` |
+| `text-primary` for body copy | 4.3:1 on `bg-background` | `text-primary-text` |
+| `text-white` on `bg-secondary` | White on near-white | `text-foreground` on `bg-secondary` |
+| `text-white` on `bg-accent` or tinted bg | Low contrast | `text-foreground` or `-text` variant |
+| `text-[#hexvalue]` without verification | Unknown ratio | Check with contrast tool first |
+| Relying on `opacity-` to lighten text | Reduces contrast unpredictably | Use `text-muted` or a defined token |
+
+## Relationship to Other Rules
+
+- **`tailwind-classes.mdc`** — defines the design token system and `cn()` composition. The tokens referenced here are defined in `globals.css` and exposed via `@theme inline`.
+- **`responsive-testing.mdc`** — the visual sweep step should verify contrast using this rule's pairing table as the source of truth.
+- **`tailwind-components.mdc`** — CVA variant definitions in `button.tsx`, `badge.tsx`, etc. must use approved pairings. When adding a new variant, check its colors against this table.

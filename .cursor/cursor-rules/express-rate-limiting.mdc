@@ -1,0 +1,42 @@
+---
+description: All Express routes that perform authorization must use express-rate-limit. Applies when editing Express server files.
+globs: ["**/server.ts", "**/server.js", "**/app.ts", "**/app.js", "scripts/**/*.ts"]
+---
+
+# Express Rate Limiting
+
+Every Express application in this repository must apply the `express-rate-limit` middleware. CodeQL's `js/missing-rate-limiting` rule flags any route handler that performs authorization without rate limiting as a high-severity security vulnerability — and this check blocks PR merges.
+
+## Required Setup
+
+```typescript
+import rateLimit from "express-rate-limit";
+
+const app = express();
+app.use(rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }));
+```
+
+Apply rate limiting **before** any route definitions. The middleware must be from the `express-rate-limit` package — CodeQL does not recognize inline/custom rate limiters.
+
+## Why `express-rate-limit` Specifically
+
+CodeQL's static analysis looks for the `express-rate-limit` package import by name. A hand-rolled Map-based rate limiter with identical behavior will still trigger the alert. This is a tooling constraint, not a technical one.
+
+## Configuration
+
+| Setting | Default | Notes |
+|---|---|---|
+| `windowMs` | `60_000` (1 min) | Adjust based on expected traffic |
+| `max` | `60` | Requests per window per IP |
+| `standardHeaders` | `true` | Sends `RateLimit-*` headers |
+| `legacyHeaders` | `false` | Disables `X-RateLimit-*` headers |
+
+For dev-only servers (like `scripts/mock-sso/server.ts`), the defaults are fine. For production servers, tune `max` based on expected legitimate traffic patterns.
+
+## Adding `express-rate-limit`
+
+```bash
+bun add -d express-rate-limit
+```
+
+Use `-d` (devDependency) for dev-only servers. Use `bun add express-rate-limit` (regular dependency) for production servers.

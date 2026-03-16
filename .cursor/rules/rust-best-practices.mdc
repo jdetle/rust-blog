@@ -1,0 +1,292 @@
+---
+description: Rust coding standards, optimization, project conventions, and TypeScript interop
+globs: "**/*.rs,**/Cargo.toml"
+alwaysApply: false
+---
+
+# Rust Best Practices
+
+## Safety
+
+- `unsafe` code is **forbidden** — enforced via `[lints.rust] unsafe_code = "forbid"` in Cargo.toml.
+- Never use `unwrap()` or `expect()` in production code paths. Use `?`, `unwrap_or_default()`, `unwrap_or_else()`, or `if let` / `let...else`.
+- Prefer `let...else` over `match` for early returns: `let Ok(x) = fallible() else { return default };`
+- Minimize interior mutability. Prefer compile-time borrow checking over `RefCell`. When shared mutable state is needed across threads, use `Mutex<T>` or `RwLock<T>`, never `RefCell`.
+- Document invariants that any `unsafe` block (in vendored code) depends on with a `// SAFETY:` comment.
+
+## Error Handling
+
+### Libraries vs Applications
+
+| Context | Crate | Pattern |
+|---|---|---|
+| Library crates (reusable modules) | `thiserror` | Custom error enums with `#[derive(Error)]`, `#[from]` for conversion |
+| Application code (main.rs, CLI) | `anyhow` | `Result<T>` with `.context()` for propagation |
+
+### thiserror for structured errors
+
+```rust
+#[derive(Debug, thiserror::Error)]
+pub enum ConfigError {
+    #[error("failed to read config: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("missing required field: {field}")]
+    MissingField { field: String },
+    #[error("invalid value for {key}: {value}")]
+    InvalidValue { key: String, value: String },
+}
+```
+
+### anyhow for application code
+
+```rust
+use anyhow::{Context, Result};
+
+fn load_config(path: &str) -> Result<Config> {
+    let content = std::fs::read_to_string(path)
+        .with_context(|| format!("failed to read {path}"))?;
+    toml::from_str(&content)
+        .context("failed to parse config")
+}
+```
+
+### When to panic vs return Result
+
+- **Panic**: Programming bugs, violated invariants, `unreachable!()` branches that truly can't happen
+- **Result**: Expected failures — I/O, network, parsing, user input
+- Use `#[expect(clippy::...)]` over `#[allow(clippy::...)]` for intentional lint overrides — it warns if the suppression becomes unnecessary
+
+## Linting
+
+Every Rust project must configure clippy in `Cargo.toml`:
+
+```toml
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"
+
+[lints.rust]
+unsafe_code = "forbid"
+```
+
+Run `cargo clippy --release` before committing. Target **zero warnings**. Use `#[allow(clippy::...)]` on specific items only when the lint is noise for that case.
+
+## Cargo.toml
+
+### Release Profile
+
+All Rust binaries must use this optimized release profile:
+
+```toml
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+```
+
+### Dependencies
+
+- Minimize dependency count — each crate adds compile time and attack surface.
+- Disable default features when you only need a subset: `git2 = { version = "0.20", default-features = false, features = ["vendored-libgit2"] }`.
+- Pin to semver-compatible ranges, not exact versions: `clap = "4"` not `clap = "=4.5.60"`.
+- Set `rust-version` to the minimum supported version (MSRV).
+- Prefer vendored native libs when available: `features = ["vendored-libgit2"]`, `features = ["vendored"]`.
+- Run `cargo audit` before pushing to catch known vulnerabilities.
+
+### Workspace vs Single Crate
+
+| Project size | Structure |
+|---|---|
+| Single binary or tool | Standalone crate in `tools/<name>/` |
+| 2+ crates sharing types/logic | Cargo workspace with shared `Cargo.lock` |
+| Large service (AgentOS) | Workspace with `core/`, `api/`, `cli/` members |
+
+## Idiomatic Patterns
+
+| Pattern | Do | Don't |
+|---|---|---|
+| String from `&str` | `str::to_string` or `.into()` | `String::from(s)` when `.into()` is clear |
+| Option mapping | `.map(str::to_string)` | `.map(\|s\| s.to_string())` (redundant closure) |
+| Fallback | `.unwrap_or_else(\|\| expensive())` | `.unwrap_or(expensive())` (eager evaluation) |
+| Map + unwrap | `.map_or_else(fallback, mapper)` | `.map(f).unwrap_or_else(g)` |
+| Format strings | `format!("{x}")` | `format!("{}", x)` (uninlined arg) |
+| Large literals | `2_654_435_761` | `2654435761` (unreadable) |
+| Strip prefix | `s.strip_prefix('"')` | `if s.starts_with('"') { &s[1..] }` |
+| Early return | `let Ok(x) = f() else { return };` | `match f() { Ok(x) => x, Err(_) => return }` |
+| Conditional ownership | `Cow<'_, str>` | Clone unconditionally |
+| Known-size collections | `Vec::with_capacity(n)` | `Vec::new()` followed by n pushes |
+
+## Performance
+
+- Pre-allocate containers when size is known: `String::with_capacity(8192)`, `Vec::with_capacity(n)`.
+- Reuse expensive handles (e.g., open `git2::Repository` once, run all operations through it).
+- Avoid `.clone()` unless ownership transfer is required — borrow instead.
+- Use `const fn` where the compiler allows it (pure computations, no trait calls).
+- For CLI binaries, prefer blocking I/O (`ureq`) over async runtimes (`reqwest` + `tokio`) to avoid runtime startup overhead.
+- Prefer `&str` over `String` in function parameters that only read text.
+- Use `SmallVec` or `ArrayVec` for small, stack-allocated collections when the upper bound is known.
+- Prefer iterator chains over manual loops — they compile to identical code with better optimization opportunities.
+
+## CLI Tools (Scripting Replacement)
+
+Rust replaces Python for all scripting tasks. New CLI tools follow this pattern:
+
+```rust
+use anyhow::Result;
+use clap::Parser;
+
+#[derive(Parser)]
+#[command(about = "Tool description")]
+struct Cli {
+    #[arg(short, long)]
+    verbose: bool,
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(clap::Subcommand)]
+enum Commands {
+    Run { path: String },
+    Check { #[arg(long)] strict: bool },
+}
+
+fn main() -> Result<()> {
+    let cli = Cli::parse();
+    match cli.command {
+        Commands::Run { path } => run(&path),
+        Commands::Check { strict } => check(strict),
+    }
+}
+```
+
+### Standard CLI stack
+
+| Crate | Purpose |
+|---|---|
+| `clap` (derive API) | Argument parsing, subcommands |
+| `anyhow` | Error handling with context |
+| `serde` + `toml`/`serde_json` | Config and data serialization |
+| `tracing` | Structured logging |
+| `ureq` | HTTP (blocking, no async overhead) |
+
+## Testing
+
+- Unit tests go in `#[cfg(test)] mod tests { ... }` inside the source file.
+- Integration tests go in `tests/` directory — each file compiles as a separate crate.
+- Use `dev-dependencies` for test-only crates.
+- Run `cargo test` before committing Rust changes.
+- Use `proptest` for property-based testing on serialization round-trips, parsing, and validation:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use proptest::prelude::*;
+    proptest! {
+        #[test]
+        fn roundtrip_encode_decode(input in any::<Vec<u8>>()) {
+            let encoded = encode(&input);
+            let decoded = decode(&encoded).unwrap();
+            assert_eq!(input, decoded);
+        }
+    }
+}
+```
+
+- Use `insta` for snapshot tests on complex structured output.
+
+## Project Structure
+
+```
+tools/<name>/
+├── Cargo.toml
+├── Cargo.lock          # Committed — reproducible builds
+├── src/
+│   ├── main.rs         # CLI entry + orchestration
+│   ├── lib.rs          # Core logic (for non-trivial tools — testable, reusable)
+│   ├── <module>.rs     # One module per concern
+│   └── ...
+└── tests/              # Integration tests (if needed)
+```
+
+- `Cargo.lock` is always committed for binaries (ensures reproducible builds).
+- Keep `main.rs` focused on CLI parsing and dispatch. Business logic goes in modules or `lib.rs`.
+- For non-trivial tools, split into `lib.rs` (testable core) + `main.rs` (thin CLI wrapper).
+- Use `mod` declarations in `main.rs` or `lib.rs` — flat module structure unless complexity demands nesting.
+
+## TypeScript Interop
+
+### NAPI-RS for native Node addons
+
+When Rust logic needs to be called directly from TypeScript (hot paths, CPU-bound work):
+
+```rust
+// Cargo.toml
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "3", features = ["async"] }
+napi-derive = "3"
+```
+
+```rust
+use napi_derive::napi;
+
+#[napi]
+pub fn process_data(input: String) -> napi::Result<String> {
+    Ok(transform(&input))
+}
+```
+
+### When to use interop vs separate processes
+
+| Scenario | Approach |
+|---|---|
+| CPU-bound function called from API route | NAPI-RS native addon |
+| Standalone daemon or tool | Separate Rust binary, communicate via stdout/JSON |
+| Browser target | `wasm-pack` to compile to WebAssembly |
+| Infrequent calls | `Bun.spawn()` the Rust binary |
+
+### Data exchange
+
+- Use JSON via `serde_json` for process-to-process communication
+- Use structured types via NAPI-RS derive macros for in-process calls
+- Never use raw FFI — always go through NAPI-RS or WASM bindings
+
+## Build Artifacts
+
+- `target/` directories are gitignored — intermediate build artifacts are never committed.
+- The release binary is copied to `tools/<name>/bin/<name>` and committed via Git LFS so all team members get it without compiling Rust.
+- After building (`cargo build --release`), copy the binary: `cp target/release/<name> bin/<name>`.
+- Add `tools/<name>/target/` to `.gitignore` and `tools/<name>/bin/<name>` to `.gitattributes` with LFS tracking.
+
+## Shell Integration
+
+When a Rust binary replaces shell scripts, the scripts become thin wrappers:
+
+```bash
+RUST_BINARY="$REPO_ROOT/tools/<name>/target/release/<name>"
+if [ -x "$RUST_BINARY" ]; then
+  exec "$RUST_BINARY" <subcommand> "$@"
+fi
+# ... shell fallback below ...
+```
+
+This ensures the fast path is used when compiled, with graceful degradation.
+
+## Build and CI Tooling
+
+Run these before every push:
+
+```bash
+cargo fmt -- --check     # Formatting
+cargo clippy -- -D warnings  # Lints (warnings = errors)
+cargo test               # Unit + integration tests
+cargo audit              # Vulnerability scan
+```
+
+In CI, run these as separate parallel steps for faster feedback.
