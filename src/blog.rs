@@ -7,7 +7,6 @@ const POSTS_DIR: &str = "posts";
 pub struct BlogPost {
     pub id: String,
     pub title: String,
-    pub filename: PathBuf,
 }
 
 fn extract_title(contents: &str) -> Option<String> {
@@ -44,7 +43,6 @@ fn load_posts() -> io::Result<Vec<BlogPost>> {
         posts.push(BlogPost {
             id: file_stem,
             title,
-            filename: path,
         });
     }
 
