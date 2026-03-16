@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Thenable Commands in Cypress.</title>
+    <link rel="stylesheet" href="/posts/blog.css">
+</head>
+<body>
+<main class="site-shell">
+    <div class="frame article">
+        <header class="list-header">
+            <p class="eyebrow">Journal</p>
+            <h1 class="page-title">Thenable Commands in Cypress.</h1>
+            <p class="byline">By John Detlefs · February 06, 2021</p>
+        </header>
+
+        <article class="article-content">
+            <p>If you&#x27;re unfamiliar with the tool, <a href="https://www.cypress.io/">Cypress</a> is a popular SaaS product that enables testing of web applications in the browser in a very familiar syntax for web developers. Like many software developers, you may be so eager to get to playing with your new tool that you may have given the docs a little bit less attention than they deserved. One thing I learned the hard way is that `.then()` is not an indication that commands exactly correspond to ES6 Promises.</p>
+            <p>It might satisfy you to read the docs: <a href="https://docs.cypress.io/guides/core-concepts/introduction-to-cypress.html#Commands-Are-Promises">Commands are Promises</a> and <a href="https://docs.cypress.io/guides/core-concepts/introduction-to-cypress.html#Commands-Are-Not-Promises">Commands are not Promises </a>to effectively understand the nuances of what it takes to do your job. I didn&#x27;t take the time to read the docs initially and regret it. Regardless, after learning that they weren&#x27;t promises, I thought it was really magical that when I created a custom command, Cypress was automatically able make the command chainable to a <code>then</code>.</p>
+            <p>In this post I will attempt to provide some clarification to how this wizardry works so that you can have a deeper understanding of the machinations that helps Cypress give you the testing experience you deserve.</p>
+            <h3><em>thenable: A command that returns a defined a value or invokes commands that  potentially return a defined a value.</em></h3>
+            <p>For background you have to understand that before Cypress ever runs any of the tests you have written, it prepares an environment that includes the commands you have defined in <code>support/index.js</code> . In between when those commands are loaded and when those commands are used to execute actual tests, they are appended a <code>thenFn</code>  which is used to return the result of the previous command if it exists, waiting a specified &#x27;timeout&#x27; amount before erroring.</p>
+            <pre><code class="language-javascript">const getRet = () =&gt; {
+      let ret = fn.apply(ctx, args)
+
+      if (cy.isCy(ret)) {
+        ret = undefined
+      }
+
+      if (ret &amp;&amp; invokedCyCommand &amp;&amp; !ret.then) {
+        $errUtils.throwErrByPath(&#x27;then.callback_mixes_sync_and_async&#x27;, {
+          onFail: options._log,
+          args: { value: $utils.stringify(ret) },
+        })
+      }
+
+      return ret
+    }
+
+return Promise
+    .try(getRet)
+    .timeout(options.timeout)
+    .then((ret) =&gt; {
+      // if ret is undefined then
+      // resolve with the existing subject
+      if (_.isUndefined(ret)) {
+        return subject
+      }
+
+      return ret
+    })</code></pre>
+            <p>This function <code>getRet</code> is an attempt to get the returned value, which can be either a synchronous value or a command. In cypress commands need to be chained, rather than have a mismatch of synchronous code. The <code>invokedCyCommand</code> boolean indicates that in executing the function a command has been enqueued. If the returned value does not have a <code>.then</code> attribute while there is still a command enqueued its stands to reason that there is a (bad) mix of asynchronous and synchronous code. You could fix the error by returning a promise;  in doing so you satisfy the condition that your returned subject is <em>thenable. </em></p>
+            <p>The ability to return a promise to circumvent this error is an unavoidable bug, not a feature. In order to avoid this Cypress would have to use a different name other than &#x27;then&#x27; for their chained commands, and ultimately the costs would outweigh the benefits.</p>
+            <pre><code class="language-javascript">// Assume commands Foo and and Bar return a defined value 
+// Because they return a defined value they are thenable
+
+// Dont do this
+const Baz = () =&gt; {
+	cy.Foo()
+	cy.Bar()
+}
+Cypress.Commands.add(&quot;Baz&quot;, Baz)
+
+// Do this
+const Baz = () =&gt; {
+	cy.Foo().then((returnedSubjectOfFoo) =&gt; {
+		// Potentially might want to do something with the returned value of foo
+		cy.Bar().then((returnedSubjectOfBar) =&gt; {
+			return goalReturnedSubject // Return the value that you want the command Baz to yield as the returned subject
+		})
+	})
+}</code></pre>
+            <p>This construct is meant to encourage you to nest your calls to commands. If you write a command that invokes thenable commands and you expect your command to be thenable, the return value of your command should appear inside the body of the then of one of those commands. You might notice that I have failed to explain how Cypress manages to return the appropriate subject for a nested chain like this. Fortunately, you don&#x27;t have know. From what I can tell, it involves judicious management of custom events, closures relying on javascript&#x27;s <code>this</code>, type assertions, and some complex work in the <a href="https://github.com/cypress-io/cypress/blob/2891a511a386b8e6d2bdc4a45c92156514b511f0/packages/driver/src/cypress/chainer.js">chainer class definition</a>.</p>
+            <p>If you&#x27;re looking to improve your understanding into how subjects are yielded, the code in  <a href="/78483b7581814ad5980d20ae327298c7">connectors</a> is a good place to start.  I hope that as a result of reading this, you might understand a bit better how <code>then</code> becomes attached to cypress commands and how to write <em>thenable </em>commands that behave the way you would expect.</p>
+        </article>
+
+        <nav class="nav-row">
+            <a href="/posts">All posts</a>
+            <a href="/">Home</a>
+        </nav>
+    </div>
+</main>
+</body>
+</html>

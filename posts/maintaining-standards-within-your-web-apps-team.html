@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Maintaining Standards Within your Web Apps Team.</title>
+    <link rel="stylesheet" href="/posts/blog.css">
+</head>
+<body>
+<main class="site-shell">
+    <div class="frame article">
+        <header class="list-header">
+            <p class="eyebrow">Journal</p>
+            <h1 class="page-title">Maintaining Standards Within your Web Apps Team.</h1>
+            <p class="byline">By John Detlefs · June 11, 2020</p>
+        </header>
+
+        <article class="article-content">
+            <p>If you work in technical teams you will ultimately end up having a disagreement. These disagreements can be as minor as what should be linted and as major as the ethics of the product you are building. Being able to proactively address potential sources of conflict and choosing battles judiciously is an art that I have yet to master.</p>
+            <hr>
+            <p>In JavaScript, GoLang, C++ and other languages there will always be new versions with new grammars to accomplish some goal. In Javascript, the recent addition of &quot;nullish&quot; ternaries and optional chaining are a good example. Oftentimes you might look at these features and see them as obvious, and a coworker might look at it and think its abstruse.</p>
+            <p>Ultimately, you have to ask yourself, &quot;What is the bare minimum of knowledge required for someone to contribute to this app?&quot;</p>
+            <p>Below I&#x27;ve attempted to outline some of the various aspects of technical decision making while building web apps.</p>
+            <p><strong>
+Choice of Platform</strong></p>
+            <p>Next, Now, Gatsby, Amplify, Create-React-App, Webpack, Hugo, Netlify, Heroku, Wordpress, whatever you do just settle on a choice that works for your team. Figuring out the newest hotness and switching platforms discards any institutional knowledge that the team might have had with the previous tools. Changes in this regard should be thoroughly researched, justified, and should be open to being reverted in the future.</p>
+            <p><strong>Grammar</strong></p>
+            <p>Concise grammar is often times very useful, but at what cost? In the past we have run into issues where we used a neat trick <code>let someNumber = +&lt;our_string_here&gt;. </code></p>
+            <p>This trick, while neat, actually obscures what is happening. In this case we have decided as a team to prefer a very explicit syntax <code>let someNumber = Number(&lt;our_string_here&gt;)</code></p>
+            <p>Different languages and domains seem to have different conventions. In GoLang naming is encouraged to be concise far more often than in JavaScript. Learning a different language can remind you that your best practices can be extremely arbitrary and are a function of what language you work in.</p>
+            <p><strong>Type Safety</strong></p>
+            <p>Type safety is a relatively new concern in Frontend Development. Types help confidence in code, but at what cost? As a team, we try to avoid the use of <code>any</code> and other incomplete or poorly written type definitions. Furthermore, we have started to use generics in type definitions, generics as a tool are powerful but often hard to understand for the uninitiated.  Type assertions like <code>const foo = (bar as unknown) as string</code> are unwieldy looking. This and more can be used as fodder by folks who don&#x27;t want to adopt the practice. 
+
+If you are pushing for the adoption of static typing in your team, ultimately the onus is on you to act as an advocate for the practice. The use of error reporting tools is your friend. Catalog and discuss the number of errors in untyped code that could have been solved by a static type system. Remind folks of the autocomplete features you get from your IDE.  Offering to open PRs to help add types to an existing PR is one way of slowly introducing folks to your perspective. Your coworkers almost always have a point when bringing up counter-arguments. Listen to them and try to work on compromises that get your work ultimately more stable for your end user.</p>
+            <p><strong>Testing</strong></p>
+            <p>This is the number one hill to die on for me. If you are not testing code that is being put into code that is making your company money, you are being negligent as a developer. You don&#x27;t need to do test driven development, but try make sure that you have a process that automates the necessity of covering some percentage of code. At work and in open source I have used <code>codecov.io</code> to do this, but there are plenty of tools to do the job. 
+
+Almost every feature isn&#x27;t done until it has tests. If you don&#x27;t test you&#x27;re just creating debt that someone will be burdened with later. If your company thinks tests make the development process too slow, ask them to consider the cost of continuously having to revisit work that was declared to be finished without tests.</p>
+            <p><strong>General Architecture &amp; Performance</strong></p>
+            <p>Avoid speculative generality. Beware of premature optimization. Performance, scalability, and maintainability all come from building the minimal viable thing that you can iterate on while following these standards. If you prepare for all possible futures, your work wont live to see any of them. See <a href="https://jdetle.com/blog/complexity-in-react-in-typescript">&quot;A Tip On Managing Complexity In React and Typescript</a>&quot; for more.</p>
+            <p><strong>CI/CD</strong></p>
+            <p>Unit testing, browser testing / integration testing and code coverage. All of these things are imperative in business projects for velocity.</p>
+            <p>If you have the DevOps resources or the right platform, deploy previews are a boon for developers who don&#x27;t want to have to pull down a PR. This helps avoid the &#x27;I&#x27;ve just walked into a new room and have forgotten why I&#x27;m here effect.&quot;</p>
+            <p><strong>Accessibility</strong></p>
+            <p>One word: lawsuit. Even if you don&#x27;t care about providing a workable experience in your app for people with disabilities. Which makes you at the minimum an ass, you are opening your company up to a lawsuit in the future.</p>
+            <hr>
+            <p>&quot;What is the bare minimum of knowledge required for someone to contribute to this app?&quot; <strong>The bare minimum is whatever you agree on as a team. </strong></p>
+            <p>Consider these listed topics as a starting off point for launching discussions within your team. The point is that you should be talking about standards and being empathetic to folks who maybe aren&#x27;t as psyched about the latest feature, tool, or platform as you are, and try to find a common ground you can agree on.</p>
+        </article>
+
+        <nav class="nav-row">
+            <a href="/posts">All posts</a>
+            <a href="/">Home</a>
+        </nav>
+    </div>
+</main>
+</body>
+</html>

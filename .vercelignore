@@ -1,0 +1,6 @@
+target
+.git
+.cursor
+.vercel
+Cargo.lock
+src
