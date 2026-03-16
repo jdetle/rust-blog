@@ -2,9 +2,15 @@ mod blog;
 
 use std::net::SocketAddr;
 
-use axum::{routing::get, Router};
+use axum::{response::Html, routing::get, Router};
 use blog::{get_post, list_posts};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+async fn root() -> Html<String> {
+    // Load the root HTML from disk; if it fails, fall back to a simple string.
+    let html = std::fs::read_to_string("src/root.html").unwrap_or_else(|_| "Rust Blog".to_string());
+    Html(html)
+}
 
 #[tokio::main]
 async fn main() {
@@ -19,7 +25,8 @@ async fn main() {
     // Build our application with some routes
     let app = Router::new()
         .route("/posts", get(list_posts))
-        .route("/posts/:id", get(get_post));
+        .route("/posts/:id", get(get_post))
+        .route("/", get(root));
 
     // Run it
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
