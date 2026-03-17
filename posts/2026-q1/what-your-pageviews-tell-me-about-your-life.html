@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>What Your Pageviews Tell Me About Your Life</title>
+    <link rel="stylesheet" href="/posts/blog.css">
+</head>
+<body>
+<main class="site-shell">
+    <div class="frame article">
+        <header class="list-header">
+            <p class="eyebrow">Journal</p>
+            <h1 class="page-title">What Your Pageviews Tell Me About Your Life</h1>
+            <p class="byline">By John Detlefs · March 16, 2026</p>
+        </header>
+
+        <article class="article-content">
+            <p>I added analytics to this blog a few months ago. Not for any business reason. I don't run ads, I don't sell data, and the traffic here is modest enough that there's no real commercial upside. I added them because I wanted to see what I could learn about the people reading my posts from nothing more than a few page loads. The answer is: a lot more than feels right.</p>
+
+            <p>Right now, just by loading this page, your browser is telling me things about you. I want to walk through exactly what those things are and what someone (me, in this case) can do with them.</p>
+
+            <h2>What your browser gives away for free</h2>
+
+            <p>None of what I'm about to describe requires cookies, login, or anything clever. This is just what your browser sends on every HTTP request, and has been sending for as long as you've been using the internet.</p>
+
+            <p>First, the timestamp. When you loaded this page, I got the exact time down to the millisecond. I can infer your timezone from the offset your browser reports through JavaScript, or just approximate it from your IP. Second, I can see which posts you visited, what order you read them in, how long you spent on each one, and how far you scrolled. If I were running Microsoft Clarity (I am), I could replay your entire visit as a video. Mouse movements, hesitation, the paragraph you re-read. All of it.</p>
+
+            <p>I also get the referrer. How you got here. A link from Hacker News tells me one thing. A Google search tells me another (and sometimes includes the actual search query, so I know what problem you were trying to solve). A link pasted in Slack means someone at your company shared it. Your User-Agent string tells me your exact OS, browser, and version. Whether you're on an iPhone 16 Pro Max or an old Pixel. Your screen resolution and viewport tell me if you're at a desk with a big monitor or reading on your phone in bed. And your IP address gives me your city, sometimes your company (corporate IP ranges are publicly registered), and if you're on a VPN, that tells me something too.</p>
+
+            <p>Any one of these is boring on its own. All of them together start to get weird.</p>
+
+            <h2>What I can infer from combining them</h2>
+
+            <p>Let's start with just the timestamps. I can see the distribution of pageviews by hour and day of week. On a tech blog, this follows a bimodal curve that maps almost perfectly onto the working day. Morning peak: people catching up on reading over coffee. Afternoon peak: post-lunch procrastination. If you loaded this page at 2:15pm Eastern on a Tuesday, there's a very good chance your employer is paying you to read my blog right now. Weekday evenings and weekends produce a different kind of reader, someone who reads tech blogs on their own time, which says something else about how they relate to the work.</p>
+
+            <p>Layer on the User-Agent and it gets more specific. MacBook Pro with the latest macOS running Chrome? Developer or knowledge worker, probably employer-issued hardware. Windows with Edge? Company that standardizes on Microsoft. Personal iPhone at 11pm? You're in bed. This isn't speculation. Device and OS combos correlate strongly with profession, employer size, and income bracket. Apple hardware skews toward tech companies and higher income. Older Android on a mobile network skews the other way. It's blunt data.</p>
+
+            <p>The referrer tells me what community you're in. Hacker News readers are largely senior engineers, founders, and people with strong opinions about systems design. Reddit's programming subs skew younger and broader. And which posts you read is probably the most revealing signal. If you landed on my "Memory Leaks in Node" post, you're almost certainly dealing with a production memory leak right now, today. You're frustrated, probably under pressure, and you searched for help. If you read "Monorepos were a mistake" you're annoyed with your team's repo structure and you're looking for validation. If you read this post, you're interested in security, surveillance, or you're the kind of person who reads the terms of service. I'm not sure which is worse.</p>
+
+            <h2>A made-up reader that feels too real</h2>
+
+            <p>Here's a completely hypothetical reader profile I could piece together from a few visits. No cookies, no login, nothing beyond what the browser hands over by default:</p>
+
+            <p><em>Senior developer in Austin, TX. Mid-to-large tech company. MacBook Pro (employer-issued, based on model year and enterprise OS build), iPhone 15. Reads tech blogs during work hours, usually 1-3pm Central, after lunch when focus dips. Arrived from Hacker News. Read the Node memory leaks post for 8 minutes, scrolled to the bottom (actually read it). Opened the monorepos post, bounced after 40 seconds (skimmed the title for validation, moved on). Visited twice this month, both times on weekday afternoons. Probably works in a large Node.js codebase with a monorepo they resent.</em></p>
+
+            <p>I built that profile using PostHog (free tier), Microsoft Clarity (free), and Vercel Analytics (free). Total cost: zero dollars. I set it up in an afternoon. I didn't need to be Google to do this, which is exactly what makes it unsettling.</p>
+
+            <h2>Now imagine someone with actual resources</h2>
+
+            <p>What I described above is what one guy with a personal blog can figure out. Google sees your searches, your email, your YouTube history, your location from your Android phone, your calendar, your contacts, and your browsing across roughly half of all websites through Google Analytics. Meta sees your social graph, your messages, your photos, your reactions, the posts you lingered on but didn't engage with, and through the Meta Pixel, your activity across millions of third-party sites. They don't have a rough sketch. They've got something closer to a live feed.</p>
+
+            <p>The tools I'm using here are the same ones that power the surveillance advertising economy. PostHog, Clarity, and Vercel Analytics are good, transparent products. But the core capability, turning anonymous behavioral signals into a model of someone's life, is identical whether you're running a personal blog or a platform with two billion users. The only thing that changes is how detailed the picture gets.</p>
+
+            <h2>Why I'm writing this instead of just doing it quietly</h2>
+
+            <p>Most sites track you and bury the disclosure in a privacy policy that nobody reads. I'd rather just tell you.</p>
+
+            <p>Here's what this blog runs: PostHog for analytics (pageviews, sessions, basic events), Microsoft Clarity for session recording (that's the one that can replay your mouse movements), and Vercel Analytics for aggregate traffic data. On the server side there's rate limiting via the <a href="https://docs.rs/governor">governor</a> crate. It's keyed by IP, 5 requests per second with a burst of 5. If you're reading like a normal person you'll never notice it. If you're a bot trying to scrape the whole site you'll get a 429.</p>
+
+            <p>I don't sell data. I don't run ads. I don't share any of this with anyone. I use it to see which posts people actually read versus which ones they bounce from, so I can write better. That's it. But I think it's worth being honest that even with totally benign intentions, the data I can collect paints a weirdly detailed picture of the people who visit. You didn't really consent to that in any real way. You just loaded a web page.</p>
+
+            <h2>What you can do about it</h2>
+
+            <p>You can't fully defeat passive data collection, but you can make it a lot harder. Use a VPN to mask your IP. Use Firefox with Enhanced Tracking Protection, which blocks a lot of third-party analytics by default. Install uBlock Origin, which will block PostHog, Clarity, and most analytics scripts before they even run. If you really want to go nuclear, just disable JavaScript. This blog is server-rendered HTML and works fine without it. You'll lose the analytics scripts, which is kind of the point.</p>
+
+            <p>More than any specific tool though, just knowing this stuff happens is the main thing. Every site you visit collects behavioral data. Most of them collect a lot more than I do. When you add all of it up across every site, every app, every device, the picture that emerges is more detailed than what you'd voluntarily tell a close friend. I can't fix that, but I can at least be upfront about my own small piece of it.</p>
+        </article>
+
+        <nav class="nav-row">
+            <a href="/posts">All posts</a>
+            <a href="/">Home</a>
+        </nav>
+    </div>
+</main>
+</body>
+</html>
