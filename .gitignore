@@ -27,3 +27,4 @@ node_modules/
 .env.local
 .env
 .cursor/mcp.json
+.env*.local
