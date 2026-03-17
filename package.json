@@ -1,33 +1,37 @@
 {
-  "name": "rust-blog",
-  "version": "0.1.0",
-  "private": true,
-  "packageManager": "bun@1.3.10",
-  "scripts": {
-    "dev": "bun run --bun next dev",
-    "build": "bun run --bun next build",
-    "start": "bun run --bun next start",
-    "lint": "bun run --bun next lint",
-    "test:e2e:preview": "bun run scripts/e2e-preview.ts",
-    "analytics-ingest": "cargo run --bin analytics-ingestion",
-    "ingest:ga4": "bun run scripts/ingest-env/ga4.ts",
-    "ingest:clarity": "bun run scripts/ingest-env/clarity.ts",
-    "ingest:posthog": "bun run scripts/ingest-env/posthog.ts",
-    "ingest:plausible": "bun run scripts/ingest-env/plausible.ts",
-    "ingest:analytics-api": "bun run scripts/ingest-env/analytics-api.ts",
-    "ingest:vercel-sync": "bun run scripts/ingest-env/vercel-sync.ts"
-  },
-  "dependencies": {
-    "@vercel/analytics": "^1.5.0",
-    "@vercel/speed-insights": "^1.2.0",
-    "next": "^15.3.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0"
-  },
-  "devDependencies": {
-    "@types/node": "^22.0.0",
-    "@types/react": "^19.1.0",
-    "@types/react-dom": "^19.1.0",
-    "typescript": "^5.8.0"
-  }
+	"name": "rust-blog",
+	"version": "0.1.0",
+	"private": true,
+	"packageManager": "bun@1.3.10",
+	"scripts": {
+		"dev": "bun run --bun next dev",
+		"build": "bun run --bun next build",
+		"start": "bun run --bun next start",
+		"lint": "bun run --bun next lint",
+		"test:e2e:preview": "bun run scripts/e2e-preview.ts",
+		"analytics-ingest": "cargo run --bin analytics-ingestion",
+		"ingest:ga4": "bun run scripts/ingest-env/ga4.ts",
+		"ingest:gtm": "bun run scripts/ingest-env/gtm.ts",
+		"ingest:clarity": "bun run scripts/ingest-env/clarity.ts",
+		"ingest:posthog": "bun run scripts/ingest-env/posthog.ts",
+		"ingest:plausible": "bun run scripts/ingest-env/plausible.ts",
+		"ingest:plausible-script": "bun run scripts/ingest-env/plausible-script.ts",
+		"ingest:meta-pixel": "bun run scripts/ingest-env/meta-pixel.ts",
+		"ingest:analytics-api": "bun run scripts/ingest-env/analytics-api.ts",
+		"ingest:vercel-sync": "bun run scripts/ingest-env/vercel-sync.ts"
+	},
+	"dependencies": {
+		"@next/third-parties": "^16.1.7",
+		"@vercel/analytics": "^2.0.1",
+		"@vercel/speed-insights": "^1.2.0",
+		"next": "^15.3.0",
+		"react": "^19.1.0",
+		"react-dom": "^19.1.0"
+	},
+	"devDependencies": {
+		"@types/node": "^22.0.0",
+		"@types/react": "^19.1.0",
+		"@types/react-dom": "^19.1.0",
+		"typescript": "^5.8.0"
+	}
 }
