@@ -5,6 +5,7 @@ export function middleware(request: NextRequest) {
   const response = NextResponse.next();
   const url = request.nextUrl;
 
+  // ── UTM capture ────────────────────────────────────────────────────
   const utmKeys = [
     "utm_source",
     "utm_medium",
@@ -17,7 +18,6 @@ export function middleware(request: NextRequest) {
     const val = url.searchParams.get(key);
     if (val) utm[key] = val;
   }
-
   if (Object.keys(utm).length > 0) {
     response.cookies.set("_utm", JSON.stringify(utm), {
       httpOnly: false,
@@ -27,6 +27,7 @@ export function middleware(request: NextRequest) {
     });
   }
 
+  // ── Referrer capture ───────────────────────────────────────────────
   const referer = request.headers.get("referer");
   if (referer && !request.cookies.get("_referrer")) {
     try {
@@ -41,9 +42,19 @@ export function middleware(request: NextRequest) {
         });
       }
     } catch {
-      /* malformed referer -- ignore */
+      /* malformed referer */
     }
   }
+
+  // ── Edge intelligence headers ──────────────────────────────────────
+  // Stamp the edge POP identifier and processing timestamp so
+  // downstream pages know which edge node served the request.
+  const vercelId = request.headers.get("x-vercel-id");
+  if (vercelId) {
+    const pop = vercelId.split("::")[0];
+    response.headers.set("x-edge-pop", pop);
+  }
+  response.headers.set("x-edge-timestamp", Date.now().toString());
 
   return response;
 }
