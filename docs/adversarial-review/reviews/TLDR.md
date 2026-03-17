@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-03-17 analytics-integration-guide](./2026-03-17-analytics-integration-guide.md)
+  - decision: proceed with push and merge
+  - unresolved risk: none blocking; ingest:meta-pixel script deferred to follow-up
+  - follow-up: optional — add scripts/ingest-env/meta-pixel.ts for consistency
+
 - [2026-03-16 nextjs-rust-analytics](./2026-03-16-nextjs-rust-analytics.md)
   - decision: proceed with push and merge
   - unresolved risk: Azure/ACR env not configured; Cosmos index must be created manually
