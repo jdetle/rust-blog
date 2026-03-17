@@ -44,11 +44,11 @@ Each endpoint now returns an HTML page rather than JSON.
 - **Location**: Blog posts are loaded from HTML files in the `posts/` directory (relative to the project root).
 - **File naming**: The file name (without `.html`) is used as the post ID in the URL.
   - Example: `posts/1.html` → available at `http://127.0.0.1:3000/posts/1`
-  - Example: `posts/2.html` → available at `http://127.0.0.1:3000/posts/2`
+  - Example: `posts/agentic-engineering-explained.html` → available at `http://127.0.0.1:3000/posts/agentic-engineering-explained`
 - **Title detection**: The server tries to use the `<title>...</title>` tag from each HTML file for the index page.
   - If no `<title>` tag is found, it falls back to the file name.
 
-To add a new post, create a new HTML file in `posts/`, such as `posts/3.html`, and then visit `http://127.0.0.1:3000/posts` or `http://127.0.0.1:3000/posts/3`.
+To add a new post, create a new HTML file in `posts/`, such as `posts/my-new-post.html`, and then visit `http://127.0.0.1:3000/posts` or `http://127.0.0.1:3000/posts/my-new-post`.
 
 ### Deployment
 
@@ -65,3 +65,7 @@ The site is deployed as static HTML via **Vercel** at [jdetle.com](https://jdetl
 3. Leave the build command empty and set output directory to `.`.
 4. Add custom domain `jdetle.com` under project Settings > Domains.
 5. Update DNS records to point to Vercel (Vercel provides the exact A/CNAME values).
+
+#### Domain verification
+
+If the domain is linked to another Vercel account, run `scripts/setup-domain.sh` to automate TXT verification via the GoDaddy and Vercel APIs. Requires `VERCEL_TOKEN`, `GODADDY_API_KEY`, and `GODADDY_API_SECRET` environment variables.
