@@ -26,19 +26,10 @@ await appendEnv(KEY, trimmed);
 console.log(`Added ${KEY} to ${ENV_FILE}`);
 const skipVercel = process.argv.includes("--no-vercel") || !process.stdin.isTTY;
 if (!skipVercel && (await confirm("Add to Vercel? (requires vercel CLI)"))) {
-	await run(
-		"vercel",
-		"env",
-		"add",
-		KEY,
-		"production",
-		"preview",
-		"development",
-		"--value",
-		trimmed,
-		"--yes",
-	);
-	console.log("Added to Vercel");
+	for (const env of ["production", "preview", "development"]) {
+		await run("vercel", "env", "add", KEY, env, "--value", trimmed, "--yes");
+	}
+	console.log("Added to Vercel (production, preview, development)");
 }
 
 async function prompt(msg: string): Promise<string> {

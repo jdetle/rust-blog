@@ -1,0 +1,33 @@
+---
+description: Do not push work to a branch whose name doesn't match the work scope; create a separate worktree instead.
+alwaysApply: true
+---
+
+# Branch Scope Alignment
+
+**Rule: Never push work that is irrelevant to the branch name.**
+
+If the work you're about to commit/push does not match the current branch name (e.g., analytics backend work on `feat/e2e-smoke-test`), do **not** push it to that branch. Create a separate worktree with a branch name that reflects the work.
+
+## Workflow
+
+1. **Check scope before staging.** Does the work match the branch? `feat/e2e-smoke-test` implies E2E/smoke test work. Analytics, deployment scripts, and unrelated features do not belong there.
+
+2. **If scope mismatches**, create a dedicated worktree and branch:
+   ```bash
+   git fetch origin main
+   git worktree add -b feat/<scope-matched-name> ../rust-blog-wt/<short-name> origin/main
+   cd ../rust-blog-wt/<short-name>
+   # Copy or apply changes, then commit and push from here
+   ```
+
+3. **Push only to branches whose names align with the work.** Examples:
+   - Analytics backend + setup script → `feat/analytics-backend`
+   - Azure deployment → `feat/azure-deploy` or combined with above
+   - E2E smoke tests → `feat/e2e-smoke-test`
+
+## Why
+
+- Keeps PRs and branches logically scoped; reviewers and history stay coherent.
+- Avoids mixed-concern branches (e2e tests + analytics + deployment) that are hard to review and revert.
+- Matches the convention: branch name describes what the branch contains.

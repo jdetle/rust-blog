@@ -16,8 +16,8 @@ declare global {
 const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID ?? "";
 const GA4_ID = process.env.NEXT_PUBLIC_GA4_ID ?? "";
 const CLARITY_ID = process.env.NEXT_PUBLIC_CLARITY_ID ?? "";
-const PLAUSIBLE_DOMAIN = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN ?? "";
 const META_PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID ?? "";
+const PLAUSIBLE_SCRIPT_ID = process.env.NEXT_PUBLIC_PLAUSIBLE_SCRIPT_ID ?? "";
 
 function isPlaceholder(id: string): boolean {
 	return !id || id.includes("XXXXX");
@@ -81,14 +81,19 @@ export function AnalyticsProvider() {
 				</>
 			)}
 
-			{/* Plausible */}
-			{!isPlaceholder(PLAUSIBLE_DOMAIN) && (
-				<Script
-					defer
-					data-domain={PLAUSIBLE_DOMAIN}
-					src="https://plausible.io/js/script.js"
-					strategy="afterInteractive"
-				/>
+			{/* Plausible — custom script (pa-XXXXXXXX) */}
+			{!isPlaceholder(PLAUSIBLE_SCRIPT_ID) && (
+				<>
+					<Script
+						async
+						src={`https://plausible.io/js/${PLAUSIBLE_SCRIPT_ID}.js`}
+						strategy="afterInteractive"
+					/>
+					<Script id="plausible-init" strategy="afterInteractive">
+						{`window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
+  plausible.init();`}
+					</Script>
+				</>
 			)}
 		</>
 	);

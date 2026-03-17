@@ -1,0 +1,54 @@
+---
+description: "Vercel: use Bun runtime with pinned version; Node 16 is discontinued"
+alwaysApply: true
+---
+
+# Vercel Runtime — Learned from production build failure
+
+This project uses **Bun** as the runtime on Vercel, with an exact version pin. Previously, Node.js 16.x caused failures because it's discontinued. Projects still configured for `nodeVersion: "16.x"` fail with:
+
+```
+Error: Node.js Version "16.x" is discontinued and must be upgraded.
+Please set Node.js Version to 24.x in your Project Settings to use Node.js 24.
+```
+
+## The Rule (Bun)
+
+Use Bun as the runtime. Pin the exact version in three places:
+
+1. **vercel.json**: `bunVersion: "1.x"` (runtime) and `installCommand: "bunx bun@1.3.10 install"` (exact install version)
+2. **package.json**: `"packageManager": "bun@1.3.10"`
+3. **.bun-version**: `1.3.10` (for bvm, mise, etc.)
+
+Bun uses a global install cache at `~/.bun/install/cache` by default. Vercel caches build artifacts between deployments.
+
+## Supported Versions (as of 2025)
+
+| Version | Status |
+|---------|--------|
+| 16.x | **Discontinued** — builds fail |
+| 20.x | Supported (LTS) |
+| 22.x | Supported |
+| 24.x | Default for new projects |
+
+## Checklist for Vercel-Deployed Projects
+
+1. **package.json** must have `engines.node` set to `20.x`, `22.x`, or `24.x` (or a semver range that resolves to one of these).
+2. **Never** set `engines.node` to `16.x` or omit it if the project was created when 16 was default.
+3. **Optional**: Add `.nvmrc` with `20` for local dev consistency.
+
+## Origin
+
+- **Failure**: `vercel build` failed with "Node.js Version 16.x is discontinued"
+- **Date**: 2026-03-17
+- **Root cause**: Project linked to Vercel when Node 16 was default; `.vercel/project.json` retained `nodeVersion: "16.x"`
+- **Fix**: Add `engines: { "node": "20.x" }` to package.json — Vercel uses this over Project Settings
+
+## Detection Acceleration
+
+- **Level**: Local
+ **What to add**: Run `vercel build` locally before pushing. It will fail immediately if Node version is unsupported.
+- **Level**: CI
+ **What to add**: If CI runs `vercel build` or `next build`, ensure the CI image uses Node 20+.
+- **Level**: Editor (this rule)
+ **What was added**: This Cursor rule reminds agents to add/verify `engines.node` when touching Vercel-deployed projects.
