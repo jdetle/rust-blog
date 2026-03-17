@@ -216,6 +216,7 @@
             <li>Add to <code>.env.local</code>: <code>NEXT_PUBLIC_META_PIXEL_ID=1234567890123456</code></li>
             <li>Add to Vercel: Project Settings → Environment Variables → <code>NEXT_PUBLIC_META_PIXEL_ID</code></li>
           </ol>
+          <p><strong>Note:</strong> Meta Pixel sets cookies and tracks users; ensure compliance with consent requirements (e.g. GDPR, CCPA) in your jurisdiction before enabling.</p>
           <p><strong>Implementation:</strong> Add this to <code>components/analytics-provider.tsx</code>:</p>
           <div class="code-block">
 <pre>const META_PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID ?? "";
