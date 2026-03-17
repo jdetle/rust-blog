@@ -284,22 +284,6 @@ h1 {
     border-top: 1px solid var(--line);
 }
 
-.post-list-year {
-    margin-top: 1.4rem;
-    padding: 0.35rem 0.15rem 0.1rem;
-    font-family: "SF Pro Display", "Avenir Next", "Segoe UI", Arial, sans-serif;
-    font-size: 0.78rem;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--olive);
-    border-top: 1px solid var(--line-strong);
-}
-
-.post-list-year:first-child {
-    margin-top: 0;
-}
-
 .post-list a {
     display: flex;
     justify-content: space-between;
@@ -572,6 +556,163 @@ New post skeleton:
     border-radius: 4px;
 }
 
+/* ── Origin Intelligence / VPN Assessment ───────────────────────── */
+
+.origin-intel {
+    border: 1px solid var(--terracotta);
+    border-radius: 6px;
+    padding: 1.2rem;
+    background: rgba(157, 91, 63, 0.03);
+}
+
+.vpn-verdict-card {
+    margin: 1rem 0 1.2rem;
+    padding: 1rem 1.2rem;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+
+.verdict-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.6rem;
+}
+
+.verdict-badge {
+    display: inline-block;
+    padding: 0.3em 0.8em;
+    border-radius: 4px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.verdict-residential {
+    background: rgba(112, 116, 95, 0.12);
+    color: var(--olive);
+    border: 1px solid rgba(112, 116, 95, 0.3);
+}
+
+.verdict-likely-vpn {
+    background: rgba(157, 91, 63, 0.12);
+    color: var(--terracotta);
+    border: 1px solid rgba(157, 91, 63, 0.3);
+}
+
+.verdict-datacenter {
+    background: rgba(180, 140, 60, 0.12);
+    color: #8a6d1b;
+    border: 1px solid rgba(180, 140, 60, 0.3);
+}
+
+.verdict-tor {
+    background: rgba(140, 50, 50, 0.12);
+    color: #8a3030;
+    border: 1px solid rgba(140, 50, 50, 0.3);
+}
+
+.verdict-proxy {
+    background: rgba(100, 120, 160, 0.12);
+    color: #4a5a7a;
+    border: 1px solid rgba(100, 120, 160, 0.3);
+}
+
+.verdict-unknown {
+    background: rgba(120, 120, 120, 0.1);
+    color: var(--muted-ink);
+    border: 1px solid var(--line);
+}
+
+.verdict-summary {
+    font-size: 0.94rem;
+    line-height: 1.6;
+    color: var(--ink);
+}
+
+.confidence-meter {
+    flex: 1;
+    min-width: 140px;
+}
+
+.meter-track {
+    height: 8px;
+    background: var(--line);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 0.25rem;
+}
+
+.meter-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.8s ease-out;
+}
+
+.meter-green { background: var(--olive); }
+.meter-amber { background: #b8860b; }
+.meter-red { background: var(--terracotta); }
+
+.meter-label {
+    font-size: 0.72rem;
+    color: var(--muted-ink);
+    letter-spacing: 0.04em;
+}
+
+.signal-breakdown {
+    margin-top: 1rem;
+}
+
+.signal-breakdown h3 {
+    font-size: 0.92rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--ink);
+}
+
+.signal-row {
+    display: grid;
+    grid-template-columns: 1.5rem 1fr 2fr auto;
+    gap: 0.5rem;
+    align-items: baseline;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.88rem;
+}
+
+.signal-indicator {
+    text-align: center;
+}
+
+.signal-triggered .signal-indicator {
+    color: var(--terracotta);
+}
+
+.signal-clear .signal-indicator {
+    color: var(--olive);
+}
+
+.signal-name {
+    font-weight: 500;
+    color: var(--ink);
+}
+
+.signal-detail {
+    color: var(--muted-ink);
+    font-size: 0.82rem;
+}
+
+.signal-weight {
+    font-size: 0.72rem;
+    color: var(--muted-ink);
+    text-align: right;
+    font-family: "SF Mono", "Fira Code", Menlo, monospace;
+}
+
 @media (max-width: 980px) {
     .home-grid {
         grid-template-columns: 1fr;
@@ -606,5 +747,20 @@ New post skeleton:
     .detect-row {
         grid-template-columns: 1fr;
         gap: 0.15rem;
+    }
+
+    .signal-row {
+        grid-template-columns: 1.5rem 1fr;
+        gap: 0.3rem;
+    }
+
+    .signal-detail,
+    .signal-weight {
+        grid-column: 2;
+    }
+
+    .verdict-header {
+        flex-direction: column;
+        align-items: flex-start;
     }
 }

@@ -1,71 +1,63 @@
-### rust-blog
+### jdetle.com
 
-Minimal Rust HTTP server that serves blog posts.
+Personal blog and journal by John Detlefs. Next.js App Router frontend deployed on Vercel, with the original Rust Axum server preserved for local development and future performance-critical features.
 
-### Prerequisites
+### Architecture
 
-- **Rust toolchain**: Install from [rustup.rs](https://rustup.rs/) if you don't already have it.
+```
+app/                   Next.js App Router pages (SSG + dynamic)
+components/            React components (analytics, nav, profiling)
+content/posts/         Raw HTML blog posts (source of truth)
+lib/                   Server-side utilities (post parser, referral logic)
+middleware.ts          Edge Middleware for UTM/referrer tracking
+public/blog.css        Shared wabi-sabi stylesheet
+src/                   Rust Axum server (local dev, optional)
+```
 
-### Running the server
-
-- **1. Build and run**
+### Running (Next.js)
 
 ```bash
-cd /Users/johndetlefs/github/one/rust-blog
+bun install
+bun run dev
+```
+
+Open http://localhost:3000.
+
+### Running (Rust — local dev)
+
+```bash
 cargo run
 ```
 
-If everything compiles, you should see a log message similar to:
+Serves from `posts/` on http://127.0.0.1:3000.
 
-```text
-listening on http://127.0.0.1:3000
-```
+### Analytics
 
-- **2. View all posts (HTML)**
+Five analytics platforms are wired in `components/analytics-provider.tsx`:
 
-Open this in a browser or use `curl`:
+| Platform | Env var | Signup |
+|---|---|---|
+| Google Analytics 4 | `NEXT_PUBLIC_GA4_ID` | [analytics.google.com](https://analytics.google.com) |
+| Microsoft Clarity | `NEXT_PUBLIC_CLARITY_ID` | [clarity.microsoft.com](https://clarity.microsoft.com) |
+| PostHog | `NEXT_PUBLIC_POSTHOG_KEY` | [posthog.com](https://posthog.com) |
+| Plausible | `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` | [plausible.io](https://plausible.io) ($9/mo) |
+| Vercel Analytics | Built-in | Enabled in Vercel dashboard |
 
-```bash
-curl http://127.0.0.1:3000/posts
-```
+Copy `.env.example` to `.env.local` and fill in your IDs. Placeholder values (containing `XXXXX`) are automatically skipped — no scripts fire until you add real IDs.
 
-- **3. View a single post by ID (HTML)**
+For production, add these as Vercel Environment Variables in the project settings. They'll be injected at build time.
 
-Again, browser or `curl`:
+### Pages
 
-```bash
-curl http://127.0.0.1:3000/posts/1
-```
+| Route | Description |
+|---|---|
+| `/` | Homepage — bio, selected work, editorial note |
+| `/posts` | Post archive — reverse chronological listing |
+| `/posts/:slug` | Individual post (SSG at build time) |
+| `/who-are-you` | Live visitor profiling — shows what the site knows about you |
 
-Each endpoint now returns an HTML page rather than JSON.
+### Deploying
 
-### Blog posts as HTML files
+Push to `main`. Vercel auto-deploys. No `vercel.json` needed — Next.js handles all routing.
 
-- **Location**: Blog posts are loaded from HTML files in the `posts/` directory (relative to the project root).
-- **File naming**: The file name (without `.html`) is used as the post ID in the URL.
-  - Example: `posts/1.html` → available at `http://127.0.0.1:3000/posts/1`
-  - Example: `posts/agentic-engineering-explained.html` → available at `http://127.0.0.1:3000/posts/agentic-engineering-explained`
-- **Title detection**: The server tries to use the `<title>...</title>` tag from each HTML file for the index page.
-  - If no `<title>` tag is found, it falls back to the file name.
-
-To add a new post, create a new HTML file in `posts/`, such as `posts/my-new-post.html`, and then visit `http://127.0.0.1:3000/posts` or `http://127.0.0.1:3000/posts/my-new-post`.
-
-### Deployment
-
-The site is deployed as static HTML via **Vercel** at [jdetle.com](https://jdetle.com).
-
-- **Production**: every push to `main` triggers an automatic deploy to jdetle.com.
-- **Deploy previews**: every pull request gets a unique preview URL posted as a PR comment, so you can see exactly what the blog will look like before merging.
-- **CI**: GitHub Actions runs `cargo check`, `cargo clippy`, and `cargo test` on every push and PR to validate the Rust server code.
-
-#### Vercel project setup (one-time)
-
-1. Import the `jdetle/rust-blog` repo at [vercel.com/new](https://vercel.com/new).
-2. Set framework preset to **Other** (static site, no build step).
-3. Leave the build command empty and set output directory to `.`.
-4. Add custom domain `jdetle.com` under project Settings > Domains.
-5. Update DNS records to point to Vercel (Vercel provides the exact A/CNAME values).
-
-#### Domain verification
-
-If the domain is linked to another Vercel account, run `scripts/setup-domain.sh` to automate TXT verification via the GoDaddy and Vercel APIs. Requires `VERCEL_TOKEN`, `GODADDY_API_KEY`, and `GODADDY_API_SECRET` environment variables.
+The site is live at [jdetle.com](https://jdetle.com). Every PR gets a Vercel preview URL.
