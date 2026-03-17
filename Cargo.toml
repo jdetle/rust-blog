@@ -3,9 +3,13 @@ name = "rust-blog"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "rust_blog"
+path = "src/lib.rs"
+
 [[bin]]
-name = "rust-blog"
-path = "src/main.rs"
+name = "analytics-ingestion"
+path = "src/bin/analytics_ingestion.rs"
 
 [[bin]]
 name = "setup-analytics"
@@ -22,7 +26,6 @@ scylla = "0.15"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.37", features = ["full"] }
-governor = "0.10"
 tower-http = { version = "0.6", features = ["cors"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
