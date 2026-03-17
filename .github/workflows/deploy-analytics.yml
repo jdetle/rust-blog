@@ -1,0 +1,51 @@
+# Deploy analytics-ingestion to Azure Container Apps.
+# Prerequisites: Create ACR, resource group, and Container App (with COSMOS_*, POSTHOG_API_KEY env) in Azure.
+# Secrets: AZURE_CREDENTIALS (service principal JSON)
+# Variables: ACR_NAME, AZURE_RESOURCE_GROUP, CONTAINER_APP_NAME
+name: Deploy analytics-ingestion
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "Dockerfile"
+      - ".github/workflows/deploy-analytics.yml"
+  workflow_dispatch:
+
+env:
+  ACR_NAME: ${{ vars.ACR_NAME || 'jdetleblogacr' }}
+  RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'rg-jdetle-blog' }}
+  CONTAINER_APP_NAME: ${{ vars.CONTAINER_APP_NAME || 'analytics-ingestion' }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Login to ACR
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and push
+        run: |
+          IMAGE=${{ env.ACR_NAME }}.azurecr.io/analytics-ingestion:${{ github.sha }}
+          docker build -t $IMAGE .
+          docker push $IMAGE
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+
+      - name: Deploy to Container Apps
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          resourceGroup: ${{ env.RESOURCE_GROUP }}
+          containerAppName: ${{ env.CONTAINER_APP_NAME }}
+          imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/analytics-ingestion:${{ github.sha }}
+          targetPort: 8080
+          ingress: external

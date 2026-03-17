@@ -27,7 +27,7 @@ async fn main() -> anyhow::Result<()> {
 
     println!("\n=== Setup complete ===");
     println!("All credentials written to .env");
-    println!("Run `cargo run --bin rust-blog` to start the analytics-enabled server.");
+    println!("Run `cargo run --bin analytics-ingestion` to start the analytics ingestion service.");
     Ok(())
 }
 

@@ -115,4 +115,65 @@ impl AnalyticsDb {
     pub fn session(&self) -> &Arc<Session> {
         &self.session
     }
+
+    /// Query events by session_id (PostHog distinct_id). Requires a secondary index:
+    /// CREATE INDEX ON analytics.events(session_id);
+    pub async fn query_events_by_user(
+        &self,
+        user_id: &str,
+        limit: u32,
+    ) -> Result<Vec<AnalyticsEvent>, Box<dyn std::error::Error + Send + Sync>> {
+        if user_id.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let limit = limit.min(100);
+
+        // Secondary index on session_id enables this query. Without it, use ALLOW FILTERING (slow).
+        let cql = "SELECT site_id, event_date, event_time, event_id, event_type, source, \
+                   page_url, user_agent, referrer, session_id, properties \
+                   FROM analytics.events WHERE session_id = ? LIMIT ? ALLOW FILTERING";
+
+        let prepared = self.session.prepare(cql).await?;
+        let result = self
+            .session
+            .execute_unpaged(&prepared, (user_id, limit as i32))
+            .await?;
+
+        let rows = result.into_rows_result()?;
+        let mut events = Vec::new();
+        for row in rows.rows::<(
+            String,
+            i32,
+            i64,
+            Uuid,
+            String,
+            String,
+            String,
+            String,
+            String,
+            String,
+            String,
+        )>()? {
+            let (site_id, date_days, event_time, event_id, event_type, source, page_url, user_agent, referrer, session_id, properties) = row?;
+            let origin = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
+            let event_date = origin
+                .checked_add_signed(chrono::Duration::days(date_days as i64))
+                .unwrap_or(origin);
+            events.push(AnalyticsEvent {
+                site_id,
+                event_date,
+                event_time,
+                event_id,
+                event_type,
+                source,
+                page_url,
+                user_agent,
+                referrer,
+                session_id,
+                properties,
+            });
+        }
+        Ok(events)
+    }
 }
