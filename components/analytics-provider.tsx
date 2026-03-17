@@ -4,15 +4,6 @@ import { GoogleAnalytics, GoogleTagManager } from "@next/third-parties/google";
 import Script from "next/script";
 import { useEffect } from "react";
 
-declare global {
-	interface Window {
-		dataLayer: unknown[];
-		gtag: (...args: unknown[]) => void;
-		clarity: (...args: unknown[]) => void;
-		fbq: (...args: unknown[]) => void;
-	}
-}
-
 const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID ?? "";
 const GA4_ID = process.env.NEXT_PUBLIC_GA4_ID ?? "";
 const CLARITY_ID = process.env.NEXT_PUBLIC_CLARITY_ID ?? "";
