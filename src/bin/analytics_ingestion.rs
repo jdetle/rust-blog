@@ -4,11 +4,12 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use axum::{routing::get, Router};
+use axum::{routing::{get, post}, Router};
 use dotenvy::dotenv;
 use rust_blog::aggregate::{spawn_aggregation_loop, Aggregator};
 use rust_blog::analytics::AnalyticsDb;
 use rust_blog::api::{self, cors_layer};
+use rust_blog::forward::PostHogForwarder;
 use tokio::net::TcpListener;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -40,11 +41,16 @@ async fn main() -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("Cosmos DB: {}", e))?;
     let db = Arc::new(db);
 
-    let state = api::AppState { db: db.clone() };
+    let posthog = Some(Arc::new(PostHogForwarder::new(posthog_api_key.clone())));
+    let state = api::AppState {
+        db: db.clone(),
+        posthog,
+    };
     let aggregator = Arc::new(Aggregator::new(db, posthog_api_key, clarity_token));
 
     let app = Router::new()
         .route("/health", get(api::health))
+        .route("/api/events", post(api::ingest_event))
         .route("/user-events", get(api::user_events))
         .with_state(state)
         .layer(cors_layer());

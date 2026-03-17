@@ -34,7 +34,16 @@ impl Aggregator {
         tracing::info!("starting aggregation cycle");
         self.pull_clarity().await;
         self.pull_posthog().await;
+        self.pull_vercel().await;
         tracing::info!("aggregation cycle complete");
+    }
+
+    /// Vercel Web Analytics has no public REST API for pulling events.
+    /// Data can be exported manually via dashboard CSV, or via Vercel Drains (Pro/Enterprise).
+    async fn pull_vercel(&self) {
+        tracing::debug!(
+            "Vercel Analytics: no pull API — use dashboard CSV export or Vercel Drains"
+        );
     }
 
     async fn pull_clarity(&self) {
