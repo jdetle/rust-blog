@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Monorepos were a mistake</title>
+    <link rel="stylesheet" href="/posts/blog.css">
+</head>
+<body>
+<main class="site-shell">
+    <div class="frame article">
+        <header class="list-header">
+            <p class="eyebrow">Journal</p>
+            <h1 class="page-title">Monorepos were a mistake</h1>
+            <p class="byline">By John Detlefs · February 06, 2024</p>
+        </header>
+
+        <article class="article-content">
+            <p>In software engineering we store our code in GitHub repositories that provide utilities to manage version-controlled text. These repositories act as the host for logic for business operations that benefit from software. It is relatively easy to track history of how code has evolved and lock down who you should to ask about a particular part of code.</p>
+            <p>In software, we have this unfortunate habit of letting organizational proclivities get in the way of sustainability. Many teams insist on operating with their own level of secrecy, ownership rights, and their own standards for what code is allowed to be brought into the codebase.</p>
+            <p>This pattern leads to siloes that beget massive inefficiencies. Oftentimes, I have seen repositories that are set up with the same exact skeleton. They use the same framework, same Dockerfiles, the same env variables, analogous deployment config, and myriad shared packages. Any time a bug is found in one of the siloed repositories, there exists the unavoidable possibility that this bug never gets shared between repositories. I’m willing to bet that the slowdown is non-linear as a function of how many times you split up your code. This is also true for the magnitude of your operational risks. 
+
+Management and competent employees work as a buffer to this inefficiency by being able to juggle different complex codebases and recognize opportunities to share efficiencies. As a senior leader, you should be aware of how egregiously you’re wasting the time and aptitude of your employees. By consolidating work, you allow your devs to focus on providing value to the company and focus on thoughtful product improvements. Oftentimes we spend a massive amount of times acting as code plumbers, fixing leaks and pre-empting risky scenarios.</p>
+            <p>This title is clickbait — The phrase “Monorepos” was a mistake, but not because monorepos themselves are bad. I think it was a mistake in branding, calling something a monorepo implies its something different and singular. Instead I think we should be calling them “multi-target/multi-package repositories”</p>
+        </article>
+
+        <nav class="nav-row">
+            <a href="/posts">All posts</a>
+            <a href="/who-are-you">Who are you?</a>
+            <a href="/">Home</a>
+        </nav>
+    </div>
+</main>
+<script src="/posts/analytics.js" defer></script>
+</body>
+</html>

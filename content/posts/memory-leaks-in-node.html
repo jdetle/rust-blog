@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Memory Leaks in Node</title>
+    <link rel="stylesheet" href="/posts/blog.css">
+</head>
+<body>
+<main class="site-shell">
+    <div class="frame article">
+        <header class="list-header">
+            <p class="eyebrow">Journal</p>
+            <h1 class="page-title">Memory Leaks in Node</h1>
+            <p class="byline">By John Detlefs · July 16, 2024</p>
+        </header>
+
+        <article class="article-content">
+            <p>Whenever code is executed it uses system memory to persist objects that are relevant to the code’s execution. When these objects are no longer relevant, a garbage-collected language will delete the objects and free the memory back up for general consumption. Improperly written code can cause instantiation of objects at a rate that the garbage collector cannot keep up with. In some cases, code can add extraneous event listeners that will never be considered by a garbage collector for elimination. In any case memory leaks are pernicious bugs that will eventually cause out of memory (OOM) errors and cause containers in deployed environments to crash (and hopefully restart). Container crashes will cause unexpected errors in user requests and potentially serious issues with engagement from impacted users. If a user tries to buy a hugely expensive item and that purchase fails to go through, they may never try to buy that item again for a lack of trust in the system.</p>
+            <p>Recently, I was tasked with fixing a memory leak that was cropping up in a service and preventing our ability to deploy a service to production. The first step to take in this situation is always to look at what recent changes occurred since the memory leak started to occur. In our case this required us to look at the git log for the service and to look at the service health dashboard in the AWS Elastic Container Service UI.</p>
+            <p>There were no code changes that appeared to have any chance of being responsible for a leak, but there were a variety of package updates. All of the updates involved were meant to prevent security vulnerabilities. If we reverted those changes, our work would be flagged as non-compliant by automated tools and prevent us from any future pushes to production. The obvious first choice is to revert all of the changes that occurred between stability and the leak cropping up. In our case, we couldn’t do that to unblock things, we would just be trading one problem that prevented us from deploying to production for another.</p>
+            <p>Instead, we had to find which particular packages were involved in the leak. Our local dev environment wasn’t easy to get properly configured for debugging the issue locally. In retrospect, I should have slowed down here and spent the time to stand up a dev environment with (as-close-to) complete parity with the deployed container for a service. There are many services to configure, run locally, and connect to our problem service, getting this right is quite a challenge. All of this work is already done in a deployed environment. If you called me out for trying to rationalize my laziness I wouldn’t blame you. The cons of testing through deployments is that deploying to the appropriate environment can take quite a long time and in many cases they don’t provide access to debugging tools. A slow feedback loop is never good. Testing changes should take minutes, not hours.</p>
+            <p>I tried to use <a href="https://www.npmjs.com/package/@airbnb/node-memwatch">https://www.npmjs.com/package/@airbnb/node-memwatch</a> as a diagnostic tool. This tool is a wrapper for V8’s memory APIs exposed for C++ developers. It is meant to create a snapshot of the heap of memory allocated at time t1 and then when the <code>.end()</code> method is called a snapshot is taken at time t2. The tool provides a diff of the heap between t2 and t1. It will provide details of what classes are being created, usually the first ten or so are native javascript classes. If you have a service with a leak, the first few non-native classes will likely be your leaky classes.</p>
+            <p>In my case the code looked something like this, added in the entry point to the service:</p>
+            <pre><code class="language-javascript">let hd = new memwatch.HeapDiff()
+
+setInterval(() =&gt; {
+	let diff = hd.end()
+	console.log(diff)
+	console.log(diff?.change?.details?.sort((a,b) =&gt; b[‘size_bytes’] - a[‘size_bytes’])
+	hd = new memwatch.HeapDiff()
+}, 1e6)</code></pre>
+            <p>Unfortunately this service comes at quite the cost in terms of memory and CPU usage. When taking diffs with a large gap of time, calling <code>.end()</code> would cause an OOM error and cause the container to crash. What cruel, bitter irony that my memory profiling tool caused a crash on its own. Hoist by my own petard!</p>
+            <p>I had a bit more luck with the tool when I bumped the memory available to my container. I toyed around with bumping <code>--max-old-space</code> size and managed to learn some interesting facts about Node / V8. Modern versions of Node have a bit of conditional logic that determine defaults for <code>--max-old-space</code>. The heap size limits for Node powered by V8 have an upper max of 4gb with systems with 15gb of memory, and 2GB for systems with less than that. If there is less than the maximum amount available, the max size is determined conditionally, something around half the total amount of memory available to the system. The defaults are created conservatively for use cases in the browser. Node docs recommend overriding <code>--max-old-space-size</code> to 1.5GB for a system with 2GB available, although it seems like you could get away with even more. On the other hand, if you set --max-old-space-size to be a value greater than the total memory, it is possible to run into OOM errors. For that reason, you can only use this flag if the max old space size is less than the minimum amount of memory available to your deployed service.</p>
+            <p>Ultimately the solution was profoundly unsatisfying. We pinned packages one-by-one to exact versions and allowed the service to run for some time in the deployed context. We were eventually able to determine that a particular group of <code>nestjs</code> packages were responsible for the leak. When the leak was occurring, there were log messages that clearly indicated something was wrong:</p>
+            <pre><code class="language-javascript">MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 close listeners added to [Server]. Use emitter.setMaxListeners() to increase limit</code></pre>
+            <p>After searching for this error, I found some GitHub issues showing that <code>createProxyMiddleware</code> from <code>http-proxy-middleware</code> was the culprit. This aligned with evidence coming from the <code>@airbnb/node-memwatch</code> debugging, the first non-native class was HttpProxyMiddleware. But alas! This ended up being a bit of a red herring, changing this package version had no impact on the error. The nestjs packages that changed must have caused <code>createProxyMiddleware</code> to be invoked more often, but I am at a loss for how to debug this leak and prove where it came from more conclusively. It would be extremely convenient if the memory heap debugging could give some insight into the class that created a leaking class, not just what the name of the leaking class happens to be.</p>
+            <p>What’s next? I am probably going to speak with my team and try to make our dev environments more usable for complex debugging tasks like this. In addition, I would like to understand why memory usage and cpu usage spikes when using the <code>@airbnb/node-memwatch</code> package. It would be very nice to have a reliable set of tools for quickly diagnosing leaks without crashing an application.</p>
+            <ol>
+            <li>Consider the case of an API server with a popular route <code>/foo</code> if the handler for foo creates a new object for each request, a memory leak can occur if that object is has complex dependencies</li>
+            <li><a href="https://stackoverflow.com/questions/64119135/what-is-the-default-value-of-available-memory-when-max-old-space-size-flag-i">https://stackoverflow.com/questions/64119135/what-is-the-default-value-of-available-memory-when-max-old-space-size-flag-i</a></li>
+            <li><a href="https://chromium.googlesource.com/v8/v8/+/master/src/heap/heap.cc#368">https://chromium.googlesource.com/v8/v8/+/master/src/heap/heap.cc#368</a></li>
+            </ol>
+            <h2>Update from a Month Later:</h2>
+            <p>I messed up a few things here. It turned out that createProxyMiddleware was in fact the leaking class — initial concerns around instantiating a new object on each request were indeed correct.  I did not invest enough effort in setting up an appropriate local setup to reproduce this memory leak. Apache benchmark and <code>@airbnb/node-memwatch</code> were insufficient. Using <code>jmeter</code> <a href="https://jmeter.apache.org/">https://jmeter.apache.org/</a> turned out to be crucial in making request to authenticated endpoints that ended up applying the middleware in question. In addition, I dove much deeper on the <a href="https://nodejs.org/api/v8.html#v8writeheapsnapshotfilenameoptions">heap snapshot docs</a>. By setting up a route that would trigger writing a heap snapshot, I could write the raw files directly to my machine or to S3 if hosted in AWS.</p>
+            <p>V8 Heap snapshots have a format that can change frequently, the best way to interact with them is through the Chrome Developer Tools. The dev tools provide an effective way to introspect and diff heaps to understand where leaks are coming from.</p>
+            <p>My core takeaways from this mistake are to always invest the time in having adequate infrastructure to be able to reproduce a leak quickly. Verification of a fix can’t take days. There can be an impetus to avoid investing time in being able to reproduce an issue. When someone’s breathing down your neck it can be hard to justify “extra” work, but it it is absolutely necessary. Else you end up wasting your time on guesses. We get paid to work with applied rigor, not superstition.</p>
+            <p>Additionally, this was a situation where I should have trusted my gut. I had experience, all signs were pointing to createProxyMiddleware being the problem class, but I let pressure from deadlines cause me to second guess myself and not think like an engineer.</p>
+        </article>
+
+        <nav class="nav-row">
+            <a href="/posts">All posts</a>
+            <a href="/who-are-you">Who are you?</a>
+            <a href="/">Home</a>
+        </nav>
+    </div>
+</main>
+<script src="/posts/analytics.js" defer></script>
+</body>
+</html>

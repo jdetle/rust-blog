@@ -1,41 +1,61 @@
-### rust-blog
+### jdetle.com
 
-Minimal Rust HTTP server that serves blog posts.
+Personal blog and journal by John Detlefs. Next.js App Router frontend deployed on Vercel, with the original Rust Axum server preserved for local development and future performance-critical features.
 
-### Prerequisites
+### Architecture
 
-- **Rust toolchain**: Install from [rustup.rs](https://rustup.rs/) if you don't already have it.
+```
+app/                   Next.js App Router pages (SSG + dynamic)
+components/            React components (analytics, nav, profiling)
+content/posts/         Raw HTML blog posts (source of truth)
+lib/                   Server-side utilities (post parser, referral logic)
+middleware.ts          Edge Middleware for UTM/referrer tracking
+public/blog.css        Shared wabi-sabi stylesheet
+src/                   Rust Axum server (local dev, optional)
+```
 
-### Running the server
-
-- **1. Build and run**
+### Running (Next.js)
 
 ```bash
-cd /Users/johndetlefs/github/one/rust-blog
+bun install
+bun run dev
+```
+
+Open http://localhost:3000.
+
+### Running (Rust — local dev)
+
+```bash
 cargo run
 ```
 
-If everything compiles, you should see a log message similar to:
+Serves from `posts/` on http://127.0.0.1:3000.
 
-```text
-listening on http://127.0.0.1:3000
-```
+### Analytics
 
-- **2. View all posts (HTML)**
+Five analytics platforms are wired in `components/analytics-provider.tsx`:
 
-Open this in a browser or use `curl`:
+| Platform | Env var | Signup |
+|---|---|---|
+| Google Analytics 4 | `NEXT_PUBLIC_GA4_ID` | [analytics.google.com](https://analytics.google.com) |
+| Microsoft Clarity | `NEXT_PUBLIC_CLARITY_ID` | [clarity.microsoft.com](https://clarity.microsoft.com) |
+| PostHog | `NEXT_PUBLIC_POSTHOG_KEY` | [posthog.com](https://posthog.com) |
+| Plausible | `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` | [plausible.io](https://plausible.io) ($9/mo) |
+| Vercel Analytics | Built-in | Enabled in Vercel dashboard |
 
-```bash
-curl http://127.0.0.1:3000/posts
-```
+Copy `.env.example` to `.env.local` and fill in your IDs. Placeholder values (containing `XXXXX`) are automatically skipped — no scripts fire until you add real IDs.
 
-- **3. View a single post by ID (HTML)**
+For production, add these as Vercel Environment Variables in the project settings. They'll be injected at build time.
 
-Again, browser or `curl`:
+### Pages
 
-```bash
-curl http://127.0.0.1:3000/posts/1
-```
+| Route | Description |
+|---|---|
+| `/` | Homepage — bio, selected work, editorial note |
+| `/posts` | Post archive — reverse chronological listing |
+| `/posts/:slug` | Individual post (SSG at build time) |
+| `/who-are-you` | Live visitor profiling — shows what the site knows about you |
 
-Each endpoint now returns an HTML page rather than JSON.
-You can adjust the in-memory posts in `src/blog.rs` as needed.
+### Deploying
+
+Push to `main`. Vercel auto-deploys. No `vercel.json` needed — Next.js handles all routing.
