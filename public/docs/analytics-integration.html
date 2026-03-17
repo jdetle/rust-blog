@@ -38,19 +38,21 @@
           <ul>
             <li>1. <a href="#quick-links">Quick links</a></li>
             <li>2. <a href="#env-vars">Environment variables</a></li>
-            <li>3. <a href="#ga4">Google Analytics 4</a></li>
-            <li>4. <a href="#clarity">Microsoft Clarity</a></li>
-            <li>5. <a href="#posthog">PostHog</a></li>
-            <li>6. <a href="#plausible">Plausible</a></li>
-            <li>7. <a href="#vercel">Vercel Analytics</a></li>
-            <li>8. <a href="#meta">Meta Pixel</a></li>
-            <li>9. <a href="#vercel-secrets">Adding secrets to Vercel</a></li>
-            <li>10. <a href="#optional">Optional: Cosmos & analytics-ingestion</a></li>
+            <li>3. <a href="#gtm">Google Tag Manager</a> (recommended)</li>
+            <li>4. <a href="#ga4">Google Analytics 4</a></li>
+            <li>5. <a href="#clarity">Microsoft Clarity</a></li>
+            <li>6. <a href="#posthog">PostHog</a></li>
+            <li>7. <a href="#plausible">Plausible</a></li>
+            <li>8. <a href="#vercel">Vercel Analytics</a></li>
+            <li>9. <a href="#meta">Meta Pixel</a></li>
+            <li>10. <a href="#vercel-secrets">Adding secrets to Vercel</a></li>
+            <li>11. <a href="#optional">Optional: Cosmos & analytics-ingestion</a></li>
           </ul>
         </div>
 
         <h2 id="quick-links">Quick links</h2>
         <ul>
+          <li><a href="https://tagmanager.google.com" target="_blank" rel="noopener">Google Tag Manager</a> — Container ID (GTM-XXXXXX)</li>
           <li><a href="https://analytics.google.com" target="_blank" rel="noopener">Google Analytics 4</a> — Measurement ID (G-XXXXXXXXXX)</li>
           <li><a href="https://clarity.microsoft.com" target="_blank" rel="noopener">Microsoft Clarity</a> — Project ID (session recordings)</li>
           <li><a href="https://app.posthog.com/signup" target="_blank" rel="noopener">PostHog</a> — Project API Key</li>
@@ -71,10 +73,16 @@
           </thead>
           <tbody>
             <tr>
+              <td><code>NEXT_PUBLIC_GTM_ID</code></td>
+              <td>Yes</td>
+              <td>.env.local</td>
+              <td>AnalyticsProvider (Google Tag Manager)</td>
+            </tr>
+            <tr>
               <td><code>NEXT_PUBLIC_GA4_ID</code></td>
               <td>Yes</td>
               <td>.env.local</td>
-              <td>AnalyticsProvider</td>
+              <td>AnalyticsProvider (use when not using GTM)</td>
             </tr>
             <tr>
               <td><code>NEXT_PUBLIC_CLARITY_ID</code></td>
@@ -135,8 +143,27 @@
 
         <h2>Step-by-step integration</h2>
 
+        <section class="service-card" id="gtm">
+          <h2>1. Google Tag Manager (recommended)</h2>
+          <p><a href="https://tagmanager.google.com" target="_blank" rel="noopener">tagmanager.google.com</a></p>
+          <p>GTM is a tag hub: add GA4, Meta Pixel, and other tags from the GTM UI without deploying code. Use GTM <strong>or</strong> direct GA4—not both in code.</p>
+          <ol>
+            <li>Sign in with Google</li>
+            <li>Create account (or use existing) → Create container → Web</li>
+            <li>Copy the <strong>Container ID</strong> (format <code>GTM-XXXXXX</code>)</li>
+            <li>Add to <code>.env.local</code>: <code>NEXT_PUBLIC_GTM_ID=GTM-XXXXXX</code> — or run <code>bun run ingest:gtm</code> / <code>bun run ingest:gtm GTM-XXXXXX</code></li>
+            <li>In GTM: add a <strong>Google Analytics: GA4 Configuration</strong> tag with your Measurement ID. Trigger: All Pages.</li>
+          </ol>
+          <p><strong>Custom events:</strong> Use <code>sendGTMEvent</code> from <code>@next/third-parties/google</code>:</p>
+          <div class="code-block">
+<pre>import { sendGTMEvent } from "@next/third-parties/google";
+
+sendGTMEvent({ event: "buttonClicked", value: "xyz" });</pre>
+          </div>
+        </section>
+
         <section class="service-card" id="ga4">
-          <h2>1. Google Analytics 4</h2>
+          <h2>2. Google Analytics 4 (direct, when not using GTM)</h2>
           <p><a href="https://analytics.google.com" target="_blank" rel="noopener">analytics.google.com</a></p>
           <ol>
             <li>Sign in with Google</li>
@@ -147,11 +174,11 @@
             <li>Add to <code>.env.local</code>: <code>NEXT_PUBLIC_GA4_ID=G-XXXXXXXXXX</code></li>
             <li>Run: <code>bun run ingest:ga4</code> or <code>bun run ingest:ga4 G-XXXXXXXXXX</code></li>
           </ol>
-          <p><strong>Implementation:</strong> AnalyticsProvider loads gtag.js and configures <code>send_page_view: true</code>. Page views are automatic.</p>
+          <p><strong>Implementation:</strong> Uses <code>@next/third-parties</code> <code>GoogleAnalytics</code> component. Page views and client-side navigations are automatic. Custom events: <code>sendGAEvent('event', 'name', { key: 'value' })</code> from <code>@next/third-parties/google</code>.</p>
         </section>
 
         <section class="service-card" id="clarity">
-          <h2>2. Microsoft Clarity</h2>
+          <h2>3. Microsoft Clarity</h2>
           <p><a href="https://clarity.microsoft.com" target="_blank" rel="noopener">clarity.microsoft.com</a></p>
           <ol>
             <li>Sign in with Microsoft account</li>
@@ -165,7 +192,7 @@
         </section>
 
         <section class="service-card" id="posthog">
-          <h2>3. PostHog</h2>
+          <h2>4. PostHog</h2>
           <p><a href="https://app.posthog.com/signup" target="_blank" rel="noopener">app.posthog.com/signup</a></p>
           <ol>
             <li>Sign up (or use <code>cargo run --bin setup-analytics</code> for API signup)</li>
@@ -179,7 +206,7 @@
         </section>
 
         <section class="service-card" id="plausible">
-          <h2>4. Plausible</h2>
+          <h2>5. Plausible</h2>
           <p><a href="https://plausible.io" target="_blank" rel="noopener">plausible.io</a> ($9/mo)</p>
           <ol>
             <li>Sign up → Add website</li>
@@ -192,7 +219,7 @@
         </section>
 
         <section class="service-card" id="vercel">
-          <h2>5. Vercel Analytics</h2>
+          <h2>6. Vercel Analytics</h2>
           <p><a href="https://vercel.com" target="_blank" rel="noopener">vercel.com</a></p>
           <ol>
             <li>Vercel dashboard → your project</li>
@@ -203,7 +230,7 @@
         </section>
 
         <section class="service-card" id="meta">
-          <h2>6. Meta Pixel</h2>
+          <h2>7. Meta Pixel</h2>
           <p><a href="https://business.facebook.com/events_manager" target="_blank" rel="noopener">business.facebook.com/events_manager</a></p>
           <ol>
             <li>Create or log into a <a href="https://business.facebook.com" target="_blank" rel="noopener">Meta Business Suite</a> account</li>

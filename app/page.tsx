@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { HomeCtas } from "@/components/home-ctas";
 
 export default function HomePage() {
   return (
@@ -22,17 +22,7 @@ export default function HomePage() {
               revenue streams.
             </p>
 
-            <div className="cta-row">
-              <Link className="btn btn-primary" href="/posts">
-                Read the blog
-              </Link>
-              <Link className="btn btn-secondary" href="/who-are-you">
-                Who are you?
-              </Link>
-              <a className="btn btn-secondary" href="mailto:">
-                Get in touch
-              </a>
-            </div>
+            <HomeCtas />
 
             <p className="meta">
               Currently: Senior Cloud Developer and Senior Associate at{" "}

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getAllPosts, getPost } from "@/lib/posts";
 import { NavRow } from "@/components/nav-row";
+import { PostReadTracker } from "@/components/post-read-tracker";
 
 export function generateStaticParams() {
   return getAllPosts().map((p) => ({ slug: p.slug }));
@@ -44,6 +45,7 @@ export default async function PostPage({ params }: Props) {
           dangerouslySetInnerHTML={{ __html: post.bodyHtml }}
         />
 
+        <PostReadTracker slug={slug} title={post.title} />
         <NavRow />
       </div>
     </main>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import posthog from "posthog-js";
 import { ANALYTICS_API_URL } from "@/lib/config";
 import type { VpnAssessment, VpnSignal, ClientSignals, EdgeSignals } from "@/lib/vpn-detect";
 import { analyzeClientServerMismatch, computeVerdict } from "@/lib/vpn-detect";
@@ -409,6 +410,10 @@ export function ClientProfile({
     const allSignals = [...serverSignals, ...clientServerSignals];
     const assessment = computeVerdict(allSignals);
     setVpnAssessment(assessment);
+    posthog.capture("vpn_verdict_shown", {
+      verdict: assessment.verdict,
+      confidence: assessment.confidence,
+    });
 
     // ── 8. Analytics tools (delayed) ───────────────────────────────
     setTimeout(() => {
@@ -467,6 +472,11 @@ export function ClientProfile({
       }
 
       setSummary(parts.join(" ") || "Could not gather enough data to build a profile.");
+      posthog.capture("profile_detection_complete", {
+        signal_count: signals,
+        referrer_type: refClass,
+        verdict: assessment.verdict,
+      });
       setLoaded(true);
     }, 2500);
   }, [serverGeo, edgeInfo]);
@@ -475,8 +485,7 @@ export function ClientProfile({
 
   useEffect(() => {
     if (!loaded || !ANALYTICS_API_URL) return;
-    const posthog = (window as { posthog?: { get_distinct_id?: () => string } }).posthog;
-    const distinctId = posthog?.get_distinct_id?.();
+    const distinctId = posthog.get_distinct_id();
     if (!distinctId) return;
 
     setUserEventsLoading(true);
