@@ -284,6 +284,22 @@ h1 {
     border-top: 1px solid var(--line);
 }
 
+.post-list-year {
+    margin-top: 1.4rem;
+    padding: 0.35rem 0.15rem 0.1rem;
+    font-family: "SF Pro Display", "Avenir Next", "Segoe UI", Arial, sans-serif;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--olive);
+    border-top: 1px solid var(--line-strong);
+}
+
+.post-list-year:first-child {
+    margin-top: 0;
+}
+
 .post-list a {
     display: flex;
     justify-content: space-between;

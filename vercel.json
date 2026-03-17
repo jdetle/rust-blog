@@ -5,8 +5,8 @@
       "destination": "/posts/index.html"
     },
     {
-      "source": "/posts/:id",
-      "destination": "/posts/:id.html"
+      "source": "/posts/:quarter/:id",
+      "destination": "/posts/:quarter/:id.html"
     }
   ]
 }

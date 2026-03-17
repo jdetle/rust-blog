@@ -2,13 +2,19 @@ mod blog;
 
 use std::net::SocketAddr;
 
-use axum::{routing::get, Router};
+use axum::{http::StatusCode, response::Html, routing::get, Router};
 use blog::{get_post, list_posts};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+async fn root() -> Result<Html<String>, StatusCode> {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("index.html");
+    std::fs::read_to_string(&path)
+        .map(Html)
+        .map_err(|_| StatusCode::NOT_FOUND)
+}
+
 #[tokio::main]
 async fn main() {
-    // Set up basic logging
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::new(
             std::env::var("RUST_LOG").unwrap_or_else(|_| "rust_blog=debug,tower_http=debug".into()),
@@ -16,12 +22,11 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    // Build our application with some routes
     let app = Router::new()
+        .route("/", get(root))
         .route("/posts", get(list_posts))
-        .route("/posts/:id", get(get_post));
+        .route("/posts/{quarter}/{slug}", get(get_post));
 
-    // Run it
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     tracing::info!("listening on http://{}", addr);
 
@@ -33,5 +38,3 @@ async fn main() {
         .await
         .expect("server error");
 }
-
-
