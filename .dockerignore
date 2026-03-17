@@ -1,0 +1,8 @@
+target/
+.git/
+.gitignore
+.vercel/
+.env
+.cursor/
+*.md
+scripts/

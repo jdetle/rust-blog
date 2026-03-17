@@ -2,7 +2,10 @@ use axum::{extract::Path, http::StatusCode, response::Html};
 use std::path::PathBuf;
 
 fn posts_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("posts")
+    std::env::var("CONTENT_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")))
+        .join("posts")
 }
 
 /// GET /posts — serve the static index page
