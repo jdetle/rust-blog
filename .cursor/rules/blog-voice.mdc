@@ -1,0 +1,52 @@
+---
+description: Writing voice and anti-AI-slop guidelines for blog posts
+alwaysApply: true
+---
+
+# Blog Writing Voice
+
+When writing or editing blog post content, match John's natural voice and avoid common AI writing tells.
+
+## Voice characteristics
+
+- Casual, direct, conversational. Use contractions freely.
+- Blunt when appropriate ("corporate bullshit", "getting shit done").
+- Self-deprecating asides and admissions of confusion or laziness.
+- Technical specifics dropped casually without over-explaining.
+- Sentences vary wildly in length. Long run-on sentences mixed with short punchy ones.
+- Parenthetical asides, not em dashes. Avoid excessive em dash usage.
+- Imperfect structure. Not every section transitions smoothly. Paragraph lengths vary.
+- Personal tangents and real anecdotes over abstract claims.
+
+## AI patterns to avoid
+
+### Banned phrases
+
+- "The uncomfortable truth"
+- "It's important to note that"
+- "In today's fast-paced world"
+- "In the realm of"
+- "At the end of the day"
+- "Hopefully this [post/article] makes that [clearer/more concrete]"
+- "commodity analytics tooling" or similar overwrought noun phrases
+- "delve", "leverage" (as verb), "tapestry", "landscape", "robust", "comprehensive", "nuanced", "paradigm", "synergy", "holistic"
+
+### Banned structural patterns
+
+- "It's not X — it's Y" or "The problem isn't X. The problem is Y." (the #1 AI tell)
+- "Not X. Not Y. Just Z." dramatic countdown
+- Bold-keyword formatted lists (`**Term.** Description.`) — use flowing prose instead
+- Perfectly smooth transitions between every section
+- Textbook five-act escalation structure
+- Uniform paragraph lengths
+- Grand sweeping declarative statements ("The web was not built with privacy as a default")
+- Clean AI-style sign-off closers
+
+### Prefer instead
+
+- Start with a personal anecdote or specific detail, not a thesis statement
+- Let sections feel slightly rough around the edges
+- End with something direct and personal, not a polished summary
+- Use "like a normal person" not "like a human"
+- Name specific tools and costs instead of abstract descriptions
+- Mix question-and-answer into prose naturally rather than using rhetorical question lists
