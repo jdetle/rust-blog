@@ -59,3 +59,5 @@ For production, add these as Vercel Environment Variables in the project setting
 ### Deploying
 
 Push to `main`. Vercel auto-deploys. No `vercel.json` needed — Next.js handles all routing.
+
+The site is live at [jdetle.com](https://jdetle.com). Every PR gets a Vercel preview URL.

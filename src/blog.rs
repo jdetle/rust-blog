@@ -1,90 +1,30 @@
 use axum::{extract::Path, http::StatusCode, response::Html};
+use std::path::PathBuf;
 
-#[derive(Clone, Debug)]
-pub struct BlogPost {
-    pub id: u64,
-    pub title: String,
-    pub body: String,
+fn posts_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("posts")
 }
 
-fn sample_posts() -> Vec<BlogPost> {
-    vec![
-        BlogPost {
-            id: 1,
-            title: "First post".to_string(),
-            body: "Welcome to the Rust blog server example.".to_string(),
-        },
-        BlogPost {
-            id: 2,
-            title: "Second post".to_string(),
-            body: "This is another sample blog post served from memory.".to_string(),
-        },
-    ]
+/// GET /posts — serve the static index page
+pub async fn list_posts() -> Result<Html<String>, StatusCode> {
+    let path = posts_dir().join("index.html");
+    std::fs::read_to_string(&path)
+        .map(Html)
+        .map_err(|_| StatusCode::NOT_FOUND)
 }
 
-/// GET /posts
-pub async fn list_posts() -> Html<String> {
-    let posts = sample_posts();
-
-    let mut html = String::from(
-        r#"<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <title>Rust Blog - Posts</title>
-</head>
-<body>
-    <h1>Rust Blog - Posts</h1>
-    <ul>
-"#,
-    );
-
-    for post in posts {
-        html.push_str(&format!(
-            r#"        <li><a href="/posts/{id}">{title}</a></li>
-"#,
-            id = post.id,
-            title = post.title,
-        ));
+/// GET /posts/:quarter/:slug — serve a post from its quarter folder
+pub async fn get_post(Path((quarter, slug)): Path<(String, String)>) -> Result<Html<String>, StatusCode> {
+    if !is_safe_segment(&quarter) || !is_safe_segment(&slug) {
+        return Err(StatusCode::BAD_REQUEST);
     }
 
-    html.push_str(
-        r#"    </ul>
-</body>
-</html>
-"#,
-    );
-
-    Html(html)
+    let path = posts_dir().join(&quarter).join(format!("{slug}.html"));
+    std::fs::read_to_string(&path)
+        .map(Html)
+        .map_err(|_| StatusCode::NOT_FOUND)
 }
 
-/// GET /posts/:id
-pub async fn get_post(Path(id): Path<u64>) -> Result<Html<String>, StatusCode> {
-    let posts = sample_posts();
-
-    if let Some(post) = posts.into_iter().find(|p| p.id == id) {
-        let html = format!(
-            r#"<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <title>{title}</title>
-</head>
-<body>
-    <article>
-        <h1>{title}</h1>
-        <p>{body}</p>
-        <p><a href="/posts">Back to posts</a></p>
-    </article>
-</body>
-</html>
-"#,
-            title = post.title,
-            body = post.body,
-        );
-
-        Ok(Html(html))
-    } else {
-        Err(StatusCode::NOT_FOUND)
-    }
+fn is_safe_segment(s: &str) -> bool {
+    !s.is_empty() && !s.contains('/') && !s.contains('\\') && s != "." && s != ".."
 }
