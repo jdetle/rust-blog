@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Who Are You? - John Detlefs Journal</title>
+    <link rel="stylesheet" href="/posts/blog.css">
+</head>
+<body>
+<main class="site-shell">
+    <div class="frame article">
+        <header class="list-header">
+            <p class="eyebrow">Transparency</p>
+            <h1 class="page-title">Here's what I know about you</h1>
+            <p class="byline">Everything below was gathered by your browser in the last few seconds.</p>
+        </header>
+
+        <article class="article-content">
+            <p>
+                This page is a live demonstration of what a website can learn about you
+                just from your browser. No accounts, no cookies from previous visits &mdash;
+                just the information your device volunteers on every page load. The analytics
+                tools running on this blog (Google Analytics, Microsoft Clarity, Plausible,
+                PostHog, and Vercel Analytics) collect subsets of this data automatically.
+            </p>
+
+            <div id="profile-loading" class="profile-status">Gathering data&hellip;</div>
+            <div id="profile-complete" class="profile-status profile-hidden">
+                Analysis complete. <span id="signal-count">0</span> signals detected.
+            </div>
+
+            <!-- Network & Location -->
+            <section class="detect-section" id="section-network">
+                <h2>Network &amp; Location</h2>
+                <p class="detect-note">Via IP geolocation lookup</p>
+                <dl class="detect-grid">
+                    <div class="detect-row" id="row-ip"><dt>IP address</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-city"><dt>City</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-region"><dt>Region</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-country"><dt>Country</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-isp"><dt>ISP</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-org"><dt>Organization</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-timezone-ip"><dt>Timezone (IP)</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                </dl>
+            </section>
+
+            <!-- Device & Hardware -->
+            <section class="detect-section" id="section-device">
+                <h2>Device &amp; Hardware</h2>
+                <p class="detect-note">From Navigator and Screen APIs</p>
+                <dl class="detect-grid">
+                    <div class="detect-row" id="row-browser"><dt>Browser</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-os"><dt>Operating system</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-device-type"><dt>Device type</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-cpu"><dt>CPU cores</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-ram"><dt>Device memory</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-screen"><dt>Screen resolution</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-viewport"><dt>Viewport</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-dpr"><dt>Pixel ratio (retina)</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-color-depth"><dt>Color depth</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-touch"><dt>Touch support</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-gpu"><dt>GPU</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                </dl>
+            </section>
+
+            <!-- Browser Capabilities -->
+            <section class="detect-section" id="section-browser">
+                <h2>Browser Capabilities</h2>
+                <p class="detect-note">Feature detection and preference queries</p>
+                <dl class="detect-grid">
+                    <div class="detect-row" id="row-timezone"><dt>Timezone</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-languages"><dt>Languages</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-dnt"><dt>Do Not Track</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-cookies"><dt>Cookies enabled</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-darkmode"><dt>Dark mode</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-reducedmotion"><dt>Reduced motion</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-connection"><dt>Connection</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-battery"><dt>Battery</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-webgl"><dt>WebGL</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-wasm"><dt>WebAssembly</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-sw"><dt>Service Workers</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-pdf"><dt>PDF viewer</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-plugins"><dt>Plugins</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-adblock"><dt>Ad blocker</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                </dl>
+            </section>
+
+            <!-- Fingerprint -->
+            <section class="detect-section" id="section-fingerprint">
+                <h2>Canvas Fingerprint</h2>
+                <p class="detect-note">A hash derived from how your browser renders graphics &mdash; nearly unique to your device</p>
+                <dl class="detect-grid">
+                    <div class="detect-row" id="row-canvas-hash"><dt>Fingerprint hash</dt><dd class="detect-val loading-pulse mono">&hellip;</dd></div>
+                </dl>
+            </section>
+
+            <!-- Referral -->
+            <section class="detect-section" id="section-referral">
+                <h2>How You Got Here</h2>
+                <p class="detect-note">Referrer header and URL parameters</p>
+                <dl class="detect-grid">
+                    <div class="detect-row" id="row-referrer"><dt>Referrer</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-ref-class"><dt>Referrer type</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                    <div class="detect-row" id="row-utm"><dt>UTM tags</dt><dd class="detect-val loading-pulse">&hellip;</dd></div>
+                </dl>
+                <p class="referral-summary" id="referral-summary"></p>
+            </section>
+
+            <!-- Active Analytics -->
+            <section class="detect-section" id="section-analytics">
+                <h2>Analytics Tools Watching You</h2>
+                <p class="detect-note">Scripts currently loaded on this page</p>
+                <ul class="analytics-list" id="analytics-list"></ul>
+            </section>
+
+            <!-- Summary -->
+            <section class="detect-section" id="section-summary">
+                <h2>The Composite Picture</h2>
+                <p id="summary-text" class="summary-paragraph"></p>
+            </section>
+        </article>
+
+        <nav class="nav-row">
+            <a href="/posts">All posts</a>
+            <a href="/">Home</a>
+        </nav>
+    </div>
+</main>
+
+<script src="/posts/analytics.js" defer></script>
+<script>
+(function () {
+    "use strict";
+
+    var signals = 0;
+    var profile = {};
+
+    function set(rowId, value, key) {
+        var row = document.getElementById(rowId);
+        if (!row) return;
+        var dd = row.querySelector(".detect-val");
+        if (!dd) return;
+        dd.classList.remove("loading-pulse");
+        dd.textContent = value || "unavailable";
+        dd.classList.add("detect-reveal");
+        signals++;
+        if (key) profile[key] = value;
+    }
+
+    function maskIP(ip) {
+        if (!ip) return "unavailable";
+        var parts = ip.split(".");
+        if (parts.length === 4) {
+            return parts[0] + "." + parts[1] + "." + parts[2] + ".xxx";
+        }
+        return ip.replace(/:[\da-f]+$/i, ":xxxx");
+    }
+
+    // ── Network & Location (IP geolocation) ──────────────────────────
+    function detectNetwork() {
+        fetch("https://ipapi.co/json/")
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                set("row-ip", maskIP(d.ip), "ip");
+                set("row-city", d.city, "city");
+                set("row-region", d.region, "region");
+                set("row-country", d.country_name + " (" + d.country_code + ")", "country");
+                set("row-isp", d.org || d.asn, "isp");
+                set("row-org", d.org || "same as ISP", "org");
+                set("row-timezone-ip", d.timezone, "tz_ip");
+                profile.lat = d.latitude;
+                profile.lon = d.longitude;
+            })
+            .catch(function () {
+                ["row-ip", "row-city", "row-region", "row-country", "row-isp", "row-org", "row-timezone-ip"].forEach(function (id) {
+                    set(id, "blocked or unavailable");
+                });
+            });
+    }
+
+    // ── Device & Hardware ────────────────────────────────────────────
+    function detectDevice() {
+        var ua = navigator.userAgent;
+        set("row-browser", parseBrowser(ua), "browser");
+        set("row-os", parseOS(ua), "os");
+        set("row-device-type", guessDeviceType(), "deviceType");
+        set("row-cpu", navigator.hardwareConcurrency ? navigator.hardwareConcurrency + " cores" : "unavailable", "cores");
+        set("row-ram", navigator.deviceMemory ? navigator.deviceMemory + " GB" : "unavailable", "ram");
+        set("row-screen", screen.width + " × " + screen.height, "screen");
+        set("row-viewport", window.innerWidth + " × " + window.innerHeight, "viewport");
+        set("row-dpr", window.devicePixelRatio + "x" + (window.devicePixelRatio > 1 ? " (retina)" : ""), "dpr");
+        set("row-color-depth", screen.colorDepth + "-bit", "colorDepth");
+        set("row-touch", navigator.maxTouchPoints > 0 ? "Yes (" + navigator.maxTouchPoints + " touch points)" : "No", "touch");
+        set("row-gpu", getGPU(), "gpu");
+    }
+
+    function parseBrowser(ua) {
+        if (ua.includes("Firefox/")) return "Firefox " + ua.split("Firefox/")[1].split(" ")[0];
+        if (ua.includes("Edg/")) return "Edge " + ua.split("Edg/")[1].split(" ")[0];
+        if (ua.includes("OPR/")) return "Opera " + ua.split("OPR/")[1].split(" ")[0];
+        if (ua.includes("Chrome/")) return "Chrome " + ua.split("Chrome/")[1].split(" ")[0];
+        if (ua.includes("Safari/") && ua.includes("Version/")) return "Safari " + ua.split("Version/")[1].split(" ")[0];
+        return ua;
+    }
+
+    function parseOS(ua) {
+        if (ua.includes("Windows NT 10")) return "Windows 10/11";
+        if (ua.includes("Windows NT")) return "Windows";
+        if (ua.includes("Mac OS X")) {
+            var ver = ua.match(/Mac OS X (\d+[_.\d]+)/);
+            return "macOS " + (ver ? ver[1].replace(/_/g, ".") : "");
+        }
+        if (ua.includes("Android")) {
+            var v = ua.match(/Android ([\d.]+)/);
+            return "Android " + (v ? v[1] : "");
+        }
+        if (ua.includes("iPhone OS") || ua.includes("iPad")) {
+            var iv = ua.match(/OS (\d+[_\d]+)/);
+            return "iOS " + (iv ? iv[1].replace(/_/g, ".") : "");
+        }
+        if (ua.includes("Linux")) return "Linux";
+        if (ua.includes("CrOS")) return "ChromeOS";
+        return "Unknown";
+    }
+
+    function guessDeviceType() {
+        var w = screen.width;
+        if (navigator.maxTouchPoints > 0 && w < 768) return "Mobile phone";
+        if (navigator.maxTouchPoints > 0 && w >= 768 && w < 1200) return "Tablet";
+        return "Desktop / Laptop";
+    }
+
+    function getGPU() {
+        try {
+            var c = document.createElement("canvas");
+            var gl = c.getContext("webgl") || c.getContext("experimental-webgl");
+            if (!gl) return "WebGL unavailable";
+            var ext = gl.getExtension("WEBGL_debug_renderer_info");
+            if (!ext) return "GPU info restricted";
+            return gl.getParameter(ext.UNMASKED_RENDERER_WEBGL);
+        } catch (_) {
+            return "unavailable";
+        }
+    }
+
+    // ── Browser Capabilities ─────────────────────────────────────────
+    function detectCapabilities() {
+        set("row-timezone", Intl.DateTimeFormat().resolvedOptions().timeZone, "timezone");
+        set("row-languages", (navigator.languages || [navigator.language]).join(", "), "languages");
+
+        var dnt = navigator.doNotTrack || window.doNotTrack;
+        set("row-dnt", dnt === "1" ? "Enabled" : dnt === "0" ? "Disabled" : "Not set", "dnt");
+        set("row-cookies", navigator.cookieEnabled ? "Yes" : "No", "cookies");
+
+        var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        set("row-darkmode", dark ? "Preferred" : "Not preferred", "darkMode");
+
+        var motion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        set("row-reducedmotion", motion ? "Reduce requested" : "No preference", "reducedMotion");
+
+        var conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+        if (conn) {
+            var info = conn.effectiveType || "unknown";
+            if (conn.downlink) info += ", " + conn.downlink + " Mbps";
+            if (conn.rtt) info += ", " + conn.rtt + "ms RTT";
+            set("row-connection", info, "connection");
+        } else {
+            set("row-connection", "API unavailable");
+        }
+
+        if (navigator.getBattery) {
+            navigator.getBattery().then(function (b) {
+                var pct = Math.round(b.level * 100) + "%";
+                var charging = b.charging ? " (charging)" : " (discharging)";
+                set("row-battery", pct + charging, "battery");
+            }).catch(function () {
+                set("row-battery", "denied");
+            });
+        } else {
+            set("row-battery", "API unavailable");
+        }
+
+        set("row-webgl", (function () {
+            try {
+                var c = document.createElement("canvas");
+                return !!(c.getContext("webgl") || c.getContext("experimental-webgl")) ? "Supported" : "Not supported";
+            } catch (_) { return "Not supported"; }
+        })(), "webgl");
+
+        set("row-wasm", typeof WebAssembly === "object" ? "Supported" : "Not supported", "wasm");
+        set("row-sw", "serviceWorker" in navigator ? "Supported" : "Not supported", "sw");
+
+        set("row-pdf", (function () {
+            if (navigator.pdfViewerEnabled !== undefined) return navigator.pdfViewerEnabled ? "Built-in" : "None";
+            return "Detection unavailable";
+        })());
+
+        var plugins = [];
+        if (navigator.plugins) {
+            for (var i = 0; i < navigator.plugins.length; i++) {
+                plugins.push(navigator.plugins[i].name);
+            }
+        }
+        set("row-plugins", plugins.length > 0 ? plugins.join(", ") : "None detected");
+
+        detectAdBlock();
+    }
+
+    function detectAdBlock() {
+        var bait = document.createElement("div");
+        bait.className = "ad-banner ad_unit ad-zone adsbox";
+        bait.style.cssText = "position:absolute;left:-9999px;width:1px;height:1px;";
+        document.body.appendChild(bait);
+        setTimeout(function () {
+            var blocked = bait.offsetHeight === 0 || bait.clientHeight === 0 ||
+                          getComputedStyle(bait).display === "none";
+            set("row-adblock", blocked ? "Detected" : "Not detected", "adblock");
+            bait.remove();
+        }, 200);
+    }
+
+    // ── Canvas Fingerprint ───────────────────────────────────────────
+    function detectFingerprint() {
+        try {
+            var canvas = document.createElement("canvas");
+            canvas.width = 280;
+            canvas.height = 40;
+            var ctx = canvas.getContext("2d");
+            ctx.textBaseline = "top";
+            ctx.font = "14px 'Arial'";
+            ctx.fillStyle = "#f60";
+            ctx.fillRect(125, 1, 62, 20);
+            ctx.fillStyle = "#069";
+            ctx.fillText("jdetle.com \ud83c\udf1f fingerprint", 2, 15);
+            ctx.fillStyle = "rgba(102, 204, 0, 0.7)";
+            ctx.fillText("jdetle.com \ud83c\udf1f fingerprint", 4, 17);
+            var data = canvas.toDataURL();
+            var hash = simpleHash(data);
+            set("row-canvas-hash", hash, "fingerprint");
+        } catch (_) {
+            set("row-canvas-hash", "Canvas blocked");
+        }
+    }
+
+    function simpleHash(str) {
+        var hash = 0;
+        for (var i = 0; i < str.length; i++) {
+            var c = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + c;
+            hash = hash & hash;
+        }
+        var hex = (hash >>> 0).toString(16);
+        while (hex.length < 8) hex = "0" + hex;
+        return hex;
+    }
+
+    // ── Referral Detection ───────────────────────────────────────────
+    function detectReferral() {
+        var ref = document.referrer || sessionStorage.getItem("_referrer") || "";
+        set("row-referrer", ref || "Direct (no referrer)", "referrer");
+
+        var refClass = classifyReferrer(ref);
+        set("row-ref-class", humanizeClass(refClass), "referrerClass");
+
+        var utmRaw = sessionStorage.getItem("_utm");
+        var params = new URLSearchParams(window.location.search);
+        var utmObj = {};
+        ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"].forEach(function (k) {
+            var v = params.get(k);
+            if (v) utmObj[k] = v;
+        });
+        if (!Object.keys(utmObj).length && utmRaw) {
+            try { utmObj = JSON.parse(utmRaw); } catch (_) {}
+        }
+
+        if (Object.keys(utmObj).length) {
+            var parts = [];
+            for (var k in utmObj) parts.push(k.replace("utm_", "") + ": " + utmObj[k]);
+            set("row-utm", parts.join(" · "), "utm");
+        } else {
+            set("row-utm", "None");
+        }
+
+        var summary = buildReferralSummary(ref, refClass, utmObj);
+        var el = document.getElementById("referral-summary");
+        if (el && summary) el.innerHTML = summary;
+    }
+
+    function classifyReferrer(url) {
+        if (!url) return "direct";
+        try { var host = new URL(url).hostname.toLowerCase(); } catch (_) { return "other"; }
+        if (host.includes("google.") || host.includes("bing.com") || host.includes("duckduckgo.com")) return "search";
+        if (host.includes("twitter.com") || host.includes("x.com") || host.includes("t.co")) return "social:twitter";
+        if (host.includes("linkedin.com")) return "social:linkedin";
+        if (host.includes("reddit.com")) return "social:reddit";
+        if (host.includes("news.ycombinator.com")) return "social:hackernews";
+        if (host.includes("github.com")) return "social:github";
+        if (host.includes("facebook.com")) return "social:facebook";
+        return "other:" + host;
+    }
+
+    function humanizeClass(cls) {
+        var map = {
+            "direct": "Direct visit",
+            "search": "Search engine",
+            "social:twitter": "Twitter / X",
+            "social:linkedin": "LinkedIn",
+            "social:reddit": "Reddit",
+            "social:hackernews": "Hacker News",
+            "social:github": "GitHub",
+            "social:facebook": "Facebook"
+        };
+        if (map[cls]) return map[cls];
+        if (cls.startsWith("other:")) return "External (" + cls.split(":")[1] + ")";
+        return cls;
+    }
+
+    function buildReferralSummary(ref, cls, utm) {
+        var parts = [];
+        if (cls === "direct") {
+            parts.push("You navigated here directly &mdash; no referrer was sent.");
+        } else {
+            parts.push("You arrived from <strong>" + humanizeClass(cls) + "</strong>");
+            if (ref) parts[0] += " (<code>" + escapeHtml(ref.substring(0, 80)) + "</code>)";
+            parts[0] += ".";
+        }
+        if (utm.utm_source) {
+            parts.push("Your link was tagged with source <strong>" + escapeHtml(utm.utm_source) + "</strong>");
+            if (utm.utm_campaign) parts[parts.length - 1] += " for campaign <strong>" + escapeHtml(utm.utm_campaign) + "</strong>";
+            parts[parts.length - 1] += ".";
+        }
+        return parts.join(" ");
+    }
+
+    function escapeHtml(s) {
+        var d = document.createElement("div");
+        d.textContent = s;
+        return d.innerHTML;
+    }
+
+    // ── Active Analytics Detection ───────────────────────────────────
+    function detectAnalytics() {
+        var list = document.getElementById("analytics-list");
+        if (!list) return;
+        var tools = [
+            { name: "Google Analytics 4", check: function () { return !!window.gtag || !!window.dataLayer; } },
+            { name: "Microsoft Clarity", check: function () { return !!window.clarity; } },
+            { name: "Plausible", check: function () { return !!window.plausible; } },
+            { name: "PostHog", check: function () { return !!window.posthog && typeof window.posthog.capture === "function"; } },
+            { name: "Vercel Analytics", check: function () { return !!document.querySelector('script[src*="_vercel/insights"]'); } },
+        ];
+
+        tools.forEach(function (t) {
+            var li = document.createElement("li");
+            li.className = "analytics-item";
+            var active = t.check();
+            li.innerHTML = '<span class="analytics-dot ' + (active ? "dot-active" : "dot-inactive") + '"></span>' +
+                           '<span>' + t.name + '</span>' +
+                           '<span class="analytics-status">' + (active ? "Active" : "Not loaded") + '</span>';
+            list.appendChild(li);
+        });
+    }
+
+    // ── Composite Summary ────────────────────────────────────────────
+    function buildSummary() {
+        setTimeout(function () {
+            var p = [];
+            if (profile.city && profile.country) {
+                p.push("You appear to be in <strong>" + escapeHtml(profile.city) + ", " + escapeHtml(profile.country) + "</strong>");
+            }
+            if (profile.isp) p[p.length - 1] += " on <strong>" + escapeHtml(profile.isp) + "</strong>";
+            if (p.length) p[p.length - 1] += ".";
+
+            if (profile.browser && profile.os) {
+                p.push("You're using <strong>" + escapeHtml(profile.browser) + "</strong> on <strong>" + escapeHtml(profile.os) + "</strong>");
+                if (profile.deviceType) p[p.length - 1] += " (" + escapeHtml(profile.deviceType).toLowerCase() + ")";
+                p[p.length - 1] += ".";
+            }
+
+            if (profile.gpu && profile.gpu !== "unavailable" && profile.gpu !== "GPU info restricted") {
+                p.push("Your GPU is a <strong>" + escapeHtml(profile.gpu) + "</strong>");
+                if (profile.cores) p[p.length - 1] += " paired with " + escapeHtml(profile.cores);
+                if (profile.ram) p[p.length - 1] += " and " + escapeHtml(profile.ram) + " of memory";
+                p[p.length - 1] += ".";
+            }
+
+            if (profile.screen) {
+                p.push("Your screen is <strong>" + escapeHtml(profile.screen) + "</strong>");
+                if (profile.dpr) p[p.length - 1] += " at " + escapeHtml(profile.dpr) + " density";
+                p[p.length - 1] += ".";
+            }
+
+            if (profile.timezone) {
+                p.push("Your clock says it's <strong>" + escapeHtml(profile.timezone) + "</strong>");
+                if (profile.languages) p[p.length - 1] += " and you prefer <strong>" + escapeHtml(profile.languages.split(",")[0].trim()) + "</strong>";
+                p[p.length - 1] += ".";
+            }
+
+            if (profile.darkMode === "Preferred") p.push("You prefer <strong>dark mode</strong>.");
+            if (profile.adblock === "Detected") p.push("You're running an <strong>ad blocker</strong> &mdash; wise choice.");
+            if (profile.dnt === "Enabled") p.push("You've enabled <strong>Do Not Track</strong>.");
+
+            if (profile.fingerprint) {
+                p.push("Your canvas fingerprint is <code>" + escapeHtml(profile.fingerprint) + "</code> &mdash; " +
+                       "a nearly unique identifier derived from how your browser renders graphics.");
+            }
+
+            var el = document.getElementById("summary-text");
+            if (el) el.innerHTML = p.join(" ") || "Could not gather enough data to build a profile.";
+
+            document.getElementById("profile-loading").classList.add("profile-hidden");
+            document.getElementById("profile-complete").classList.remove("profile-hidden");
+            document.getElementById("signal-count").textContent = signals;
+        }, 2500);
+    }
+
+    // ── Run everything ───────────────────────────────────────────────
+    detectNetwork();
+    detectDevice();
+    detectCapabilities();
+    detectFingerprint();
+    detectReferral();
+    setTimeout(detectAnalytics, 1500);
+    buildSummary();
+})();
+</script>
+</body>
+</html>
