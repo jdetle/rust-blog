@@ -2,8 +2,9 @@
 set -euo pipefail
 
 DOMAIN="jdetle.com"
-VERCEL_PROJECT_ID="QmczKiYJ8kj5xT3BckmVy7VzwVqraFVzT7VbU4yEbkMB8k"
-VERCEL_TEAM_ID="team_Ck3ad18uLxElobWvm26xCIw4"
+# oakheightsllc/rust-blog — export VERCEL_PROJECT_ID and VERCEL_TEAM_ID (get from project Settings or vercel link)
+VERCEL_PROJECT_ID="${VERCEL_PROJECT_ID:?Set VERCEL_PROJECT_ID (from oakheightsllc/rust-blog)}"
+VERCEL_TEAM_ID="${VERCEL_TEAM_ID:?Set VERCEL_TEAM_ID (oakheightsllc team ID)}"
 
 # ── Credential checks ────────────────────────────────────────────────
 if [[ -z "${VERCEL_TOKEN:-}" ]]; then
