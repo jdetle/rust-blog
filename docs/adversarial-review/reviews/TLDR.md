@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-03-17 analytics-cleanup-ci-ga4](./2026-03-17-analytics-cleanup-ci-ga4.md)
+  - decision: proceed with push and merge
+  - unresolved risk: dead script refs in raw HTML; posts/ vs content/posts/ duplication
+  - follow-up: optional prune of duplicate posts/ tree
+
 - [2026-03-16 nextjs-rust-analytics](./2026-03-16-nextjs-rust-analytics.md)
   - decision: proceed with push and merge
   - unresolved risk: Azure/ACR env not configured; Cosmos index must be created manually
