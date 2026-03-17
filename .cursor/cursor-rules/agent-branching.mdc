@@ -1,22 +1,30 @@
 ---
-description: Agents must work in worktrees on branches and open PRs — never commit in the primary worktree or directly to main
+description: One agent session = one worktree = one PR. Never commit in the primary worktree or directly to main.
 alwaysApply: true
 ---
 
 # Agent Branching Workflow
 
-Every **top-level** agent session that produces code changes MUST work in a **dedicated git worktree** on a dedicated branch. Never commit in the primary worktree. Never commit directly to `main`.
+**Rule: Start a PR for every agent session on its own worktree.**
 
-**Subagents are exempt.** Subagents (launched via the Task tool) inherit the parent agent's workspace and worktree. They do not create their own worktrees — they commit, edit, and run commands in whatever worktree the parent is already using. The `enforce-worktree` hook automatically allows subagent commands through.
+Every **top-level** agent session that produces code changes MUST work in a **dedicated git worktree** on a dedicated branch, and MUST end with a pushed branch and open PR. Never commit in the primary worktree. Never commit directly to `main`.
+
+**Subagents are exempt.** Subagents (launched via the Task tool) inherit the parent agent's workspace and worktree. They do not create their own worktrees — they commit, edit, and run commands in whatever worktree the parent is already using.
 
 ## Workflow
 
 1. **Create the worktree FIRST — before any edits.** The very first action in any code-producing session is creating the worktree. Do not read files, do not edit files, do not run exploratory commands in the primary worktree and "move changes later." Set up the worktree, `cd` into it, then start working.
    ```bash
-   bash scripts/setup-worktree.sh <type>/<branch-name> <short-name>
-   cd /Users/jdetlefs001/one/skills-hub-wt/<short-name>
+   git fetch origin main
+   git worktree add -b <type>/<branch-name> ../rust-blog-wt/<short-name> origin/main
+   cd ../rust-blog-wt/<short-name>
    ```
-   This creates a worktree with its own port, database, and environment. Use conventional branch prefixes: `feat/`, `fix/`, `refactor/`, `chore/`, `docs/`, `test/`.
+   Or, if this repo has `scripts/setup-worktree.sh`:
+   ```bash
+   bash scripts/setup-worktree.sh <type>/<branch-name> <short-name>
+   cd ../rust-blog-wt/<short-name>
+   ```
+   Use conventional branch prefixes: `feat/`, `fix/`, `refactor/`, `chore/`, `docs/`, `test/`.
 
    If the branch already has a worktree, `cd` into it: check `git worktree list` first.
 
@@ -63,6 +71,6 @@ Keep names short (3-5 words), lowercase, hyphen-separated.
 
 After a PR is merged:
 ```bash
-git worktree remove ../skills-hub-wt/<short-name>
+git worktree remove ../rust-blog-wt/<short-name>
 git branch -d <branch-name>
 ```
