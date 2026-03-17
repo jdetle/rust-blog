@@ -1,4 +1,4 @@
-//! HTTP API for the analytics ingestion service: health check and user event queries.
+//! HTTP API for the analytics ingestion service: health check, event ingestion, and user event queries.
 
 use std::sync::Arc;
 
@@ -8,13 +8,15 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use crate::analytics::{AnalyticsDb, AnalyticsEvent};
+use crate::analytics::{AnalyticsDb, AnalyticsEvent, IncomingEvent};
+use crate::forward::PostHogForwarder;
 use serde::Serialize;
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 
 #[derive(Clone)]
 pub struct AppState {
     pub db: Arc<AnalyticsDb>,
+    pub posthog: Option<Arc<PostHogForwarder>>,
 }
 
 #[derive(serde::Deserialize)]
@@ -53,6 +55,33 @@ impl From<&AnalyticsEvent> for UserEventDto {
 
 pub async fn health() -> impl IntoResponse {
     (StatusCode::OK, "ok")
+}
+
+pub async fn ingest_event(
+    State(state): State<AppState>,
+    Json(payload): Json<IncomingEvent>,
+) -> impl IntoResponse {
+    let event = AnalyticsEvent::from_incoming(payload, "custom");
+
+    if let Err(e) = state.db.insert_event(&event).await {
+        tracing::error!(error = %e, "failed to insert event");
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "Failed to store event"})),
+        )
+            .into_response();
+    }
+
+    if let Some(ref fwd) = state.posthog {
+        let forwarder = Arc::clone(fwd);
+        let ev = event.clone();
+        tokio::spawn(async move {
+            forwarder.forward(&ev).await;
+        });
+    }
+
+    (StatusCode::ACCEPTED, Json(serde_json::json!({"event_id": event.event_id.to_string()})))
+        .into_response()
 }
 
 pub async fn user_events(

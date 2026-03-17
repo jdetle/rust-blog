@@ -36,7 +36,7 @@ Run alongside the Next.js app when Cosmos + Clarity + PostHog are configured:
 cargo run --bin analytics-ingestion
 ```
 
-Serves HTTP on port 8080 (`GET /health`, `GET /user-events?user_id=...`). Pulls events from Clarity and PostHog every 15 minutes, writes to Cosmos DB. Requires `COSMOS_*`, `POSTHOG_API_KEY`, and optionally `CLARITY_EXPORT_TOKEN` in `.env`.
+Serves HTTP on port 8080 (`GET /health`, `POST /api/events`, `GET /user-events?user_id=...`). Accepts client events at `POST /api/events`, stores them in Cosmos DB, and forwards to PostHog. Pulls events from Clarity and PostHog every 15 minutes. Requires `COSMOS_*`, `POSTHOG_API_KEY`, and optionally `CLARITY_EXPORT_TOKEN` in `.env`.
 
 **Cosmos DB:** Create the secondary index for user-events queries (run once):
 
@@ -67,7 +67,7 @@ Five analytics platforms are wired in `components/analytics-provider.tsx`:
 
 Copy `.env.example` to `.env.local` and fill in your IDs. Placeholder values (containing `XXXXX`) are automatically skipped — no scripts fire until you add real IDs.
 
-**Setup guide:** See [Analytics Setup](/docs/analytics-setup.html) for step-by-step signup links and instructions. Use the ingest scripts to add secrets: <code>bun run ingest:ga4</code>, <code>bun run ingest:clarity</code>, <code>bun run ingest:posthog</code>, <code>bun run ingest:plausible</code>, <code>bun run ingest:vercel-sync</code>.
+**Setup guide:** See [Analytics Integration](/docs/analytics-integration.html) for step-by-step setup (GA4, Clarity, PostHog, Plausible, Vercel, Meta Pixel), or [Analytics Setup](/docs/analytics-setup.html) for the quick reference. Use the ingest scripts to add secrets: <code>bun run ingest:ga4</code>, <code>bun run ingest:clarity</code>, <code>bun run ingest:posthog</code>, <code>bun run ingest:plausible</code>, <code>bun run ingest:vercel-sync</code>.
 
 For production, add these as Vercel Environment Variables in the project settings. They'll be injected at build time.
 
@@ -80,8 +80,14 @@ For production, add these as Vercel Environment Variables in the project setting
 | `/posts/:slug` | Individual post (SSG at build time) |
 | `/who-are-you` | Live visitor profiling + your event history (when `NEXT_PUBLIC_ANALYTICS_API_URL` is set) |
 
-### Deploying
+### Deployment
 
-Push to `main`. Vercel auto-deploys. No `vercel.json` needed — Next.js handles all routing.
+| Event | What happens |
+|-------|--------------|
+| Push to `main` | GitHub Actions CI runs Rust checks (`cargo check`, `clippy`, `test`, `build --release`); Vercel deploys to production |
+| Open or update a PR | CI runs Rust checks; Vercel posts a deploy preview URL on the PR |
+| Merge a PR | Vercel deploys the merged result to [jdetle.com](https://jdetle.com) |
 
-The site is live at [jdetle.com](https://jdetle.com). Every PR gets a Vercel preview URL.
+**Vercel:** Connects via GitHub integration. Production deploys run automatically on push to `main`. PR preview URLs (e.g. `rust-blog-abc123.vercel.app`) are posted as comments. Next.js handles routing — no `vercel.json` needed.
+
+**CI:** `.github/workflows/ci.yml` validates Rust code on every push and PR. Blocks merging if `cargo check`, `cargo clippy -- -D warnings`, `cargo test`, or `cargo build --release` fails.
