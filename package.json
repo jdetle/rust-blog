@@ -6,7 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "analytics-ingest": "cargo run --bin analytics-ingestion",
+    "ingest:ga4": "bun run scripts/ingest-env/ga4.ts",
+    "ingest:clarity": "bun run scripts/ingest-env/clarity.ts",
+    "ingest:posthog": "bun run scripts/ingest-env/posthog.ts",
+    "ingest:plausible": "bun run scripts/ingest-env/plausible.ts",
+    "ingest:analytics-api": "bun run scripts/ingest-env/analytics-api.ts",
+    "ingest:vercel-sync": "bun run scripts/ingest-env/vercel-sync.ts"
   },
   "dependencies": {
     "@vercel/analytics": "^1.5.0",

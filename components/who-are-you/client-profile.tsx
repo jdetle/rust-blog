@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { ANALYTICS_API_URL } from "@/lib/config";
 import type { VpnAssessment, VpnSignal, ClientSignals, EdgeSignals } from "@/lib/vpn-detect";
 import { analyzeClientServerMismatch, computeVerdict } from "@/lib/vpn-detect";
 
@@ -240,6 +241,11 @@ export function ClientProfile({
   const [summary, setSummary] = useState<string | null>(null);
   const [signalCount, setSignalCount] = useState(0);
   const [loaded, setLoaded] = useState(false);
+  const [userEvents, setUserEvents] = useState<
+    { event_id: string; event_type: string; source: string; page_url: string; event_date: string }[]
+  >([]);
+  const [userEventsLoading, setUserEventsLoading] = useState(false);
+  const [userEventsError, setUserEventsError] = useState<string | null>(null);
 
   const detectAll = useCallback(async () => {
     const profile: DetectedProfile = {};
@@ -467,6 +473,29 @@ export function ClientProfile({
 
   useEffect(() => { detectAll(); }, [detectAll]);
 
+  useEffect(() => {
+    if (!loaded || !ANALYTICS_API_URL) return;
+    const posthog = (window as { posthog?: { get_distinct_id?: () => string } }).posthog;
+    const distinctId = posthog?.get_distinct_id?.();
+    if (!distinctId) return;
+
+    setUserEventsLoading(true);
+    setUserEventsError(null);
+    const url = new URL("/user-events", ANALYTICS_API_URL);
+    url.searchParams.set("user_id", distinctId);
+    url.searchParams.set("limit", "50");
+    fetch(url.href)
+      .then((r) => {
+        if (!r.ok) throw new Error(`API returned ${r.status}`);
+        return r.json();
+      })
+      .then((data: { events?: { event_id: string; event_type: string; source: string; page_url: string; event_date: string }[] }) => {
+        setUserEvents(data.events ?? []);
+      })
+      .catch((e) => setUserEventsError(e instanceof Error ? e.message : "Failed to load events"))
+      .finally(() => setUserEventsLoading(false));
+  }, [loaded]);
+
   return (
     <>
       <div className={`profile-status ${loaded ? "profile-hidden" : ""}`}>Gathering data&hellip;</div>
@@ -603,6 +632,40 @@ export function ClientProfile({
           ))}
         </ul>
       </section>
+
+      {/* ── Your Event History ─────────────────────────────────────── */}
+      {ANALYTICS_API_URL && (
+        <section className="detect-section">
+          <h2>Your Event History</h2>
+          <p className="detect-note">
+            Events associated with your PostHog distinct_id, pulled from the analytics warehouse.
+          </p>
+          {userEventsLoading && <p className="detect-note">Loading&hellip;</p>}
+          {userEventsError && (
+            <p className="detect-note" style={{ color: "var(--error, #dc2626)" }}>
+              {userEventsError}
+            </p>
+          )}
+          {!userEventsLoading && !userEventsError && userEvents.length === 0 && (
+            <p className="detect-note">No events found yet. Visit a few pages and check back.</p>
+          )}
+          {!userEventsLoading && !userEventsError && userEvents.length > 0 && (
+            <ul className="post-list" style={{ marginTop: "0.5rem" }}>
+              {userEvents.map((e) => (
+                <li key={e.event_id}>
+                  <div>
+                    <span className="post-title">{e.event_type}</span>
+                    <span className="post-kicker">
+                      {e.source} &middot; {e.event_date}
+                      {e.page_url ? ` &middot; ${e.page_url}` : ""}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       {/* ── Composite Summary ─────────────────────────────────────── */}
       <section className="detect-section">
