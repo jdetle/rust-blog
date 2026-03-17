@@ -1,0 +1,109 @@
+---
+description: "Applies when writing or editing shell scripts (.sh files) or inline bash in CI workflows"
+globs: "**/*.sh"
+alwaysApply: false
+---
+
+# Shell Operator Precedence — Learned from runtime crash
+
+`||` and `&&` in bash have **equal precedence** and **left-to-right associativity**. `A || B && C` parses as `(A || B) && C`, NOT `A || (B && C)`. This is unlike most programming languages where `&&` binds tighter than `||`. A command substitution using `$(cmd1 || cmd2 && cmd3)` will execute `cmd3` even when `cmd1` succeeds, silently appending extra output to the captured variable.
+
+## The Rule
+
+When combining `||` (fallback) and `&&` (chained commands) in the same expression, **always use explicit grouping** with subshells `()` or braces `{}` to make the intended precedence unambiguous.
+
+### Variable assignment with fallback
+
+```bash
+# WRONG — pwd runs even when git rev-parse succeeds
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || cd "$FALLBACK" && pwd)"
+
+# RIGHT — subshell groups the fallback chain
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || (cd "$FALLBACK" && pwd))"
+```
+
+### Command fallback chains
+
+```bash
+# WRONG — cleanup runs after either branch
+do_primary || do_fallback && cleanup
+
+# RIGHT — cleanup only runs after fallback
+do_primary || (do_fallback && cleanup)
+
+# RIGHT — cleanup runs after whichever succeeds
+do_primary || do_fallback
+cleanup
+```
+
+### Conditional execution
+
+```bash
+# WRONG — echo runs even when cmd1 succeeds (if cmd1 exits 0)
+cmd1 || cmd2 && echo "done"
+
+# RIGHT — echo only after fallback succeeds
+cmd1 || { cmd2 && echo "done"; }
+
+# RIGHT — echo after either path succeeds
+{ cmd1 || cmd2; } && echo "done"
+```
+
+## The Precedence Table
+
+| Expression | Bash parses as | Common misreading |
+|---|---|---|
+| `A \|\| B && C` | `(A \|\| B) && C` | `A \|\| (B && C)` |
+| `A && B \|\| C` | `(A && B) \|\| C` | (usually correct intent) |
+| `A \|\| B && C \|\| D` | `((A \|\| B) && C) \|\| D` | Unpredictable |
+
+**Rule of thumb:** If your expression has both `||` and `&&`, add explicit grouping. The two seconds it takes to add parentheses saves hours of debugging silent data corruption.
+
+## Especially Dangerous: Command Substitutions
+
+Inside `$(...)`, extra commands silently append their stdout to the captured value. This produces variables with embedded newlines or concatenated paths — failures that are invisible until the variable is used.
+
+```bash
+# This captures TWO lines: git output + pwd output
+VAR="$(git rev-parse --show-toplevel || cd /fallback && pwd)"
+# VAR now contains "/repo\n/repo" — cd "$VAR" fails with "No such file or directory"
+```
+
+The error message gives no hint about the doubled value. The failure appears in `cd`, not in the assignment where the bug actually lives.
+
+## Examples
+
+### Wrong (caused the failure)
+
+```bash
+PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || cd "$(dirname "$0")/../../../.." && pwd)"
+```
+
+When `git rev-parse` succeeds, bash still runs `pwd` (because `(A || B) && C` — C runs when the overall left side is truthy). `PROJECT_ROOT` gets the git output plus a second line from `pwd`, creating a path with an embedded newline.
+
+### Right (prevents recurrence)
+
+```bash
+PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/../../../.." && pwd))"
+```
+
+The subshell `(cd ... && pwd)` groups the fallback — `pwd` only runs if `cd` succeeds inside the fallback branch.
+
+## Origin
+
+- **Failure**: `start-hub.sh` (formerly `fresh-aos.sh`) crashed on line 11 — `cd "$PROJECT_ROOT"` failed with "No such file or directory" because `PROJECT_ROOT` contained a doubled path separated by a newline
+- **Date**: 2026-03-13
+- **Root cause**: Bash `||`/`&&` equal precedence caused `pwd` to execute unconditionally in a command substitution, appending a second line to the captured variable
+- **PR**: fix/shell-operator-precedence
+
+## Detection Acceleration
+
+- **Level**: Pre-commit (shellcheck)
+  **What was added**: `shellcheck` scan in `.husky/pre-commit` for all staged `.sh` files. ShellCheck SC2015 warns about `A && B || C` patterns; while it doesn't catch the exact `A || B && C` variant directly, it flags the broader class. The custom `scripts/lint-shell-precedence.sh` grep catches the specific `|| ... && ...` pattern inside `$(...)` command substitutions.
+  **Diagnosis time before**: Runtime crash with misleading "No such file or directory" error — required tracing back through variable assignment to discover the doubled value
+  **Diagnosis time after**: Pre-commit hook flags the pattern before it's ever committed
+
+- **Level**: Runtime (self-validation)
+  **What was added**: `start-hub.sh` now validates that `PROJECT_ROOT` is a real directory immediately after assignment, with an explicit error message naming the variable and its value
+  **Diagnosis time before**: Generic "No such file or directory" from `cd` with no indication the path was malformed
+  **Diagnosis time after**: Immediate error: "PROJECT_ROOT is not a valid directory: <value>"

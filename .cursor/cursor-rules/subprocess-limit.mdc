@@ -1,0 +1,93 @@
+---
+description: Cap subprocess spawning to prevent fork bombs and runaway parallelism
+alwaysApply: true
+---
+
+# Subprocess Limit — Max 49 Concurrent Processes
+
+Never spawn more than **49 subprocesses** from a single script, hook, or agent operation. This prevents fork bombs, file-descriptor exhaustion, and macOS process-table pressure that cause hangs and system instability.
+
+## The Rule
+
+Any code path that spawns child processes — `Bun.spawn()`, `child_process.exec()`, shell backgrounding (`&`), `xargs -P`, GNU `parallel`, or batch loops — must enforce a concurrency cap of **49**.
+
+### Shell scripts
+
+```bash
+MAX_PROCS=49
+
+# WRONG — unbounded parallelism
+for branch in $BRANCHES; do
+  process_branch "$branch" &
+done
+wait
+
+# RIGHT — capped parallelism
+RUNNING=0
+for branch in $BRANCHES; do
+  process_branch "$branch" &
+  RUNNING=$((RUNNING + 1))
+  if [ "$RUNNING" -ge "$MAX_PROCS" ]; then
+    wait -n 2>/dev/null || wait
+    RUNNING=$((RUNNING - 1))
+  fi
+done
+wait
+```
+
+### xargs / parallel
+
+```bash
+# WRONG — default parallelism (unlimited or CPU-count)
+echo "$FILES" | xargs -P0 -I{} process {}
+
+# RIGHT — explicit cap
+echo "$FILES" | xargs -P49 -I{} process {}
+```
+
+### TypeScript / Bun
+
+```typescript
+const MAX_CONCURRENT = 49;
+
+async function processInBatches<T>(
+  items: T[],
+  fn: (item: T) => Promise<void>,
+) {
+  for (let i = 0; i < items.length; i += MAX_CONCURRENT) {
+    const batch = items.slice(i, i + MAX_CONCURRENT);
+    await Promise.all(batch.map(fn));
+  }
+}
+```
+
+### Agent subagents
+
+The Task tool already caps at 4 concurrent subagents. This rule applies to processes spawned *within* those subagents or by scripts they invoke.
+
+## Why 49
+
+- macOS defaults to 266 max processes per user (`sysctl kern.maxprocperuid`). A single script spawning 100+ children consumes nearly half the budget, starving the IDE, dev server, and other tools.
+- File descriptor limits (`ulimit -n`, typically 256–10240) are shared across all children. Each subprocess inherits open FDs; unbounded spawning can hit the ceiling and cause `EMFILE` errors.
+- 49 leaves headroom for the parent process, the shell, the IDE, dev servers, database connections, and other background work.
+
+## When This Applies
+
+| Context | Limit |
+|---|---|
+| Shell scripts (hooks, CI, dev tools) | 49 |
+| TypeScript/Bun batch operations | 49 |
+| `xargs -P` / GNU `parallel` | 49 |
+| Makefile parallel jobs (`make -j`) | 49 |
+| Agent subagents (Task tool) | 4 (enforced by tool) |
+
+## Exceptions
+
+- Single-process pipelines (e.g., `cmd1 | cmd2 | cmd3`) don't count — these are sequential with buffering.
+- `Promise.all` over async I/O (HTTP requests, DB queries) is fine up to ~100 concurrent *connections* since these don't spawn OS processes. Use a semaphore if the target service has its own concurrency limits.
+
+## Origin
+
+- **Observation**: Mass merge of 161 branches via shell loop risked spawning unbounded parallel processes
+- **Date**: 2026-03-14
+- **Principle**: Defense in depth — even if the OS can handle more, capping at 49 prevents cascading failures when multiple scripts run simultaneously

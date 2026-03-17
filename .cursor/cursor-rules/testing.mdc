@@ -1,0 +1,39 @@
+---
+description: Testing style - DRY, concise, consolidated
+alwaysApply: true
+---
+
+# Testing
+
+## DRY & Conciseness
+
+- Extract shared setup into helper functions or fixtures — never duplicate document/object construction across tests.
+- When multiple tests differ only by input/output, use `@pytest.mark.parametrize` instead of copy-pasting the test body.
+- When several checks iterate the same collection (type, length, non-empty), do them in one loop inside one test — don't write a separate test per property.
+- Prefer object equality (`assert actual == expected`) over many individual field asserts.
+- Be concise but not clever — straightforward loops and parametrize are good; deeply nested comprehensions or metaprogramming in tests are not.
+
+## Consolidation (always apply after writing initial tests)
+
+After writing the first draft of tests, always perform a consolidation pass before considering the work done:
+
+1. **Merge subset tests** — if test A checks a strict subset of what test B checks, delete A.
+2. **Parametrize related cases** — when multiple tests call the same function with different inputs and just check the output, combine them into a single `@pytest.mark.parametrize` test.
+3. **Fold edge cases into parent tests** — empty input, `None`, missing file, and similar edge cases should be extra assertions inside the main test for that function, not standalone tests.
+4. **Combine IO round-trips** — load-from-nonexistent + save + load-back can be a single test; don't split load, save, and round-trip into three.
+5. **Combine iteration-based structural checks** — if several tests each iterate the same collection checking a different property (type, length, non-empty), merge them into one loop.
+6. **Target roughly 50 % of the naive count** — the initial draft will typically have 2x more tests than needed; the consolidated suite should be around half.
+
+## Local Test Speed — pytest-testmon
+
+- **Always use `--testmon` locally** to run only tests affected by your changes: `poetry run pytest --testmon`
+- A pre-commit hook runs `pytest --testmon` automatically on every commit — only affected tests execute.
+- The `.testmondata` file is the dependency database. It's gitignored and rebuilt per machine. If tests behave strangely, delete it to force a full rebuild: `rm .testmondata && poetry run pytest --testmon`
+- **CI always runs the full suite** (`pytest --cov`) without testmon — testmon is a local-speed optimization only.
+
+## Coverage Gate — Pre-push Hook
+
+- A **pre-push hook** runs `pytest --cov --cov-fail-under=75` before every `git push`. This catches coverage regressions locally before they fail in CI.
+- The hook is installed automatically by `make setup` (which runs `pre-commit install --hook-type pre-push`).
+- When adding new script modules, either write tests or add the module to `[tool.coverage.run].omit` in `pyproject.toml` (with a comment explaining why, e.g., Playwright-only code with no unit-testable logic).
+- To bypass the hook in an emergency: `git push --no-verify` — but CI will still enforce the threshold.

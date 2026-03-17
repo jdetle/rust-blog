@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>John Detlefs – Rust Blog</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root {
+            color-scheme: light dark;
+            --bg: #050816;
+            --bg-alt: #0b1020;
+            --accent: #7dd3fc;
+            --accent-soft: rgba(125, 211, 252, 0.1);
+            --text: #e5e7eb;
+            --muted: #9ca3af;
+            --border: rgba(148, 163, 184, 0.35);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+                "Segoe UI", sans-serif;
+            background: radial-gradient(circle at top left, #1f2933 0, var(--bg) 55%);
+            color: var(--text);
+            display: flex;
+            align-items: stretch;
+            justify-content: center;
+            padding: 2.5rem 1.5rem 3.5rem;
+        }
+
+        main {
+            width: 100%;
+            max-width: 960px;
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.9));
+            border-radius: 1.5rem;
+            border: 1px solid var(--border);
+            box-shadow:
+                0 24px 80px rgba(15, 23, 42, 0.9),
+                0 0 0 1px rgba(15, 23, 42, 0.7);
+            padding: 2.5rem 2.25rem;
+            display: grid;
+            grid-template-columns: minmax(0, 3fr) minmax(0, 2.5fr);
+            gap: 2rem;
+        }
+
+        header {
+            margin-bottom: 1.75rem;
+        }
+
+        h1 {
+            font-size: clamp(2.25rem, 4vw, 2.8rem);
+            letter-spacing: -0.03em;
+            margin: 0 0 0.5rem;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.16em;
+            color: var(--muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .eyebrow-dot {
+            width: 0.4rem;
+            height: 0.4rem;
+            border-radius: 999px;
+            background: #22c55e;
+            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.25);
+        }
+
+        .tagline {
+            font-size: 1.05rem;
+            line-height: 1.6;
+            color: var(--muted);
+            max-width: 32rem;
+        }
+
+        .pill-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 1.25rem;
+        }
+
+        .pill {
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.5);
+            padding: 0.25rem 0.7rem;
+            font-size: 0.8rem;
+            color: var(--muted);
+            background: radial-gradient(circle at top left, rgba(148, 163, 184, 0.18), transparent 55%);
+        }
+
+        .cta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.9rem;
+            margin-top: 1.8rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            border-radius: 999px;
+            padding: 0.6rem 1.4rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            text-decoration: none;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition:
+                background 160ms ease,
+                color 160ms ease,
+                border-color 160ms ease,
+                transform 120ms ease,
+                box-shadow 120ms ease;
+        }
+
+        .btn-primary {
+            background: radial-gradient(circle at top left, #38bdf8, #0369a1);
+            color: #0b1120;
+            box-shadow:
+                0 12px 35px rgba(56, 189, 248, 0.5),
+                0 0 0 1px rgba(15, 23, 42, 0.85);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow:
+                0 18px 45px rgba(56, 189, 248, 0.7),
+                0 0 0 1px rgba(15, 23, 42, 0.9);
+        }
+
+        .btn-secondary {
+            background: rgba(15, 23, 42, 0.9);
+            border-color: var(--border);
+            color: var(--muted);
+        }
+
+        .btn-secondary:hover {
+            border-color: rgba(148, 163, 184, 0.8);
+            background: rgba(15, 23, 42, 0.98);
+        }
+
+        .btn-icon {
+            font-size: 1.1rem;
+        }
+
+        .meta {
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-top: 0.6rem;
+        }
+
+        .panel {
+            background: radial-gradient(circle at top left, rgba(148, 163, 184, 0.12), rgba(15, 23, 42, 0.95));
+            border-radius: 1.1rem;
+            border: 1px solid var(--border);
+            padding: 1.4rem 1.3rem 1.5rem;
+        }
+
+        .panel-title {
+            font-size: 0.95rem;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            color: var(--muted);
+            margin: 0 0 0.9rem;
+        }
+
+        .panel-title span {
+            color: var(--accent);
+        }
+
+        .role {
+            margin-bottom: 1.1rem;
+        }
+
+        .role:last-child {
+            margin-bottom: 0;
+        }
+
+        .role-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            margin-bottom: 0.2rem;
+        }
+
+        .role-main {
+            font-size: 0.98rem;
+            font-weight: 600;
+        }
+
+        .role-meta {
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
+        .role-body {
+            font-size: 0.88rem;
+            margin-top: 0.45rem;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .stack-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            margin-top: 0.9rem;
+        }
+
+        .stack-tag {
+            font-size: 0.78rem;
+            padding: 0.18rem 0.55rem;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            background: rgba(15, 23, 42, 0.9);
+            color: var(--muted);
+        }
+
+        .stack-tag--strong {
+            border-color: rgba(56, 189, 248, 0.6);
+            color: var(--accent);
+            background: rgba(8, 47, 73, 0.9);
+        }
+
+        .secondary-column {
+            display: flex;
+            flex-direction: column;
+            gap: 1.2rem;
+        }
+
+        .note {
+            font-size: 0.8rem;
+            color: var(--muted);
+            border-radius: 0.9rem;
+            padding: 0.75rem 0.9rem;
+            border: 1px dashed rgba(148, 163, 184, 0.5);
+            background: radial-gradient(circle at top left, var(--accent-soft), transparent 60%);
+        }
+
+        @media (max-width: 820px) {
+            body {
+                padding: 1.6rem 1.1rem 2.5rem;
+            }
+
+            main {
+                padding: 1.8rem 1.5rem 2.1rem;
+                grid-template-columns: minmax(0, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+<main>
+    <section>
+        <header>
+            <div class="eyebrow">
+                <span class="eyebrow-dot"></span>
+                <span>Senior Cloud Developer · Reliability‑minded full‑stack</span>
+            </div>
+            <h1>Shipping resilient experiences at scale.</h1>
+            <p class="tagline">
+                I build and operate customer‑facing systems where performance,
+                reliability, and simplicity matter—most recently at GoDaddy and PwC’s Kunai,
+                where my work directly impacts nine‑figure revenue streams.
+            </p>
+        </header>
+
+        <div class="pill-row">
+            <span class="pill">Full‑stack TypeScript &amp; React</span>
+            <span class="pill">AWS &amp; Cloud infrastructure</span>
+            <span class="pill">SRE &amp; Observability</span>
+            <span class="pill">Performance &amp; A/B experimentation</span>
+        </div>
+
+        <div class="cta-row">
+            <a class="btn btn-primary" href="/posts">
+                <span class="btn-icon">↳</span>
+                <span>Read the blog</span>
+            </a>
+            <a class="btn btn-secondary" href="mailto:">
+                <span>Get in touch</span>
+            </a>
+        </div>
+
+        <p class="meta">
+            Currently: Senior Cloud Developer &amp; Senior Associate at
+            <strong>Kunai (PwC Network)</strong> · Previously: Senior SDE at
+            <strong>GoDaddy</strong>, frontend &amp; platform roles across IoT, crypto, and data.
+        </p>
+    </section>
+
+    <aside class="secondary-column">
+        <section class="panel">
+            <h2 class="panel-title"><span>Selected</span> work</h2>
+
+            <article class="role">
+                <div class="role-label">GoDaddy</div>
+                <div class="role-main">Senior Software Development Engineer</div>
+                <div class="role-meta">Full‑stack · Growth &amp; Account experiences</div>
+                <p class="role-body">
+                    Helped evolve <code>dashboard.godaddy.com</code> and account surfaces that
+                    touch over $200M in annualized revenue. Led efforts to cut p95 latency,
+                    simplify distributed systems, and validate changes through disciplined A/B tests
+                    and observability (Kibana dashboards, distributed polling).
+                </p>
+            </article>
+
+            <article class="role">
+                <div class="role-label">Meshify &amp; earlier</div>
+                <div class="role-main">Frontend → Full‑stack Engineer</div>
+                <div class="role-meta">IoT, crypto, data science tooling</div>
+                <p class="role-body">
+                    Owned features end‑to‑end: migrating legacy UIs to React, maintaining Go
+                    proxy services, and improving operational workflows. Earlier work spans UI
+                    for scientific Python tooling at Anaconda, open‑source Jupyter desktop
+                    experiences with nteract, and Google Summer of Code research in MDAnalysis.
+                </p>
+            </article>
+
+            <div class="stack-tags">
+                <span class="stack-tag stack-tag--strong">React &amp; Next.js</span>
+                <span class="stack-tag stack-tag--strong">Node.js &amp; TypeScript</span>
+                <span class="stack-tag">AWS CDK · Lambda · Fargate</span>
+                <span class="stack-tag">APIGateway · DynamoDB</span>
+                <span class="stack-tag">Kubernetes · Docker</span>
+                <span class="stack-tag">Cypress · Jest · RTL</span>
+                <span class="stack-tag">GraphQL</span>
+                <span class="stack-tag">Kibana · Observability</span>
+            </div>
+        </section>
+
+        <section class="note">
+            This blog is a place for notes on reliability, full‑stack TypeScript,
+            and the craft of shipping measurable improvements in real products.
+            Expect write‑ups on performance wins, experiments that failed usefully,
+            and practical patterns from production systems—not generic tutorials.
+        </section>
+    </aside>
+</main>
+</body>
+</html>
+

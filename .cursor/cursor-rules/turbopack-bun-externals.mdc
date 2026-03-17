@@ -1,0 +1,93 @@
+---
+description: "Use createRequire for native Node packages in Next.js server code when running under bun --bun with Turbopack"
+globs: "src/lib/db*.ts"
+alwaysApply: false
+---
+
+# Turbopack + Bun External Modules — Learned from runtime crash
+
+Turbopack content-hashes external package names (e.g., `pg` becomes `pg-587764f78a6c7a9c`) when generating server-side module references. Node.js resolves these hashed names correctly, but Bun's `require()` cannot. Since this project runs `bun --bun next dev`, every `import { Pool } from "pg"` in server code fails at runtime with `Cannot find package 'pg-587764f78a6c7a9c'`.
+
+`serverExternalPackages: ["pg"]` in `next.config.ts` does NOT fix this — it controls bundling, not the hash-based naming that Turbopack applies to external references.
+
+## The Rule
+
+In any server-side module processed by Next.js (files under `src/` imported by pages, layouts, API routes, or server actions), **never use a static `import` for `pg` or other native Node.js packages**. Use `createRequire` from `node:module` instead.
+
+### Pattern
+
+```typescript
+import { createRequire } from "node:module";
+import type { Pool as PoolType } from "pg"; // type-only import is safe (erased at compile time)
+
+const req = createRequire(`${process.cwd()}/`);
+const pg = req("pg") as typeof import("pg");
+const { Pool, types } = pg;
+```
+
+### What's safe without the workaround
+
+- **Type-only imports** (`import type { PoolClient } from "pg"`) — erased at compile time, never reach runtime.
+- **Standalone scripts** that run outside Next.js (`scripts/`, `seed.ts`, MCP server) — Turbopack never processes them. Regular `import { Pool } from "pg"` is fine.
+- **Test files** (`src/__tests__/`) — run by Bun's test runner, not Turbopack.
+
+### What requires the workaround
+
+Any `.ts` file under `src/` that:
+1. Has a runtime (non-type) import of `pg`, AND
+2. Is imported (directly or transitively) by a Next.js page, layout, API route, or server action
+
+Currently this is only `src/lib/db.ts`. If you add another server module that imports `pg` at runtime, apply the same `createRequire` pattern.
+
+### Keep `serverExternalPackages` too
+
+Even though it doesn't fix the Bun issue, `serverExternalPackages: ["pg"]` in `next.config.ts` is correct defense-in-depth — it prevents Turbopack from attempting to bundle `pg` (which has native bindings). Keep it.
+
+## Affected packages
+
+This bug affects any package that Turbopack marks as external. Known affected packages beyond `pg`:
+
+- `sharp`
+- `pino` / `thread-stream`
+- `@aws-sdk/*`
+- `@tensorflow/tfjs-node`
+
+If any of these are added to the project as server-side runtime dependencies, apply the same `createRequire` workaround.
+
+## Upstream tracking
+
+- Next.js issue: https://github.com/vercel/next.js/issues/86866
+- Bun issue: https://github.com/oven-sh/bun/issues/25370
+- Status: Open as of March 2026, no permanent fix
+
+When either issue is resolved, the `createRequire` workaround can be reverted to a normal `import`.
+
+## Examples
+
+### Wrong (causes runtime crash under bun --bun)
+
+```typescript
+import { Pool, types } from "pg";
+
+types.setTypeParser(1114, (str) => str);
+```
+
+### Right (works under bun --bun + Turbopack)
+
+```typescript
+import { createRequire } from "node:module";
+import type { Pool as PoolType } from "pg";
+
+const req = createRequire(`${process.cwd()}/`);
+const pg = req("pg") as typeof import("pg");
+const { Pool, types } = pg;
+
+types.setTypeParser(1114, (str: string) => str);
+```
+
+## Origin
+
+- **Failure**: Dev server returned 500 on every route — `Failed to load external module pg-587764f78a6c7a9c: Cannot find package`
+- **Date**: 2026-03-11
+- **Root cause**: Turbopack appends a content hash to external package names; Bun's module resolver cannot find the hashed package name at runtime
+- **PR**: fix/learn-pg-failures

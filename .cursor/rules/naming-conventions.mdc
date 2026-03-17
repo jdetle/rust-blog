@@ -1,0 +1,31 @@
+---
+description: Enforce consistent repo naming conventions
+alwaysApply: true
+---
+
+# Naming Conventions
+
+Use these naming conventions for all new files and folders, and prefer aligning renamed paths to these standards when touching existing structure.
+
+- Use lowercase `kebab-case` for folder names and most filenames.
+- Avoid spaces, underscores, and mixed casing in paths.
+- Keep names short but descriptive; prioritize domain intent over implementation detail.
+
+## Folder Standards
+
+- Place runnable services/apps under `apps/`.
+- Place shared libraries under `packages/`.
+- Place non-runtime docs under `docs/`.
+- Discovery/research folders live under `docs/discovery/` and must end with `-discovery`.
+
+## App Naming
+
+- Prefer `<domain>-<type>` when practical (for example: `orders-api`, `labor-tracker-web`).
+- Keep well-known conventional names when clearer (`api`, `web`).
+- For sidecars, use `<domain>-sidecar` or `sidecar-<domain>` and stay consistent across the repo.
+
+## Examples
+
+- Good: `docs/discovery/inventory-discovery`
+- Good: `apps/orders-api`
+- Avoid: `InventoryDiscovery`, `labor_tracking`, `my app`

@@ -1,0 +1,104 @@
+---
+description: State management, data fetching, and hooks — colocation, server/client data flow
+globs: "**/*.tsx,**/*.ts"
+alwaysApply: false
+slug: react-state-data
+title: State Management & Data Flow
+domain: react
+ruleType: narrow
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - react
+  - state
+  - hooks
+  - context
+---
+
+# State Management & Data Flow
+
+## State Colocation (Kent Dodds)
+
+Keep state as close as possible to where it's used. Lifting state "just in case" causes unnecessary re-renders and coupling. Move state down before reaching for context or global stores.
+
+```
+Local state (useState)          → single component needs it
+Lifted state                    → two siblings need it — lift to parent
+Context                         → distant subtree needs it, prop drilling > 2 levels
+URL state (searchParams)        → state that should survive refresh/sharing
+Server state (DB / async fetch) → server components, not client cache
+```
+
+## useState vs useReducer
+
+- **useState** for independent values: a toggle, a single input, a counter.
+- **useReducer** when one state update depends on another state value, or when multiple related values change together. All update logic lives in the reducer — no scattered `setState` calls.
+
+## Context Is Not Global State
+
+Context solves prop drilling, not state management. Rules:
+- Create **multiple small contexts** scoped to specific concerns, not one global provider.
+- Never put frequently-changing values in context unless consumers are memoized — every consumer re-renders on every context change.
+- Pair context with `useReducer` for complex shared state (Kent Dodds' recommended pattern).
+
+## Custom Hooks
+
+Extract reusable stateful logic into custom hooks. A custom hook is just a function that calls other hooks — no magic.
+
+```tsx
+// ✅ Encapsulates logic, reusable across components
+function useDebounce<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
+```
+
+Name hooks `use[Thing]`. Never call hooks conditionally.
+
+## Data Fetching
+
+Fetch data on the server whenever possible. Server Components can `await` directly — no useEffect, no loading state, no client-side cache.
+
+```tsx
+// ✅ Server Component — direct data access
+export default async function SkillsPage() {
+  const skills = getAllSkills();
+  return <SkillGrid skills={skills} />;
+}
+```
+
+For parallel independent fetches, use `Promise.allSettled` with `settledValues` to avoid sequential waterfalls while tolerating partial failures. If one fetch fails, the page renders with degraded data instead of crashing entirely. See `promise-resilience.mdc` for the full decision framework.
+
+```tsx
+import { settledValues } from "@/lib/settled";
+
+const [skills, categories, metrics] = settledValues(
+  await Promise.allSettled([
+    getAllSkills(),
+    getCategories(),
+    getImprovementMetrics(),
+  ]),
+  [[], [], { totalSkills: 0, totalVersions: 0, totalImprovements: 0, totalCategories: 0, recentActivity: [] }],
+  "SkillsPage",
+);
+```
+
+## URL as State
+
+See the dedicated **url-state.mdc** rule. Any state that changes what the user sees on the page (tabs, filters, search, pagination, sort) belongs in URL query params via `nuqs`, not `useState`.
+
+## Server Actions for Mutations
+
+Use Server Actions (`"use server"`) for form submissions and data mutations. They eliminate API route boilerplate for internal operations, support progressive enhancement, and automatically serialize FormData.
+
+- Keep Server Actions in dedicated files (`app/actions.ts`).
+- Validate inputs with Zod on the server side.
+- Call `revalidatePath()` after mutations to sync the UI.
+
+## Performance: Don't Memoize Prematurely
+
+React 19's compiler handles most memoization automatically. Do not add `useMemo`, `useCallback`, or `React.memo` unless profiling reveals an actual bottleneck. Write clean code first — optimize with evidence.

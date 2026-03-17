@@ -1,0 +1,139 @@
+---
+description: PostgreSQL ACID transaction patterns — when to use transactions, how to prevent race conditions, and how to handle locking
+globs:
+  - src/lib/**/*.ts
+  - src/app/api/**/*.ts
+alwaysApply: true
+---
+
+# ACID Transactions
+
+Every multi-statement write path must be atomic. PostgreSQL does not auto-wrap sequential queries in a transaction — each `pool.query()` or `sql.run()` is its own implicit transaction. If two writes must succeed or fail together, wrap them explicitly.
+
+## When a Transaction Is Required
+
+| Pattern | Requires transaction? | Why |
+|---|---|---|
+| Single INSERT/UPDATE/DELETE | No | Already atomic |
+| INSERT + UPDATE on related tables | **Yes** | Partial failure leaves inconsistent state |
+| DELETE old + INSERT new (replace) | **Yes** | Gap between delete and insert is observable |
+| Read value → compute → write back | **Yes** (+ lock) | TOCTOU race without isolation |
+| Status transition (read state → validate → update) | **Yes** (+ `FOR UPDATE`) | Concurrent transitions bypass state machine |
+| Counter increment from JS | **Avoid** | Use `SET count = count + 1` instead |
+
+## Transaction Pattern
+
+Always acquire a dedicated client from the pool. Never use `pool.query()` or `sql.run()` inside a transaction callback — use `client.query()`.
+
+```typescript
+await sql.transaction(async (client) => {
+  await client.query('SELECT ... FOR UPDATE', [id]);
+  await client.query('UPDATE ... WHERE id = $1 AND status = $2', [id, expectedStatus]);
+  await client.query('INSERT INTO ...', [...]);
+});
+```
+
+## Preventing Race Conditions
+
+### TOCTOU (Time-of-Check to Time-of-Use)
+
+Never do `SELECT` → (decide in JS) → `INSERT/UPDATE` without protection. Three fixes, in order of preference:
+
+1. **Atomic upsert** — `INSERT ... ON CONFLICT ... DO UPDATE` handles the check-and-write in one statement. No transaction needed.
+2. **`SELECT ... FOR UPDATE`** — lock the row inside a transaction before reading. Other transactions block until you commit.
+3. **Advisory lock** — `pg_advisory_xact_lock(hashtext($1))` for logical resources that don't have a row to lock (e.g., rate limit keys).
+
+### Status Transitions
+
+Every UPDATE that changes a status column must include the expected current status in the WHERE clause:
+
+```sql
+UPDATE "SkillReview"
+SET status = 'APPROVED', "reviewedBy" = $1, "reviewedAt" = now()
+WHERE id = $2 AND status IN ('PENDING', 'NEEDS_CHANGES')
+```
+
+If `rowCount === 0`, the transition was already applied or the row was modified concurrently. Throw a clear error — never silently succeed.
+
+### Counter Increments
+
+Never read a count in JS and write it back:
+
+```typescript
+// WRONG — race condition
+const count = await sql.count('SELECT COUNT(*) ...');
+await sql.run('UPDATE ... SET total = $1', count + 1);
+
+// CORRECT — atomic in SQL
+await sql.run('UPDATE ... SET total = total + 1 WHERE ...');
+```
+
+For severity or threshold computations based on counts, use a CTE:
+
+```sql
+WITH recent AS (
+  SELECT COUNT(*)::int AS cnt FROM "AbuseEvent"
+  WHERE ip = $1 AND "createdAt" > now() - interval '15 minutes'
+)
+INSERT INTO "AbuseEvent" (..., severity)
+SELECT ..., CASE WHEN (SELECT cnt FROM recent) >= 20 THEN 'critical' ELSE $2 END
+```
+
+## Isolation Levels
+
+PostgreSQL defaults to **READ COMMITTED**. This is correct for most operations. Use higher isolation only when needed:
+
+| Level | Use when |
+|---|---|
+| READ COMMITTED (default) | Most CRUD operations, upserts, single-row updates |
+| REPEATABLE READ | Reports that must see a consistent snapshot across multiple queries |
+| SERIALIZABLE | Multi-row invariants where phantom reads could violate business rules |
+
+Higher isolation levels can produce serialization failures (SQLSTATE `40001`). Any code using REPEATABLE READ or SERIALIZABLE **must** implement retry logic:
+
+```typescript
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (e: unknown) {
+      const code = (e as { code?: string }).code;
+      if ((code === '40001' || code === '40P01') && attempt < maxRetries) continue;
+      throw e;
+    }
+  }
+  throw new Error('unreachable');
+}
+```
+
+## Locking Strategy
+
+| Lock type | When to use | Release |
+|---|---|---|
+| `SELECT ... FOR UPDATE` | Lock specific rows before update in a transaction | Auto on COMMIT/ROLLBACK |
+| `SELECT ... FOR UPDATE SKIP LOCKED` | Batch/queue processing — skip rows another worker has | Auto on COMMIT/ROLLBACK |
+| `pg_advisory_xact_lock(key)` | Lock a logical resource (not a row) within a transaction | Auto on COMMIT/ROLLBACK |
+| `pg_advisory_lock(key)` | Session-level lock for long-running operations | Must explicitly `pg_advisory_unlock` |
+
+Prefer transaction-scoped locks (`FOR UPDATE`, `pg_advisory_xact_lock`) — they cannot leak. Avoid session-level advisory locks unless the operation spans multiple transactions.
+
+### Deadlock Prevention
+
+When locking multiple rows, always acquire locks in a consistent order (e.g., by primary key ascending). Use `ORDER BY id` in `SELECT ... FOR UPDATE` queries.
+
+## Connection Pool Safety
+
+- `SET LOCAL` and `set_config(..., true)` are transaction-scoped — they reset on COMMIT/ROLLBACK. Safe with connection pools.
+- `SET` (without LOCAL) persists on the connection. Always use `RESET` in a `finally` block before releasing the client.
+- `RESET ROLE` must run in `finally` after any `SET LOCAL role = '...'` — the `withClaims()` wrapper handles this.
+- Never use `pool.query()` for multi-statement transactions — it may use different connections for each statement.
+
+## Anti-Patterns
+
+| Pattern | Problem | Fix |
+|---|---|---|
+| `sql.run('INSERT ...'); sql.run('UPDATE ...');` | Not atomic — first succeeds, second can fail | Wrap in `sql.transaction()` |
+| `const row = await sql.get(...); await sql.run('UPDATE ... SET x = $1', row.x + 1);` | TOCTOU race | `UPDATE ... SET x = x + 1` or `FOR UPDATE` |
+| `if (!await sql.get(...)) await sql.run('INSERT ...');` | TOCTOU race on insert | `INSERT ... ON CONFLICT ... DO NOTHING` |
+| `await pool.query('BEGIN'); await pool.query('INSERT ...'); await pool.query('COMMIT');` | Pool may use different connections | Use `pool.connect()` for dedicated client |
+| `sql.run('UPDATE ... SET status = $1', newStatus)` | No status guard — concurrent transitions bypass state machine | `WHERE status = $2` with expected current status |

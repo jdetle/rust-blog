@@ -1,0 +1,121 @@
+---
+description: macOS app bundle assembly and DMG installer creation — covers icon inclusion, Finder styling, and quarantine
+alwaysApply: true
+---
+
+# macOS App Bundle & DMG Safety — Learned from three failures during DMG pipeline creation
+
+Three failures surfaced during DMG installer implementation: (1) the app icon was missing from the bundle because `make bundle` never copied `.icns` into `Contents/Resources/`, (2) the DMG Finder window closed immediately on open because the AppleScript styling ended with `close`, writing a closed-window state into `.DS_Store`, and (3) `hdiutil create -srcfolder -size` conflicted, producing "no space left" errors.
+
+## The Rules
+
+### 1. App bundles must include every resource referenced by Info.plist
+
+When assembling a `.app` bundle manually (not via Xcode), verify every key in `Info.plist` that references a resource has the corresponding file copied into `Contents/Resources/`:
+
+| Info.plist key | Expected file in Contents/Resources/ |
+|---|---|
+| `CFBundleIconFile` = `AppIcon` | `AppIcon.icns` |
+| `CFBundleIconName` | Matching `.icns` or asset catalog |
+| Any custom plist key referencing a filename | That file |
+
+**Checklist after editing `make bundle` or any bundle assembly step:**
+
+1. Read `Info.plist` and list every key that references a resource file
+2. For each, verify the Makefile copies it into `$(BUNDLE_DIR)/Contents/Resources/`
+3. Run `make bundle && ls -la .build/<App>.app/Contents/Resources/` to confirm
+
+### 2. DMG AppleScript must never end with `close`
+
+The Finder AppleScript that styles the DMG window saves its state into `.DS_Store`. If the script ends with `close`, Finder records "this window should be closed." When a user later opens the DMG, Finder reads the `.DS_Store` and immediately dismisses the window — the user sees a flash and cannot drag the app to Applications.
+
+```applescript
+-- WRONG: ends with close — window dismisses on mount
+tell disk "MyApp"
+    open
+    -- ...styling...
+    update without registering applications
+    delay 2
+    close
+end tell
+
+-- RIGHT: leave window open — Finder remembers it as open
+tell disk "MyApp"
+    open
+    -- ...styling...
+    update without registering applications
+    delay 3
+end tell
+```
+
+The `delay` at the end gives Finder time to write icon positions and background into `.DS_Store` before `hdiutil detach` ejects the volume.
+
+### 3. Never combine `-srcfolder` and `-size` in `hdiutil create`
+
+`hdiutil create -srcfolder` auto-calculates the image size from the source. Adding `-size` overrides that calculation and can produce an image too small for HFS+ overhead, causing "no space left on device."
+
+```bash
+# WRONG — -size conflicts with -srcfolder
+hdiutil create -srcfolder ./staging -size 23m -format UDRW out.dmg
+
+# RIGHT (auto-sized, read-only) — for one-shot DMGs
+hdiutil create -srcfolder ./staging -volname "App" -fs HFS+ -format UDZO out.dmg
+
+# RIGHT (manual size, writable) — for styling before conversion
+hdiutil create -volname "App" -fs HFS+ -size 20m -type UDIF -layout NONE rw.dmg
+# then mount, copy content in, style, detach, convert to UDZO
+```
+
+When you need a writable DMG for Finder styling: create an empty DMG with `-size`, mount it, copy content in, run AppleScript, detach, then `hdiutil convert` to compressed read-only UDZO.
+
+### 4. Strip quarantine after DMG creation
+
+macOS adds `com.apple.quarantine` to files created by tools. This can trigger Gatekeeper warnings when the user opens the DMG. Clear it as the last step:
+
+```bash
+xattr -d com.apple.quarantine "$OUTPUT_DMG" 2>/dev/null || true
+```
+
+## Examples
+
+### Wrong (caused the failures)
+
+```makefile
+# Missing icon — bundle has empty Resources/
+bundle: app
+	@mkdir -p "$(BUNDLE_DIR)/Contents/Resources"
+	@cp .build/debug/CribApp "$(BUNDLE_DIR)/Contents/MacOS/CribApp"
+	@cp Resources/Info.plist "$(BUNDLE_DIR)/Contents/Info.plist"
+```
+
+### Right (prevents recurrence)
+
+```makefile
+# Icon included — matches CFBundleIconFile in Info.plist
+bundle: app
+	@mkdir -p "$(BUNDLE_DIR)/Contents/Resources"
+	@cp .build/debug/CribApp "$(BUNDLE_DIR)/Contents/MacOS/CribApp"
+	@cp Resources/Info.plist "$(BUNDLE_DIR)/Contents/Info.plist"
+	@cp Resources/AppIcon.icns "$(BUNDLE_DIR)/Contents/Resources/AppIcon.icns"
+```
+
+## Origin
+
+- **Failure 1**: Crib.app showed generic icon — `AppIcon.icns` not copied into bundle Resources
+- **Failure 2**: DMG Finder window closed immediately — AppleScript `close` wrote closed state to `.DS_Store`
+- **Failure 3**: `hdiutil create` failed with "no space left" — `-srcfolder` and `-size` conflict
+- **Date**: 2026-03-14
+- **Root cause**: Manual app bundle assembly skipped icon; DMG creation AppleScript improperly closed the Finder window; hdiutil flags were incompatible
+- **PR**: feat/dmg-installer (crib repo), test/l1-triage-stress (skills-hub)
+
+## Detection Acceleration
+
+- **Level**: Build (Makefile)
+  **What was added**: `make bundle` now explicitly copies `AppIcon.icns`. The `test-bundle.sh` integration test validates bundle structure including Resources contents.
+  **Diagnosis time before**: App looked wrong in Finder/Dock — no error message, only visual inspection revealed the missing icon
+  **Diagnosis time after**: `make test-bundle` fails with a clear message if Resources/ is missing expected files
+
+- **Level**: Build script
+  **What was added**: `create-installer-dmg.sh` uses the correct `hdiutil` flag combinations and omits `close` from the AppleScript. The script is reusable across projects.
+  **Diagnosis time before**: DMG appeared to work (`hdiutil verify` passed) but the Finder window closed on open — only manual testing revealed it
+  **Diagnosis time after**: The script is tested by `make dmg && open .build/<App>.dmg` — if the window stays open, the DMG is correct

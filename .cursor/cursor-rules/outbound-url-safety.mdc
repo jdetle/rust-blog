@@ -1,0 +1,115 @@
+---
+description: "Prevent SSRF and URL bypass vulnerabilities in outbound HTTP requests and URL hostname checks"
+alwaysApply: true
+---
+
+# Outbound URL Safety — Learned from CodeQL SSRF and URL substring alerts
+
+12 CodeQL alerts surfaced across 6 files: 4 critical SSRF findings (CWE-918) where `fetch()` URLs were built via template literal interpolation, and 6 high-severity URL substring sanitization findings (CWE-020) where `href.includes("youtube.com")` was used instead of proper hostname parsing. Neither class was exploitable in practice (the SSRF targets were always `api.github.com` with HMAC-verified payloads; the substring checks were test assertions, not security gates), but both represent patterns that become exploitable if copied into less constrained contexts.
+
+## The Rules
+
+### 1. Always use `new URL()` for outbound fetch requests
+
+Never build a fetch URL via template literal interpolation. Use the `URL` constructor with a hardcoded origin as the base.
+
+```typescript
+// WRONG — interpolation allows path traversal, hostname injection
+const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/check-runs`, opts);
+
+// WRONG — concatenation, same problem
+const res = await fetch("https://api.github.com" + path, opts);
+
+// RIGHT — URL constructor validates structure; encodeURIComponent prevents traversal
+const url = new URL(
+  `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/check-runs`,
+  "https://api.github.com",
+);
+const res = await fetch(url.href, opts);
+```
+
+### 2. Validate path segments before constructing URLs
+
+When path segments come from external sources (webhook payloads, database rows, user input), validate them before use. GitHub owner/repo names match `[a-zA-Z0-9_.-]+`.
+
+```typescript
+const GITHUB_API_SLUG_RE = /^[a-zA-Z0-9_.-]+$/;
+
+function assertGitHubSlug(value: string, label: string): void {
+  if (!GITHUB_API_SLUG_RE.test(value)) {
+    throw new Error(`Invalid GitHub ${label}: ${value}`);
+  }
+}
+```
+
+For numeric IDs (installation IDs, PR numbers), validate type and range:
+
+```typescript
+if (!Number.isInteger(installationId) || installationId <= 0) {
+  throw new Error(`Invalid installation ID: ${installationId}`);
+}
+```
+
+### 3. Pin the origin when accepting a path parameter
+
+When a function accepts a relative path and builds a URL from it, verify the constructed URL's origin matches the expected value:
+
+```typescript
+async function githubFetch<T>(path: string, token: string): Promise<T> {
+  const url = new URL(path, "https://api.github.com");
+  if (url.origin !== "https://api.github.com") {
+    throw new Error(`Refusing request to non-GitHub origin: ${url.origin}`);
+  }
+  return fetch(url.href, { headers: { Authorization: `Bearer ${token}` } });
+}
+```
+
+### 4. Never use `includes()` for hostname checks
+
+String `.includes()` matches anywhere in the URL — a path segment, query parameter, or fragment can contain the hostname string and bypass the check.
+
+```typescript
+// WRONG — "youtube.com" could appear in the path: http://evil.com/youtube.com
+if (href.includes("youtube.com")) { ... }
+
+// WRONG — still matches substrings like "evil-youtube.com"
+if (href.includes("youtube.com/watch")) { ... }
+
+// RIGHT — parse the URL, check the hostname with exact or suffix match
+try {
+  const url = new URL(href, "https://placeholder.invalid");
+  const host = url.hostname;
+  if (host === "youtube.com" || host.endsWith(".youtube.com")) { ... }
+} catch { /* malformed URL — reject */ }
+```
+
+Use `endsWith()` on the parsed hostname to allow subdomains (`www.youtube.com`) while rejecting lookalikes (`evil-youtube.com`).
+
+### Quick Reference: URL Validation Patterns
+
+| Scenario | Pattern |
+|---|---|
+| Outbound API call with fixed origin | `new URL(path, "https://api.example.com")` + origin check |
+| Path segments from external input | `encodeURIComponent()` + regex validation |
+| Numeric IDs in URL paths | `Number.isInteger()` + range check |
+| Checking if URL belongs to a platform | `new URL(href).hostname` + exact/suffix match |
+| Building query strings | `url.searchParams.set(key, value)` — never interpolate |
+
+## Origin
+
+- **Failure**: CodeQL identified 4 SSRF alerts (critical) and 6 URL substring sanitization alerts (high) across `github-app.ts`, `sync.ts`, webhook route, `media-audit.spec.ts`, and `media-utils.ts`
+- **Date**: 2026-03-16
+- **Root cause**: URLs built via template literal interpolation instead of `URL` constructor; hostname checks used `includes()` instead of parsed hostname matching
+- **PR**: fix/codeql-security-fixes (#213)
+
+## Detection Acceleration
+
+- **Level**: CI (CodeQL)
+  **What was added**: CodeQL was already configured in `.github/workflows/codeql.yml`. The rules `js/request-forgery` and `js/incomplete-url-substring-sanitization` detected all 10 instances. No new detection was needed — the gap was in prevention (no Cursor rule existed to guide agents away from these patterns).
+  **Diagnosis time before**: CodeQL alerts sat open for days because no rule prevented the patterns from being introduced
+  **Diagnosis time after**: This Cursor rule fires at authoring time, preventing the pattern before code is written
+
+- **Level**: Editor (this rule)
+  **What was added**: This always-applied rule instructs agents to use `URL` constructor and hostname parsing. Agents will never introduce interpolated fetch URLs or `includes()` hostname checks.
+  **Diagnosis time before**: Pattern introduced → pushed → CodeQL runs → alert appears → manual triage
+  **Diagnosis time after**: Pattern prevented at authoring time — no alert generated

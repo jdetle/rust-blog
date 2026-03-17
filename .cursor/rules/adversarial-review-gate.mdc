@@ -1,0 +1,37 @@
+---
+description: Require adversarial review before declaring any code-producing work complete
+alwaysApply: true
+---
+
+# Adversarial Review Gate
+
+Before declaring work complete on any code-producing task (pushing a branch, opening a PR, or telling the user "done"), run an adversarial review proportional to the change size.
+
+## What to Review
+
+Examine the full diff (`git diff origin/main...HEAD`) through these lenses:
+
+1. **Accidental reversions** — Did conflict resolution, rebase, or cherry-pick silently drop upstream changes? Compare each modified file against `origin/main` to verify only intended changes remain.
+2. **Scope creep** — Does the diff contain changes unrelated to the stated goal? Every hunk should trace back to the task.
+3. **Semantic correctness** — Do the changes actually achieve what was asked? (e.g., updating URLs means the old URL no longer appears, not just that a new one was added somewhere)
+4. **Edge cases** — What happens when the happy path doesn't hold? (missing certs, missing DNS, missing env vars, empty inputs)
+5. **Test coverage** — If behavior changed, are tests updated? If tests were changed, do they still assert meaningful things?
+
+## Proportionality
+
+| Change size | Review depth |
+|---|---|
+| Trivial (1-2 files, style-only) | Quick scan of the diff, 1-2 sentences |
+| Small feature (3-10 files) | Check each file against the 5 lenses above |
+| Multi-file refactor or rebase | Full file-by-file comparison against upstream; verify no accidental reversions |
+| Architecture / new system | Full review + call out risks, trade-offs, and rollback plan |
+
+## When Rebase or Conflict Resolution Was Involved
+
+Always compare the final diff against upstream to catch silent reversions. The pattern that triggered this rule: `git checkout --theirs` during a rebase took the wrong side and stripped upstream features without anyone noticing until the adversarial review caught it.
+
+## Output
+
+State findings concisely before proceeding:
+- **Clean** — no issues found, proceeding to push/merge
+- **Found N issues** — list each, fix them, then re-review the fix

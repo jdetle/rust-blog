@@ -1,0 +1,118 @@
+---
+description: Prefer direct SQL over ORMs. Types are the schema — define once, use everywhere.
+alwaysApply: true
+slug: database-direct
+title: Direct Database Access
+domain: sql
+ruleType: narrow
+version: 2.0.0
+author: PwC TE Skills
+tags:
+  - sql
+  - postgresql
+  - orm
+  - types
+---
+
+# Direct Database Access
+
+Prefer direct SQL over ORMs. ORMs add abstraction, indirection, and generated code that obscure what's actually happening at the database layer. Direct SQL with typed query helpers gives better performance, clearer intent, and end-to-end type safety without the baggage.
+
+## Core Principle: Types ARE the Schema
+
+Define TypeScript interfaces that match database columns 1:1. These same types flow from the database layer through API routes into React components. One source of truth, zero mapping layers.
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│ schema.pg.sql│────▶│  types/db.ts  │────▶│  Component   │
+│  (columns)   │     │  (interfaces) │     │  (props)     │
+└──────────────┘     └──────────────┘     └──────────────┘
+    CREATE TABLE        interface Skill       skill.name
+    "Skill" (           { name: string;      skill.category
+      name TEXT,          category: string;
+      category TEXT,      ...
+      ...               }
+    )
+```
+
+If a column is added to the table, add it to the interface. If the interface changes, the compiler catches every callsite. No codegen, no introspection, no drift.
+
+## Rules
+
+1. **Write SQL directly** — `await sql.get<Skill>('SELECT * FROM "Skill" WHERE slug = $1', slug)` is clearer than any ORM equivalent. No query builders, no method chaining, no magic.
+
+2. **Name columns to match types** — Use camelCase for both SQL column names and TypeScript properties. PostgreSQL requires quoting camelCase identifiers (`"skillId"`, `"createdAt"`). This eliminates the need for any row-to-model mapping.
+
+3. **Thin wrappers, not abstractions** — A function that runs a parameterized query and returns typed results is fine. A class hierarchy that generates SQL from method calls is not.
+
+4. **Schema lives in .sql files** — `CREATE TABLE` is the schema definition. Keep it in `schema.pg.sql` that can be read, diffed, and applied directly. Migrations are sequential `.sql` files, not framework-specific DSLs.
+
+5. **Type assertions at the boundary** — Cast query results at the point they leave the database layer: `rows as Skill[]`. This is safe because you control both the schema and the type. If they drift, tests catch it immediately.
+
+6. **No generated code** — Don't depend on code generators, schema introspection tools, or build-time type generation. Hand-written types are easier to understand, debug, and refactor.
+
+## Preferred Stack
+
+| Need | Use | Avoid |
+|---|---|---|
+| PostgreSQL | pg + @types/pg | prisma, typeorm, sequelize, drizzle |
+| Migrations | Sequential .sql files | ORM migration frameworks |
+| Type safety | Interfaces matching columns | Generated types from introspection |
+| Query building | Template literals with $N parameterized values | Query builder libraries |
+| Connection pooling | pg.Pool with withClaims() wrapper | Direct client connections |
+
+## Pattern: Typed Query Module
+
+```typescript
+interface Skill {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  category: string;
+  currentVersion: string;
+  isDeprecated: boolean;
+  createdAt: string;
+}
+
+async function getSkillBySlug(slug: string): Promise<Skill | undefined> {
+  return await sqlReadOnly.get<Skill>(
+    'SELECT * FROM "Skill" WHERE slug = $1', slug
+  );
+}
+
+async function getSkillsByCategory(category: string): Promise<Skill[]> {
+  return await sqlReadOnly.all<Skill>(
+    'SELECT * FROM "Skill" WHERE category = $1', category
+  );
+}
+```
+
+## PostgreSQL Type Conventions
+
+| Concept | PG type | TypeScript type | Notes |
+|---|---|---|---|
+| Boolean | BOOLEAN | boolean | Native true/false |
+| Date/time | TIMESTAMPTZ | string | pg.types configured to return ISO strings |
+| ID | TEXT | string | Use gen_random_uuid()::TEXT or app-generated CUIDs |
+| Nullable | column without NOT NULL | `T \| null` | Explicit in both SQL and TS |
+| Integer | INTEGER | number | |
+| Decimal | REAL / NUMERIC | number | |
+| JSON | JSONB | object / string | Use JSONB for queryable JSON |
+
+## Query Conventions
+
+- **Placeholders**: Use `$1, $2, $3...` positional parameters (not `?`)
+- **Identifiers**: Quote all camelCase names with double quotes: `"skillId"`, `"createdAt"`
+- **Timestamps**: Use `now()` (not `datetime('now')`)
+- **Intervals**: Use `now() - interval '30 days'` (not datetime arithmetic)
+- **Booleans**: Use native `true`/`false` (not 0/1)
+- **Upserts**: Use `INSERT ... ON CONFLICT ... DO UPDATE SET` (not `INSERT OR REPLACE`)
+
+## Anti-Patterns
+
+- **ORM model classes** — adds decorators, metadata, a class hierarchy, and a runtime dependency for something an interface does in zero bytes.
+- **Schema-generated types** — if the generated output is wrong or changes unexpectedly, you're debugging someone else's codegen.
+- **Eager loading / includes** — hides a JOIN or N+1. Write the JOIN explicitly so the query plan is obvious.
+- **Migration DSLs** — `table.addColumn('name', 'varchar(255)')` is just SQL with extra steps. Write the SQL.
+- **Unquoted camelCase** — PostgreSQL folds unquoted identifiers to lowercase. Always quote: `"createdAt"`, not `createdAt`.

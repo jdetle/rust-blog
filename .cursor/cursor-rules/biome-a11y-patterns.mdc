@@ -1,0 +1,226 @@
+---
+description: Accessibility patterns enforced by Biome — buttons, ARIA roles, labels, SVGs, semantic elements, keyboard interactions
+globs: "**/*.tsx"
+alwaysApply: false
+slug: biome-a11y-patterns
+title: Biome A11y Patterns
+domain: react
+ruleType: narrow
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - biome
+  - a11y
+  - accessibility
+  - react
+---
+
+# Biome A11y Patterns — Learned from 231 biome warnings
+
+A codebase-wide biome audit found 113 files with accessibility violations that had accumulated as warnings. These patterns are now enforced by Biome and blocked by the pre-commit hook. This rule teaches the correct patterns so violations never reach the linter.
+
+## The Rules
+
+### 1. Every `<button>` needs an explicit `type`
+
+Buttons without `type` default to `type="submit"`, which silently submits the nearest `<form>` ancestor. Always declare intent.
+
+```tsx
+// WRONG — defaults to type="submit", may trigger form submission
+<button onClick={handleClick}>Cancel</button>
+
+// RIGHT — explicit non-submit button
+<button type="button" onClick={handleClick}>Cancel</button>
+
+// RIGHT — explicit submit button
+<button type="submit">Save</button>
+```
+
+**Biome rule**: `a11y/useButtonType`
+
+### 2. ARIA props require a supporting role on generic elements
+
+`aria-label`, `aria-describedby`, and other ARIA properties are only valid on elements that have an implicit or explicit ARIA role. A plain `<div>` has no implicit role — screen readers ignore the ARIA prop.
+
+```tsx
+// WRONG — aria-label on a plain div (no implicit role)
+<div className="overflow-y-auto" aria-label="Chat messages">
+
+// RIGHT — add role="region" so the label is announced
+<div className="overflow-y-auto" role="region" aria-label="Chat messages">
+
+// BETTER — use a semantic element that already has an implicit role
+<section className="overflow-y-auto" aria-label="Chat messages">
+```
+
+**When to use which role:**
+
+| Content | Element or role |
+|---|---|
+| Landmark section with a label | `<section aria-label="...">` or `<div role="region" aria-label="...">` |
+| Navigation links | `<nav aria-label="...">` |
+| List of items | `<ul>` / `<ol>` with `<li>` children |
+| Log / live region | `<div role="log" aria-label="...">` |
+| Alert | `<div role="alert">` |
+| Search | `<search>` or `<div role="search">` |
+
+**Biome rule**: `a11y/useAriaPropsSupportedByRole`
+
+### 3. Use semantic HTML elements instead of ARIA roles on divs
+
+If a semantic HTML element exists for the purpose, use it. ARIA roles are a fallback, not a first choice.
+
+```tsx
+// WRONG — div with role when a semantic element exists
+<div role="navigation">...</div>
+<div role="banner">...</div>
+<div role="main">...</div>
+<div role="complementary">...</div>
+
+// RIGHT — semantic elements
+<nav>...</nav>
+<header>...</header>
+<main>...</main>
+<aside>...</aside>
+```
+
+| Role | Semantic element |
+|---|---|
+| `navigation` | `<nav>` |
+| `banner` | `<header>` (when child of `<body>`) |
+| `main` | `<main>` |
+| `complementary` | `<aside>` |
+| `contentinfo` | `<footer>` (when child of `<body>`) |
+| `search` | `<search>` |
+| `form` | `<form>` |
+| `region` | `<section>` (with `aria-label`) |
+
+**Biome rule**: `a11y/useSemanticElements`
+
+### 4. Every `<label>` must be associated with a form control
+
+A `<label>` that isn't connected to an input is invisible to screen readers and unusable via click-to-focus.
+
+```tsx
+// WRONG — label floats without a target
+<label className="text-sm">Video URL</label>
+<input type="url" value={url} onChange={...} />
+
+// RIGHT — htmlFor + id association
+<label htmlFor="video-url" className="text-sm">Video URL</label>
+<input id="video-url" type="url" value={url} onChange={...} />
+
+// ALSO RIGHT — nesting (no htmlFor needed)
+<label className="text-sm">
+  Video URL
+  <input type="url" value={url} onChange={...} />
+</label>
+```
+
+For groups of related inputs (e.g., radio buttons, checkboxes), use `<fieldset>` + `<legend>`:
+
+```tsx
+// WRONG — div with aria-label wrapping radios
+<div aria-label="Select difficulty">
+  <label><input type="radio" /> Easy</label>
+  <label><input type="radio" /> Hard</label>
+</div>
+
+// RIGHT — fieldset + legend
+<fieldset>
+  <legend>Select difficulty</legend>
+  <label><input type="radio" name="difficulty" value="easy" /> Easy</label>
+  <label><input type="radio" name="difficulty" value="hard" /> Hard</label>
+</fieldset>
+```
+
+**Biome rule**: `a11y/noLabelWithoutControl`
+
+### 5. SVGs need `aria-hidden` or `<title>`
+
+Decorative SVGs should be hidden from the accessibility tree. Meaningful SVGs need a text alternative.
+
+```tsx
+// WRONG — SVG exposed to screen readers with no description
+<svg viewBox="0 0 24 24"><path d="..." /></svg>
+
+// RIGHT — decorative icon (most common case)
+<svg aria-hidden="true" viewBox="0 0 24 24"><path d="..." /></svg>
+
+// RIGHT — meaningful icon (rare — only when the SVG IS the content)
+<svg viewBox="0 0 24 24" role="img" aria-label="Warning">
+  <title>Warning</title>
+  <path d="..." />
+</svg>
+```
+
+For lucide-react icons: most are decorative (adjacent to text). Pass `aria-hidden="true"` or rely on the wrapper element for labeling:
+
+```tsx
+// Decorative — icon + text label
+<button type="button"><PlusIcon aria-hidden="true" /> Add skill</button>
+
+// Icon-only button — label on the button, hide the icon
+<button type="button" aria-label="Add skill"><PlusIcon aria-hidden="true" /></button>
+```
+
+**Biome rule**: `a11y/noSvgWithoutTitle`
+
+### 6. No click handlers on static elements
+
+`<div>` and `<span>` are not interactive — adding `onClick` without keyboard support excludes keyboard and screen reader users.
+
+```tsx
+// WRONG — div pretending to be a button
+<div onClick={handleClick} className="cursor-pointer">Click me</div>
+
+// RIGHT — use a button
+<button type="button" onClick={handleClick}>Click me</button>
+
+// RIGHT — if it navigates, use an anchor
+<a href="/skills" onClick={handleNavigation}>View skills</a>
+
+// ACCEPTABLE — when wrapping complex content where button/anchor styling is impractical
+<div
+  role="button"
+  tabIndex={0}
+  onClick={handleClick}
+  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleClick(e); }}
+>
+  Complex card content
+</div>
+```
+
+**Biome rule**: `a11y/noStaticElementInteractions`
+
+## Quick Reference: Element Selection
+
+When you're about to write JSX, choose the element based on what it DOES:
+
+| Behavior | Element |
+|---|---|
+| Triggers an action | `<button type="button">` |
+| Navigates to a URL | `<a href="...">` |
+| Submits a form | `<button type="submit">` |
+| Contains form inputs | `<form>` |
+| Groups related inputs | `<fieldset>` + `<legend>` |
+| Labels an input | `<label htmlFor="...">` |
+| Sections content with a heading | `<section aria-label="...">` |
+| Contains navigation links | `<nav aria-label="...">` |
+| Displays a list | `<ul>` or `<ol>` + `<li>` |
+| Dismisses an overlay (click-outside) | `<button>` with transparent overlay styling |
+| Has no behavior | `<div>` or `<span>` (no onClick, no ARIA) |
+
+## Origin
+
+- **Failure**: 231 biome warnings accumulated across 113 files, including `useButtonType` (missing type on buttons), `useAriaPropsSupportedByRole` (aria-label on plain divs), `noLabelWithoutControl` (orphaned labels), `noSvgWithoutTitle` (unlabeled SVGs), `useSemanticElements` (divs with roles), `noStaticElementInteractions` (onClick on divs)
+- **Date**: 2026-03-15
+- **Root cause**: Agents and developers wrote JSX without considering which element or ARIA pattern Biome expects — accessibility rules were configured as warnings and ignored
+- **PR**: cinema branch biome cleanup
+
+## Detection Acceleration
+
+- **Level**: Pre-commit (editor + CI)
+  **What was added**: All rules listed here are enforced by Biome as warnings in `biome.json`. The `.husky/pre-commit` hook runs `bun run lint` which invokes `biome check .` — violations block the commit.
+  **Diagnosis time before**: Warnings accumulated silently for weeks; only discovered during a manual audit
+  **Diagnosis time after**: Blocked at commit time with the specific file, line, and violation name

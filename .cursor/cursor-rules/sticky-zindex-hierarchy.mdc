@@ -1,0 +1,89 @@
+---
+description: "z-index layering for sticky/fixed positioned elements"
+alwaysApply: true
+---
+
+# Sticky Z-Index Hierarchy — Learned from header hidden behind page content
+
+The site header (`<header>` in `Header.tsx`) used `z-50`, the same z-index as game overlays and other page elements. When page content created stacking contexts (via `transform`, `will-change`, `position: relative` with z-index, or `backdrop-filter`), the header was painted behind them on scroll. Users could not reach the navigation.
+
+## The Rule
+
+All sticky and fixed positioned elements must follow this z-index hierarchy. Never assign a z-index to a new sticky/fixed element without consulting this table.
+
+### Z-Index Ladder
+
+| z-index | Layer | Elements | Notes |
+|---|---|---|---|
+| none | Page content | Cards, sections, grids | No z-index needed |
+| `z-10`–`z-20` | In-page accents | Decorative overlays, floating labels | Keep low |
+| `z-30` | Filter bars | `sticky top-14` filter toolbars on `/skills`, `/rules` | Below sub-navs |
+| `z-40` | Sub-navigation | `sticky top-14` section tabs on `/about`, `/mcp-servers`, `/learn/*` | Below header |
+| `z-50` | Page overlays | Game panels (Intern Quest), tooltips, popovers | Temporary, dismissible |
+| `z-[59]` | Reading progress | `fixed top-14` progress bar | Just below header |
+| `z-[60]` | **Site header** | `sticky top-0` main navigation | Always above page content |
+| `z-[100]` | Modal overlays | Command palette, keyboard shortcuts, skip-to-content | Above everything except onboarding |
+| `z-[9999]` | Fullscreen takeover | Onboarding/welcome overlay | Nuclear option — only one element |
+
+### When adding a new positioned element
+
+1. Determine whether the element is **page content** (no z-index), **page-level sticky** (z-30–z-50), **site-level chrome** (z-[60]), or **overlay** (z-[100]+).
+2. Pick the z-index from the table above. Do not invent a new tier.
+3. If the element must appear above the header, it must be a modal/overlay with `fixed` positioning and `z-[100]` or higher.
+4. Never give page content (cards, sections, hero elements) a z-index >= 50. If a card needs to overlap its siblings, use `z-10` or `z-20`.
+
+### What creates stacking contexts (and breaks sticky elements)
+
+These CSS properties create a new stacking context, which can cause elements inside to paint above sticky elements even without an explicit z-index:
+
+- `transform` (including `translate`, `scale`, `rotate`)
+- `will-change: transform` or `will-change: opacity`
+- `filter` / `backdrop-filter`
+- `opacity` less than 1
+- `isolation: isolate`
+- `contain: paint` or `contain: layout`
+- `position: fixed` or `position: sticky` (always creates a stacking context)
+
+When using any of these on page content, verify that the element doesn't visually overlap the header by scrolling past it.
+
+## Examples
+
+### Wrong (caused the failure)
+
+```tsx
+// Header at z-50 — same level as game overlays and other page elements
+<header className="sticky top-0 z-50 ...">
+
+// Game overlay also at z-50 — competes with header
+<div className="fixed bottom-20 z-50 ...">
+
+// Card with transform creates stacking context, can paint above z-50 header
+<div className="relative transition-transform hover:scale-105">
+```
+
+### Right (prevents recurrence)
+
+```tsx
+// Header at z-[60] — dedicated tier, above all page content
+<header className="sticky top-0 z-[60] ...">
+
+// Game overlay at z-50 — below header, above filter bars
+<div className="fixed bottom-20 z-50 ...">
+
+// Cards stay in page-content tier (no z-index or low z-index)
+<div className="relative transition-transform hover:scale-105">
+```
+
+## Origin
+
+- **Failure**: Site header was hidden behind page content when scrolling — navigation was unreachable
+- **Date**: 2026-03-14
+- **Root cause**: Header used `z-50`, the same tier as game overlays and tooltips. Page content with `transform` or `position: relative` created stacking contexts that painted above the header.
+- **PR**: fix/sticky-zindex-visibility
+
+## Detection Acceleration
+
+- **Level**: E2E test (CI)
+  **What was added**: `e2e/sticky-visibility.spec.ts` — scrolls every major route and verifies the header remains visible and clickable above all page content. Also checks that all sticky sub-navs and filter bars remain visible.
+  **Diagnosis time before**: Only discoverable through manual testing during a demo
+  **Diagnosis time after**: Test failure with clear message: "Header is not visible after scrolling on /skills"

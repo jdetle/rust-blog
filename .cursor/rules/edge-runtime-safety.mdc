@@ -1,0 +1,127 @@
+---
+description: "Avoid Node.js-only APIs in code reachable from Edge Runtime contexts (middleware, instrumentation, edge API routes)"
+alwaysApply: true
+---
+
+# Edge Runtime Safety — Learned from runtime crash
+
+`process.pid` was used in `CloudWatchLoggerProvider` to generate a default log stream name. This code was imported by `instrumentation.ts`, which Next.js runs in both the Node.js and Edge runtimes. The Edge Runtime does not provide `process.pid`, causing a crash on every request routed through Edge. The build passed because `next build` doesn't statically analyze all Node.js API usage in Edge contexts — it only catches direct `import` of banned modules, not property access on globals.
+
+## The Rule
+
+Code that is imported (directly or transitively) by any of these files runs in the Edge Runtime and **must not use Node.js-only APIs**:
+
+- `src/middleware.ts`
+- `src/instrumentation.ts`
+- Any route with `export const runtime = "edge"`
+
+### Banned APIs in Edge-reachable code
+
+| Banned | Edge-safe replacement |
+|---|---|
+| `process.pid` | `globalThis.process?.pid ?? crypto.randomUUID().slice(0, 8)` |
+| `process.cwd()` | Not available — restructure to avoid needing it |
+| `process.env.X` | `process.env.X` **is** available in Edge (env vars are the exception) |
+| `require()` / `createRequire()` | Use `import` (ESM only in Edge) |
+| `fs`, `path`, `child_process`, `net`, `dns`, `os` | Not available — use Web APIs or restructure |
+| `node:crypto` (createHash, createHmac) | `crypto` (Web Crypto API): `crypto.subtle.digest()`, `crypto.randomUUID()` |
+| `Buffer` | `Uint8Array` + `TextEncoder`/`TextDecoder` |
+| `setTimeout`/`setInterval` (long-running) | Available but execution time is capped — avoid long delays |
+
+### Safe patterns
+
+`process.env`, `console.*`, `fetch`, `crypto` (Web Crypto), `URL`, `URLSearchParams`, `TextEncoder`/`TextDecoder`, `Headers`, `Request`, `Response`, `AbortController`, `structuredClone`, `atob`/`btoa`, `queueMicrotask`, `performance.now()`.
+
+## Before editing shared library code
+
+When modifying any file under `src/lib/` that could be imported by middleware or instrumentation:
+
+1. **Trace the import chain** — is this file reachable from `middleware.ts` or `instrumentation.ts`?
+2. **Check for Node.js globals** — search for `process.pid`, `process.cwd`, `__dirname`, `__filename`, `Buffer`, `require`
+3. **Use optional chaining for `process` properties** — `globalThis.process?.pid` instead of `process.pid`, since `process` itself may not exist in Edge
+4. **Test with `process` absent** — unit tests should simulate Edge Runtime by setting `globalThis.process = undefined` and verifying the code still works
+
+## Examples
+
+### Wrong (caused the failure)
+
+```typescript
+// src/lib/cloudwatch/provider.ts
+export class CloudWatchLoggerProvider implements LoggerProvider {
+  constructor(logGroupName?: string, logStreamName?: string) {
+    this.logGroupName = logGroupName ?? DEFAULT_GROUP;
+    this.logStreamName = logStreamName ?? `server-${process.pid}`;
+    //                                              ^^^^^^^^^^^ crashes in Edge Runtime
+  }
+}
+```
+
+### Right (prevents recurrence)
+
+```typescript
+export class CloudWatchLoggerProvider implements LoggerProvider {
+  constructor(logGroupName?: string, logStreamName?: string) {
+    this.logGroupName = logGroupName ?? DEFAULT_GROUP;
+    this.logStreamName =
+      logStreamName ?? `server-${globalThis.process?.pid ?? crypto.randomUUID().slice(0, 8)}`;
+  }
+}
+```
+
+### Wrong — using node:crypto in Edge-reachable code
+
+```typescript
+import { createHmac } from "node:crypto";
+
+function sign(data: string, key: string): string {
+  return createHmac("sha256", key).update(data).digest("hex");
+}
+```
+
+### Right — using Web Crypto API
+
+```typescript
+async function sign(data: string, key: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw", encoder.encode(key), { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+  );
+  const sig = await crypto.subtle.sign("HMAC", cryptoKey, encoder.encode(data));
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+```
+
+## Edge Runtime entry points in this project
+
+| File | Why it runs in Edge |
+|---|---|
+| `src/middleware.ts` | Next.js middleware always runs in Edge Runtime |
+| `src/instrumentation.ts` | `register()` is called in both Node.js and Edge runtimes |
+
+Any module these files import (and any module *those* modules import, transitively) must be Edge-safe.
+
+## Origin
+
+- **Failure**: `process.pid` in `CloudWatchLoggerProvider` crashed at runtime when `instrumentation.ts` loaded it in the Edge Runtime
+- **Date**: 2026-03-12
+- **Root cause**: Node.js-only API (`process.pid`) used in a module transitively imported by `instrumentation.ts`, which runs in both Node.js and Edge runtimes
+- **PR**: [#133](https://github.com/pwc-us-adv-genai-commercial-factory/skills-hub/pull/133)
+
+## Detection Acceleration
+
+Three layers were added to catch this class of failure earlier:
+
+- **Level**: Unit test (editor/CI)
+  **What was added**: `Edge Runtime safety` test group in `cloudwatch-provider.test.ts` — simulates `process.pid` being `undefined` and `process` being entirely absent. Fails with a descriptive message if the provider crashes without `process`.
+  **Diagnosis time before**: Runtime crash in production/staging with a generic `TypeError`
+  **Diagnosis time after**: Immediate test failure with "constructs without error when process.pid is unavailable"
+
+- **Level**: CI
+  **What was added**: `bash scripts/smoke.sh --no-build` step in `ci.yml` — boots the production build, health-checks critical routes. Catches any runtime crash that `next build` misses.
+  **Diagnosis time before**: Discovered only after deployment or e2e tests
+  **Diagnosis time after**: CI fails in the `Smoke test` step with the specific route that crashed
+
+- **Level**: Build
+  **What was added**: `scripts/smoke.sh` now exists (was previously a dead reference in `package.json`). Developers can run `bun run smoke` locally before pushing.
+  **Diagnosis time before**: No local equivalent existed
+  **Diagnosis time after**: `bun run smoke` catches boot failures in ~30 seconds

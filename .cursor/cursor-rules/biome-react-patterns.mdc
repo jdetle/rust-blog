@@ -1,0 +1,163 @@
+---
+description: React patterns enforced by Biome — stable keys, no dangerouslySetInnerHTML, no forEach return values
+globs: "**/*.tsx"
+alwaysApply: false
+slug: biome-react-patterns
+title: Biome React Patterns
+domain: react
+ruleType: narrow
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - biome
+  - react
+  - patterns
+---
+
+# Biome React Patterns — Learned from 231 biome warnings
+
+A codebase-wide biome audit found React-specific anti-patterns that had accumulated as warnings: array indices used as keys causing reconciliation bugs, `dangerouslySetInnerHTML` bypassing XSS protection, and `.forEach()` callbacks accidentally returning values. This rule teaches the correct patterns.
+
+## The Rules
+
+### 1. Never use array indices as React keys
+
+Array indices as keys cause React to reuse DOM nodes incorrectly when items are reordered, inserted, or deleted. State gets attached to the wrong items, animations break, and inputs lose their values.
+
+```tsx
+// WRONG — index key breaks on reorder/insert/delete
+{items.map((item, i) => (
+  <li key={i}>{item.name}</li>
+))}
+
+// RIGHT — stable unique identifier from the data
+{items.map((item) => (
+  <li key={item.id}>{item.name}</li>
+))}
+
+// RIGHT — slug or other natural key
+{skills.map((skill) => (
+  <SkillCard key={skill.slug} skill={skill} />
+))}
+```
+
+**Finding a stable key:**
+
+| Data source | Key to use |
+|---|---|
+| Database row | `id` (primary key) |
+| Slug-based entity | `slug` |
+| API response item | `id`, `uri`, or `href` |
+| Enum/constant array | The enum value itself (`key={category}`) |
+| User-entered list | Generate a stable ID on creation (`crypto.randomUUID()`) |
+| Static content | A descriptive string literal (`key="intro-section"`) |
+
+**When index keys are acceptable** (all three conditions must be true):
+1. The list is static — items are never reordered, inserted, or deleted
+2. Items have no internal state or controlled inputs
+3. No stable ID exists in the data
+
+Even then, prefer generating a stable key at data creation time.
+
+**Biome rule**: `suspicious/noArrayIndexKey`
+
+### 2. Never use `dangerouslySetInnerHTML`
+
+`dangerouslySetInnerHTML` bypasses React's XSS protection. Raw HTML from any source — database, API, user input, markdown renderer — can contain `<script>`, `onclick`, or other attack vectors.
+
+```tsx
+// WRONG — XSS vector
+<div dangerouslySetInnerHTML={{ __html: userContent }} />
+<div dangerouslySetInnerHTML={{ __html: markdownToHtml(content) }} />
+
+// RIGHT — use React components to render structured content
+<ReactMarkdown>{content}</ReactMarkdown>
+
+// RIGHT — for simple HTML-like content, parse and render as React elements
+{paragraphs.map((p) => (
+  <p key={p.id}>{p.text}</p>
+))}
+
+// RIGHT — if raw HTML is truly unavoidable (e.g., CMS output), sanitize first
+import DOMPurify from "dompurify";
+const clean = DOMPurify.sanitize(rawHtml);
+<div dangerouslySetInnerHTML={{ __html: clean }} />
+```
+
+**When `dangerouslySetInnerHTML` is genuinely needed**, add a biome-ignore comment with a justification:
+
+```tsx
+{/* biome-ignore lint/security/noDangerouslySetInnerHtml: sanitized CMS output */}
+<div dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
+```
+
+The comment must explain WHY it's safe, not just acknowledge the warning.
+
+**Biome rule**: `security/noDangerouslySetInnerHtml`
+
+### 3. Don't return values from `.forEach()` callbacks
+
+`.forEach()` ignores return values. If you're returning something, you probably want `.map()`, `.filter()`, or `.some()`.
+
+```tsx
+// WRONG — return value is silently discarded
+items.forEach((item) => {
+  if (item.active) return <li key={item.id}>{item.name}</li>;
+});
+
+// RIGHT — use .map() when building a new array
+const elements = items.map((item) => (
+  <li key={item.id}>{item.name}</li>
+));
+
+// WRONG — early return in forEach (doesn't break the loop)
+items.forEach((item) => {
+  if (item.id === targetId) return item;
+});
+
+// RIGHT — use .find() for searching
+const target = items.find((item) => item.id === targetId);
+
+// WRONG — filtering inside forEach
+const results: Item[] = [];
+items.forEach((item) => {
+  if (item.active) results.push(item);
+});
+
+// RIGHT — use .filter()
+const results = items.filter((item) => item.active);
+```
+
+**Choosing the right iteration method:**
+
+| Intent | Method |
+|---|---|
+| Transform each item → new array | `.map()` |
+| Keep items matching a condition | `.filter()` |
+| Find the first match | `.find()` |
+| Check if any/all match | `.some()` / `.every()` |
+| Reduce to a single value | `for...of` loop (see typescript-style rule) |
+| Side effects only (DOM mutation, logging) | `.forEach()` — but no return value |
+
+**Biome rule**: `suspicious/useIterableCallbackReturn`
+
+## Self-Check Before Committing React Components
+
+1. Search for `key={i}` or `key={index}` — replace with a stable identifier from the data
+2. Search for `dangerouslySetInnerHTML` — replace with React components or add sanitization + biome-ignore comment
+3. Search for `.forEach(` followed by `return` — switch to `.map()`, `.filter()`, or `.find()`
+4. Verify every list renders items with a key derived from the item's identity, not its position
+
+## Origin
+
+- **Failure**: 231 biome warnings accumulated across 113 files, including `noArrayIndexKey` (index keys on dynamic lists), `noDangerouslySetInnerHtml` (raw HTML injection), `useIterableCallbackReturn` (forEach with return values)
+- **Date**: 2026-03-15
+- **Root cause**: Agents used convenience patterns (index keys, forEach with returns) that work superficially but cause subtle bugs — warnings were configured but not enforced
+- **PR**: cinema branch biome cleanup
+
+## Detection Acceleration
+
+- **Level**: Pre-commit (editor + CI)
+  **What was added**: All rules listed here are enforced by Biome as warnings in `biome.json`. The `.husky/pre-commit` hook runs `bun run lint` which invokes `biome check .` — violations block the commit.
+  **Diagnosis time before**: Warnings accumulated silently; only caught during manual audit
+  **Diagnosis time after**: Blocked at commit time with specific file, line, and rule name

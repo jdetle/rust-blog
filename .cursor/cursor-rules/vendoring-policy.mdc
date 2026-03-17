@@ -1,0 +1,151 @@
+---
+description: Prefer vendored/inlined code over external packages to reduce supply chain risk and improve build reproducibility
+alwaysApply: true
+---
+
+# Vendoring Policy — Own Your Dependencies
+
+Prefer writing or vendoring code over adding a new package. Every external dependency is a trust decision, a supply chain risk, and a build-time cost. The bar for adding a package should be high.
+
+## Decision Framework
+
+Before adding a dependency, answer these questions in order:
+
+### 1. Can you write it in < 100 lines?
+
+If the functionality is straightforward (string manipulation, data transformation, simple algorithms, file I/O helpers), write it yourself. Put utility code in:
+
+- **TypeScript**: `src/lib/<module>.ts`
+- **Rust**: A new module in the existing crate, or `src/lib.rs` helpers
+
+### 2. Can you vendor just the code you need?
+
+If the dependency is large but you only need a small part, extract the relevant code:
+
+- Copy the specific functions/modules you need into `src/vendor/<package>/`
+- Include the original license file
+- Add a comment at the top citing the source and version: `// Vendored from <package>@<version> — <license>`
+- Pin to the exact version you extracted from, so you can audit diffs on upgrade
+
+### 3. Is this a foundational framework?
+
+Some dependencies are load-bearing frameworks that would be unreasonable to rewrite:
+
+| Allowed package categories | Examples |
+|---|---|
+| Web framework | Next.js, React, React DOM |
+| Language runtime/toolchain | TypeScript, Bun |
+| Database driver | `pg` |
+| Crypto / auth (audited libs) | `jose`, `jsonwebtoken` |
+| Testing framework | Playwright, Testing Library |
+| Linter / formatter | Biome |
+| Rust async runtime | `tokio` |
+| Rust web framework | `axum` |
+| Rust serialization | `serde` |
+
+These pass the bar. Most other packages don't.
+
+### 4. Does the package justify its weight?
+
+If you still want to add a package after steps 1-3, it must clear this checklist:
+
+- [ ] Actively maintained (commit in last 6 months)
+- [ ] No known vulnerabilities (`cargo audit` / `bun audit`)
+- [ ] License is compatible (MIT, Apache-2.0, BSD — no GPL in app code)
+- [ ] Minimal transitive dependencies (check `bun why <pkg>` or `cargo tree -p <pkg>`)
+- [ ] You can articulate what it does that you can't reasonably build
+
+## Rust Vendoring
+
+### Cargo vendor
+
+For offline/reproducible builds, use `cargo vendor`:
+
+```bash
+cargo vendor
+```
+
+Configure `.cargo/config.toml`:
+
+```toml
+[source.crates-io]
+replace-with = "vendored-sources"
+
+[source.vendored-sources]
+directory = "vendor"
+```
+
+### Feature-gated vendoring
+
+Prefer vendored builds for native dependencies to avoid system library requirements:
+
+```toml
+# Cargo.toml
+[dependencies]
+git2 = { version = "0.20", default-features = false, features = ["vendored-libgit2"] }
+openssl = { version = "0.10", features = ["vendored"] }
+```
+
+### Minimize crate count
+
+Each crate adds compile time. Disable default features and enable only what you need:
+
+```toml
+# WRONG — pulls in every default feature
+reqwest = "0.12"
+
+# RIGHT — only what we use
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+```
+
+## TypeScript Vendoring
+
+### Single-function packages
+
+Never add a package for something that's one function. Classic offenders:
+
+| Package | Instead, write |
+|---|---|
+| `is-odd`, `is-even` | `n % 2 !== 0` |
+| `left-pad` | `str.padStart(len, char)` |
+| `is-number` | `typeof x === 'number' && !Number.isNaN(x)` |
+| `path-exists` | `fs.existsSync(path)` or `Bun.file(path).exists()` |
+| `deep-clone` | `structuredClone(obj)` |
+| `uuid` | `crypto.randomUUID()` |
+| `lodash.get` | Optional chaining `obj?.a?.b?.c` |
+| `lodash.debounce` | 10-line debounce function |
+
+### Vendoring approach
+
+When you need substantial third-party code but want to avoid the dependency:
+
+1. Create `src/vendor/<package-name>/` directory
+2. Copy the source files you need
+3. Add `LICENSE` from the original package
+4. Add a `README.md` noting the source version and any modifications
+5. Import from `@/vendor/<package-name>` instead of the package name
+
+## Auditing Existing Dependencies
+
+Periodically run:
+
+```bash
+# TypeScript
+bun pm ls --all | wc -l    # total package count — lower is better
+
+# Rust
+cargo tree | wc -l          # total crate count
+cargo audit                 # vulnerability scan
+```
+
+When a dependency is found to be unnecessary (functionality available natively or easily inlined), remove it and replace with vendored or hand-written code.
+
+## Anti-Patterns
+
+| Pattern | Problem | Fix |
+|---|---|---|
+| Adding a package for one function | Supply chain risk for trivial code | Write the function |
+| `import _ from "lodash"` | Pulls entire 500KB library | Write the 3 functions you need |
+| Default features enabled | Pulls transitive deps you don't use | `default-features = false` |
+| Unpinned versions | Non-reproducible builds | Use lockfiles (`bun.lock`, `Cargo.lock`) |
+| Packages without maintenance | Abandoned code in your supply chain | Vendor and own it, or find alternative |

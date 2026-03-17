@@ -1,0 +1,88 @@
+---
+description: Every media element that looks interactive must BE interactive — no play-button thumbnails that open new tabs.
+globs:
+  - "src/**/*.tsx"
+  - "src/**/*.ts"
+  - "e2e/**/*.ts"
+alwaysApply: true
+---
+
+# Media Interactivity — If It Looks Playable, It Plays Inline
+
+Media elements must match user expectations. A play button means "play here." A thumbnail means "this content lives on this page." If an element has a play affordance (icon, overlay, hover effect suggesting video), it must render an inline player — never navigate to an external page.
+
+## The Rule
+
+Every media element on the site must satisfy one of two conditions:
+
+1. **Interactive inline** — the media plays, expands, or displays within the current page (iframe embed, `<video>`, lightbox, image gallery)
+2. **Plainly a link** — styled as a text link with no play affordance, no thumbnail, no hover effects that suggest media playback
+
+There is no third option. A thumbnail with a play button that opens YouTube in a new tab violates both conditions — it looks interactive but isn't.
+
+## Specific Patterns
+
+### YouTube Videos
+
+Always use the `YouTubeEmbed` component (`src/components/YouTubeEmbed.tsx`), never an `<a>` tag to `youtube.com/watch`:
+
+```tsx
+// CORRECT — inline embed
+<YouTubeEmbed videoId="LJS7Igvk6ZM" title="Description" />
+
+// WRONG — external link with play thumbnail
+<a href="https://www.youtube.com/watch?v=LJS7Igvk6ZM" target="_blank">
+  <img src="thumbnail.jpg" />
+  <PlayIcon />
+</a>
+```
+
+### HTML5 Video
+
+Use `<video>` with controls or a custom player UI. Never link to a video file with `target="_blank"`.
+
+### Images with Play Overlays
+
+A play icon overlay on an image means one of:
+- Clicking reveals an inline `<video>` or iframe player (ProofOfExecution pattern)
+- Clicking navigates to a detail page where the video plays inline
+
+It must never mean "open this in a new tab."
+
+### Audio
+
+Same principle — embed an `<audio>` player or use a custom player component. Never link to an audio file externally.
+
+### PDFs and Documents
+
+Render inline with an iframe viewer or embed, or use a clear download link styled as a link (not as a document preview with an "open" affordance).
+
+## Enforcement
+
+Three layers prevent violations:
+
+1. **This rule** — agents and humans follow it during authoring
+2. **`e2e/media-audit.spec.ts`** — Playwright test crawls every route and flags:
+   - `<a target="_blank">` wrapping images or play icons
+   - Play icon elements (lucide `Play`, custom SVG) inside `<a>` tags that navigate away
+   - `<img>` tags with YouTube thumbnail URLs not inside an embed component
+   - `<iframe>` elements without accessible titles
+3. **`tests/dom/media-utils.ts`** — unit test utility `assertNoExternalMediaLinks` for component-level checks
+
+## When You Can't Embed
+
+If licensing, technical constraints, or third-party restrictions prevent inline embedding:
+
+1. Remove all play affordances (no play icon, no thumbnail, no hover effects suggesting playback)
+2. Use a plain text link: `<a href="...">Watch on YouTube →</a>`
+3. Document the constraint in a code comment
+
+The visual contract is: play buttons play. Links link. Never mix them.
+
+## CSP Requirements
+
+When adding a new media source, update `next.config.ts` CSP:
+- `frame-src` for iframe embeds
+- `script-src` for player API scripts
+- `img-src` for thumbnails
+- `media-src` for audio/video if served from external CDN

@@ -1,0 +1,80 @@
+---
+description: Scrollable containers must be keyboard-navigable
+globs: src/**/*.tsx
+alwaysApply: false
+---
+
+# Scrollable Keyboard Navigation — Learned from keyboard-inaccessible game panels
+
+Multiple scrollable containers across the app (InventoryPanel, LeaderboardPanel, BossEncounter skill/rule lists, FeedbackChatbot messages, ComposerDemo chat, BeforeAfterDemo panels) had `overflow-y-auto` but no `tabIndex`, making them impossible to scroll via keyboard. Screen reader users and keyboard-only users could not access content that overflowed the container.
+
+## The Rule
+
+Every element with `overflow-y-auto`, `overflow-y-scroll`, `overflow-auto`, or `overflow-x-auto` that contains scrollable content **must** have `tabIndex={0}` so keyboard users can focus the container and scroll with arrow keys.
+
+### Required attributes for scrollable containers
+
+```tsx
+// CORRECT — keyboard users can focus and scroll
+<div
+  className="max-h-[80vh] overflow-y-auto"
+  tabIndex={0}
+  role="region"
+  aria-label="Description of scrollable content"
+>
+  {content}
+</div>
+
+// WRONG — not focusable, keyboard users can't scroll
+<div className="max-h-[80vh] overflow-y-auto">
+  {content}
+</div>
+```
+
+### When `tabIndex={0}` is NOT needed
+
+- The container's only scrollable children are already focusable (e.g., a list of `<button>` elements where the buttons themselves provide keyboard access to all content)
+- The container uses native document scrolling (the page body)
+- The container is not visible or is `pointer-events-none`
+
+### Overlay / modal panels
+
+Overlay panels (inventory, leaderboard, boss encounters) should also:
+
+1. Add `role="dialog"` and `aria-label` for screen readers
+2. Handle `Escape` key to close the panel
+3. Restore focus to the trigger element when closed
+
+```tsx
+useEffect(() => {
+  function handleKey(e: KeyboardEvent) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onClose();
+    }
+  }
+  window.addEventListener("keydown", handleKey);
+  return () => window.removeEventListener("keydown", handleKey);
+}, [onClose]);
+```
+
+### Custom scrollbar styling
+
+For game-themed containers, use the `pixel-scrollable` class (defined in `pixel-theme.css`) which provides thin, styled scrollbars matching the game aesthetic.
+
+For cinema-themed containers, scrollbar styles are applied globally via `[data-cinema]` in `cinema-theme.css`.
+
+## Checklist when creating a scrollable container
+
+1. Does it have `tabIndex={0}`?
+2. Does it have `aria-label` describing the content?
+3. If it's a modal/overlay, does Escape close it?
+4. If it's horizontally scrollable, can arrow keys navigate its content?
+5. Does it have appropriate scrollbar styling for its theme?
+
+## Origin
+
+- **Failure**: 12+ scrollable containers across the app were not keyboard-focusable — keyboard users couldn't scroll game inventory, leaderboards, skill selection lists, chat messages, or review panels
+- **Date**: 2026-03-14
+- **Root cause**: `overflow-y-auto` was applied without `tabIndex={0}`, so the browser never includes the container in the tab order
+- **PR**: fix/visual-polish-keyboard-nav

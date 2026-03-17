@@ -1,0 +1,114 @@
+---
+description: URL query params as source of truth for user-visible state changes
+alwaysApply: true
+slug: url-state
+title: URL State Management
+domain: react
+ruleType: narrow
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - nuqs
+  - url
+  - state
+  - query-params
+---
+
+# URL State Management
+
+If a user interaction (button, tab, filter, sort, pagination) changes what is displayed on the page, represent that state in URL query params — not `useState`. URL state is shareable, bookmarkable, survives refresh, and enables server-side rendering of the correct view.
+
+## Use nuqs
+
+This project uses [nuqs](https://nuqs.dev) for type-safe URL state. The `NuqsAdapter` is already mounted in the root layout.
+
+### Single param
+
+```tsx
+import { useQueryState, parseAsStringLiteral } from "nuqs";
+
+const tabs = ["all", "skills", "rules", "site"] as const;
+
+const [tab, setTab] = useQueryState(
+  "tab",
+  parseAsStringLiteral(tabs).withDefault("all").withOptions({ history: "replace" }),
+);
+```
+
+### Multiple params (batched)
+
+```tsx
+import { useQueryStates, parseAsString, parseAsInteger } from "nuqs";
+
+const [filters, setFilters] = useQueryStates(
+  {
+    q: parseAsString.withDefault(""),
+    category: parseAsString.withDefault(""),
+    page: parseAsInteger.withDefault(1),
+  },
+  { history: "replace" },
+);
+```
+
+### Server components
+
+Read `searchParams` directly — no hooks needed:
+
+```tsx
+export default async function SkillsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; category?: string }>;
+}) {
+  const { q, category } = await searchParams;
+  const skills = getSkills({ q, category });
+  return <SkillGrid skills={skills} />;
+}
+```
+
+## History Mode
+
+| Change type | Mode | Why |
+|---|---|---|
+| Tabs, filters, sort | `history: "replace"` | Avoids polluting back-button history |
+| Pagination, detail navigation | `history: "push"` | User expects back to return to previous page |
+
+## What Goes in the URL vs Local State
+
+| URL query params | Local `useState` |
+|---|---|
+| Active tab | Hover / focus state |
+| Search query | Form input mid-keystroke (debounce, then sync to URL) |
+| Filter selections | Animation / transition state |
+| Sort column and direction | Copy-to-clipboard feedback |
+| Pagination (page, offset) | Mobile menu open/close |
+| Selected item (slug, id) | Dropdown open/close |
+| Expanded panel (if it changes the "view") | Tooltip visibility |
+
+The test: "If the user shares this URL, should the recipient see the same view?" If yes, it belongs in the URL.
+
+## Parsers
+
+Use the strongest parser available:
+
+| Data | Parser |
+|---|---|
+| Free text (search) | `parseAsString` |
+| Known string set (tabs, categories) | `parseAsStringLiteral([...] as const)` |
+| Numbers (page, limit) | `parseAsInteger` |
+| Booleans (toggles) | `parseAsBoolean` |
+| Dates | `parseAsIsoDate` |
+| Complex objects | `parseAsJson` with a Zod schema |
+
+Always call `.withDefault()` so the hook returns `T` instead of `T | null`.
+
+## Validation
+
+Invalid or unknown param values must fall back to the default — never crash. nuqs parsers handle this automatically: if the URL contains `?tab=bogus` and the parser is `parseAsStringLiteral(["all","skills"])`, the value resolves to the default. For server-side validation, continue using Zod schemas in `parseSearchParams()`.
+
+## Anti-Patterns
+
+- `useState` for a tab that changes page content — use `useQueryState`
+- `router.push` with manually constructed `URLSearchParams` — use nuqs setters
+- Reading `useSearchParams()` just to pass to `router.push` — nuqs handles the round-trip
+- Storing filter state in React context or a global store — URL is the global store

@@ -1,0 +1,179 @@
+---
+description: Background layers in fullscreen overlays must cover the entire visible area, not just the viewport
+globs: src/components/**/*.tsx, src/app/**/*.tsx
+alwaysApply: true
+---
+# Fullscreen Overlay Background Coverage — Learned from repeated foreword regression
+
+The foreword (love-note) overlay background has regressed to viewport-only coverage **multiple times**. Each time, an edit to the overlay structure or wrapper classes caused the gradient, blur orbs, or base color to stop covering the full scrollable area. The user scrolls past the viewport and sees raw white/transparent background below.
+
+## The Rule
+
+In any `fixed inset-0` overlay with scrollable content, background layers must be **direct children of the fixed wrapper**, positioned with `absolute inset-0`. They must never be placed inside the scrollable content div or on a non-fixed container.
+
+### Required layer architecture
+
+```
+┌─ fixed inset-0 overflow-y-auto bg-[base-color] ─────────────┐
+│  overscroll-behavior-y: none                                  │
+│                                                               │
+│  ┌─ absolute inset-0 (gradient) ─────────────────────────┐   │
+│  └───────────────────────────────────────────────────────┘   │
+│                                                               │
+│  ┌─ absolute inset-0 (decorative orbs / particles) ──────┐   │
+│  └───────────────────────────────────────────────────────┘   │
+│                                                               │
+│  ┌─ relative z-10 (scrollable content) ──────────────────┐   │
+│  │  my-auto py-16                                         │   │
+│  │  ... text, buttons, etc ...                            │   │
+│  └───────────────────────────────────────────────────────┘   │
+│                                                               │
+└───────────────────────────────────────────────────────────────┘
+```
+
+### Why this works
+
+- The `fixed inset-0` wrapper is viewport-sized and never moves. It IS the viewport.
+- `absolute inset-0` children are positioned relative to the fixed wrapper's padding box — they fill the viewport rectangle and stay pinned there regardless of scroll position.
+- The scrollable content (`relative z-10`) slides over the background layers. Because the backgrounds are pinned to the viewport, they always fill the visible area.
+- The base `bg-[color]` on the wrapper itself provides a fallback — even if absolute layers somehow fail, the base color covers everything.
+- `overscroll-behavior-y: none` prevents mobile rubber-banding from exposing the page behind the overlay.
+
+### The four ways this breaks
+
+| Regression pattern | What happens | Why it happens |
+|---|---|---|
+| Wrapper changed from `fixed` to `relative`/`min-h-screen`/`h-screen` | Background stops at initial viewport height, white gap below | Developer changes layout without understanding the `fixed` is load-bearing for background coverage |
+| Background layers moved inside the content div | Backgrounds scroll with content, leaving gaps at top/bottom during scroll | Refactoring moves elements inside the wrong parent |
+| `bg-[base-color]` removed from wrapper | Transparent flash between gradient load and scroll | Style cleanup removes "redundant" background |
+| `<html>` background not matched during overlay | Mobile overscroll/rubber-band exposes light `<html>` background behind the dark overlay | `overscroll-behavior` not set, or `document.documentElement.style.backgroundColor` not synchronized |
+
+### Correct pattern (the VideoOnboardingYouTube overlay)
+
+```tsx
+// Wrapper: fixed + base color + overflow-y-auto + overscroll prevention
+<div
+  className="fixed inset-0 z-[9999] flex justify-center overflow-y-auto bg-[#0a0a1a]"
+  style={{ overscrollBehaviorY: "none" }}
+>
+
+  {/* Background layer 1: gradient — absolute, direct child of fixed wrapper */}
+  <div className="absolute inset-0 bg-gradient-to-br from-[#1a0a2e] via-[#16213e] to-[#0a1628]" />
+
+  {/* Background layer 2: decorative blur orbs — absolute, direct child */}
+  <div className="absolute inset-0">
+    <div className="absolute left-1/4 top-1/4 h-96 w-96 rounded-full bg-purple-500/20 blur-3xl" />
+    <div className="absolute bottom-1/4 right-1/4 h-96 w-96 rounded-full bg-rose-500/20 blur-3xl" />
+  </div>
+
+  {/* Background layer 3: particles — absolute, direct child */}
+  <div className="absolute inset-0 overflow-hidden">
+    {/* particle elements */}
+  </div>
+
+  {/* Content: relative, scrolls within the fixed wrapper */}
+  <div className="relative z-10 my-auto max-w-3xl px-6 py-16">
+    {/* foreword text, buttons, etc. */}
+  </div>
+</div>
+```
+
+### Scroll lock + `<html>` background synchronization
+
+When a dark overlay takes over the screen, the `<html>` element's background must match the overlay's base color. On mobile, overscroll rubber-banding can expose the `<html>` background even when the overlay itself has `overscroll-behavior-y: none` (the browser may still rubber-band the root viewport).
+
+```tsx
+// On mount / show:
+function lockScroll() {
+  document.body.style.overflow = "hidden";
+  document.documentElement.style.backgroundColor = "#0a0a1a";
+}
+
+// On unmount / dismiss:
+function unlockScroll() {
+  document.body.style.overflow = "";
+  document.documentElement.style.backgroundColor = "";
+}
+```
+
+Both `lockScroll` and `unlockScroll` must be called in every code path that shows or hides the overlay — mount, dismiss, navigation away, and `useEffect` cleanup.
+
+### Wrong patterns
+
+```tsx
+// WRONG 1: wrapper is not fixed — background scrolls away
+<div className="min-h-screen bg-[#0a0a1a] overflow-y-auto">
+  <div className="absolute inset-0 bg-gradient-to-br ..." />
+  <div className="relative z-10">...</div>
+</div>
+
+// WRONG 2: gradient is inside the content div — scrolls with content
+<div className="fixed inset-0 overflow-y-auto">
+  <div className="relative z-10 my-auto py-16">
+    <div className="absolute inset-0 bg-gradient-to-br ..." />
+    <p>Foreword text...</p>
+  </div>
+</div>
+
+// WRONG 3: no base color on wrapper — transparent gap possible
+<div className="fixed inset-0 overflow-y-auto">
+  <div className="absolute inset-0 bg-gradient-to-br ..." />
+  <div className="relative z-10">...</div>
+</div>
+
+// WRONG 4: min-h-dvh on a fixed element — unnecessary, can confuse layout
+<div className="fixed inset-0 min-h-dvh overflow-y-auto bg-[#0a0a1a]">
+  ...
+</div>
+
+// WRONG 5: no overscroll prevention — rubber-banding reveals page behind
+<div className="fixed inset-0 overflow-y-auto bg-[#0a0a1a]">
+  ...
+</div>
+```
+
+## Checklist before modifying any fullscreen overlay
+
+1. Is the outermost wrapper `fixed inset-0`? — Do NOT change this to `relative`, `min-h-screen`, `h-screen`, or any other positioning. Do NOT add `min-h-dvh` (a fixed element is already viewport-sized).
+2. Does the wrapper have a solid `bg-[color]` as a fallback? — Never remove it.
+3. Does the wrapper have `overscroll-behavior-y: none`? — Prevents rubber-banding on mobile from exposing the page behind the overlay.
+4. Are all decorative background layers (`gradient`, `blur`, `particles`) **direct children** of the `fixed` wrapper with `absolute inset-0`? — Never move them inside the content div.
+5. Is the content div `relative z-10` (above the backgrounds) and the only non-absolute child? — It must be the only element that scrolls.
+6. Does the mount/show logic set `document.documentElement.style.backgroundColor` to match the overlay's base color? — This prevents mobile overscroll from flashing the light page background.
+7. Does the unmount/dismiss logic restore `document.documentElement.style.backgroundColor` to `""`? — Failing to restore breaks the page background after the overlay is dismissed.
+8. After the change, scroll the overlay on a short viewport (375×667). Does the background fill the entire visible area throughout the scroll, including during overscroll bounce? — If not, the layer architecture is broken.
+
+## Automated Detection
+
+The `e2e/scroll-bg-consistency.spec.ts` test catches background regression by:
+
+1. Scrolling every major route to the bottom and sampling edge-pixel colors at multiple scroll positions
+2. For the foreword overlay specifically, verifying that the dark base color (#0a0a1a) is present at all corners throughout the scroll
+3. Checking that the `<html>` element's background-color matches the overlay's base color while the overlay is active
+
+Run it with: `bunx playwright test e2e/scroll-bg-consistency.spec.ts`
+
+## Cross-reference
+
+- `fullscreen-overlay-scroll.mdc` — covers the scrollability and centering aspects (overflow-y-auto, my-auto vs items-center)
+- `sticky-zindex-hierarchy.mdc` — the overlay uses z-[9999], above all other layers
+
+## Origin
+
+- **Failure**: Foreword background only covered the viewport — scrolling revealed a bare/white area below the initial screen
+- **Date**: 2026-03-15 (third occurrence of this class of regression)
+- **Root cause**: Edits to the overlay structure displaced background layers from their `absolute inset-0` positions relative to the `fixed` wrapper, causing them to only render within the initial viewport rectangle
+- **Prior fixes**: #172 (overflow scrolling), #173 (overflow prevention rule + typography)
+- **PR**: docs/foreword-bg-rule
+
+## Detection Acceleration
+
+- **Level**: E2E test (CI)
+  **What was added**: `e2e/scroll-bg-consistency.spec.ts` — scrolls every major route and the foreword overlay, sampling background colors at viewport edges to detect gaps, white flashes, or mismatched colors. Also verifies `<html>` background synchronization and `overscroll-behavior` values.
+  **Diagnosis time before**: Only discoverable through manual testing on a mobile device with overscroll
+  **Diagnosis time after**: Test failure with clear message: "Expected dark background at bottom-right corner after scroll, got rgba(249,250,251,1)"
+
+- **Level**: Editor (this rule)
+  **What was added**: Updated checklist includes overscroll prevention, `<html>` background sync, and prohibition of `min-h-dvh` on fixed elements.
+  **Diagnosis time before**: Agent adds `min-h-dvh` or removes `overscroll-behavior` without realizing the downstream effects
+  **Diagnosis time after**: Rule triggers before the edit is committed — agent sees the checklist items and avoids the mistake

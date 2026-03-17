@@ -1,0 +1,75 @@
+---
+description: Prevent bun:test mock.module cross-contamination across test files
+globs: tests/**/*.test.ts, tests/**/*.test.tsx
+alwaysApply: false
+---
+
+# bun:test mock.module — Cross-File Contamination
+
+`mock.module()` in bun:test is **process-global**. Once a module is mocked in one test file, every subsequent file in the same bun process sees the mocked version — not the real one. Test file execution order is non-deterministic and differs between macOS and Linux CI.
+
+## The Rule
+
+**Never `mock.module()` a module that another test file imports as the system under test.**
+
+If `foo.test.tsx` imports and tests `Foo`, no other test file may call `mock.module("@/components/Foo", ...)`. Doing so turns `foo.test.tsx` into a test of the mock stub — which passes or fails depending on execution order.
+
+### Safe
+
+```typescript
+// header.test.tsx — tests the Header, needs to mock its CHILDREN
+mock.module("next/navigation", () => ({ usePathname: () => "/" }));
+mock.module("@/components/layout/AuthProvider", () => ({ useAuth: () => ({...}) }));
+// ↑ Safe: next/navigation and AuthProvider are infrastructure — no test file
+//   imports usePathname or useAuth as the thing being tested.
+```
+
+### Unsafe (caused CI failure 2026-03-12)
+
+```typescript
+// governance-nav.test.tsx — tests Header, mocks ThemeToggle as a stub
+mock.module("@/components/layout/ThemeToggle", () => ({
+  ThemeToggle: () => <div data-testid="theme-toggle" />,
+}));
+// ↑ Breaks theme-toggle.test.tsx — when it runs AFTER this file,
+//   it imports the stub instead of the real ThemeToggle.
+```
+
+## What to Do Instead
+
+1. **Don't mock leaf components.** If ThemeToggle and UserMenu render fine in happy-dom (they do — localStorage, useEffect, and DOM APIs all work), let them render for real. Your test assertions target specific elements anyway.
+
+2. **Only mock infrastructure modules** that no test file tests directly:
+   - `next/navigation` (useRouter, useSearchParams, usePathname)
+   - `next/link`
+   - `@/components/layout/AuthProvider` (useAuth)
+   - `server-only`
+   - `framer-motion` (when animations interfere with assertions)
+
+3. **If you must mock a component**, check first: does any `*.test.tsx` file import it? Search with:
+   ```bash
+   rg "from.*@/components/layout/ThemeToggle" tests/
+   ```
+   If another test imports it as the subject, you cannot mock it.
+
+4. **For complex parents with many children**, prefer rendering the real children. If a child causes genuine test problems (network calls, heavy side effects), mock the child's *dependencies* instead of the child itself.
+
+## Why This Is Order-Dependent
+
+bun test runs files in a single process. The execution order varies by OS, filesystem, and bun version. A test suite that passes on macOS but fails on Ubuntu CI is the signature symptom of mock.module contamination.
+
+## Diagnosis Checklist
+
+When a DOM test fails in CI but passes locally:
+
+1. Check the error — does the rendered HTML contain `data-testid` or stub content that doesn't exist in the real component?
+2. Search for `mock.module("@/path/to/failing/component"` across all test files
+3. If found, the mock is contaminating the failing test
+4. Fix: remove the mock and let the real component render, or mock the component's dependencies instead
+
+## Origin
+
+- **Failure**: `ThemeToggle` tests passed locally (macOS) but failed in CI (Ubuntu) — all 5 tests got a `<div data-testid="theme-toggle" />` stub instead of the real `<button>`
+- **Root cause**: `governance-nav.test.tsx` called `mock.module("@/components/layout/ThemeToggle", ...)` which leaked into `theme-toggle.test.tsx` when CI ran files in alphabetical order
+- **Date**: 2026-03-12
+- **PR**: test/dom-coverage

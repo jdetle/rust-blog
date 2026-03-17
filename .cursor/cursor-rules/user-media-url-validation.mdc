@@ -1,0 +1,91 @@
+---
+description: "Validate user-provided URLs before rendering as src/href attributes in JSX"
+alwaysApply: true
+---
+
+# User Media URL Validation — Learned from CodeQL DOM XSS alerts
+
+CodeQL flagged `<video src={proofVideoUrl}>` and `<img src={proofGifUrl}>` in `ReviewActionPanel.tsx` as DOM XSS (CWE-079). The values came from user-controlled `<input>` fields and were rendered directly as `src` attributes without protocol validation. While modern browsers block `javascript:` URIs in `<img>`/`<video>` `src`, the pattern is dangerous if copied to `<a href>`, `<iframe src>`, `<source src>`, or any element where protocol-level attacks work.
+
+## The Rule
+
+Every `src` or `href` attribute in JSX that renders a user-provided, database-sourced, or externally-fetched URL must be sanitized to allow only safe protocols (`http:`, `https:`).
+
+### Sanitizer function
+
+```typescript
+function sanitizeMediaUrl(raw: string): string {
+  if (!raw) return "";
+  try {
+    const url = new URL(raw);
+    if (url.protocol === "https:" || url.protocol === "http:") return url.href;
+  } catch {}
+  return "";
+}
+```
+
+### When to sanitize
+
+| Attribute | Source of value | Sanitize? |
+|---|---|---|
+| `<img src={url}>` | User input, DB column, API response | Yes |
+| `<video src={url}>` | User input, DB column, API response | Yes |
+| `<iframe src={url}>` | User input, DB column, API response | Yes |
+| `<a href={url}>` | User input, DB column, API response | Yes |
+| `<img src="/static/logo.png">` | Hardcoded string literal | No |
+| `<Link href="/skills">` | Hardcoded internal route | No |
+| `<img src={importedAsset}>` | Webpack/Vite import | No |
+
+### When NOT to sanitize
+
+- Static string literals (`"/images/logo.png"`, `"https://cdn.example.com/img.jpg"`)
+- Imported assets (`import logo from "@/public/logo.svg"`)
+- Next.js `<Image>` component with `src` from a configured domain in `next.config.ts`
+- URLs constructed entirely from server-controlled values with no user input in the chain
+
+### Dangerous protocols to block
+
+The sanitizer must reject everything except `http:` and `https:`. Notable attack protocols:
+
+| Protocol | Risk |
+|---|---|
+| `javascript:` | Code execution (works on `<a href>`, blocked on `<img>/<video> src` in modern browsers) |
+| `data:` | Inline content rendering, can embed HTML/SVG with scripts |
+| `blob:` | References to in-memory objects, can be crafted maliciously |
+| `file:` | Local file access attempts |
+| `vbscript:` | Legacy IE code execution |
+
+### Rendering pattern
+
+```tsx
+// WRONG — user input rendered directly as src
+<video src={proofVideoUrl} controls />
+<img src={proofGifUrl} alt="Preview" />
+
+// RIGHT — sanitized before rendering
+<video src={sanitizeMediaUrl(proofVideoUrl)} controls />
+<img src={sanitizeMediaUrl(proofGifUrl)} alt="Preview" />
+```
+
+### Where to put the sanitizer
+
+Place `sanitizeMediaUrl` in the component file if used once, or in `src/lib/url.ts` if shared across components. Do not inline the validation logic — always call a named function so the security boundary is visible and auditable.
+
+## Origin
+
+- **Failure**: CodeQL flagged `<video src={proofVideoUrl}>` and `<img src={proofGifUrl}>` as DOM XSS (CWE-079, CWE-116) — user-controlled input rendered as media src without protocol validation
+- **Date**: 2026-03-16
+- **Root cause**: Input field values from `useState` rendered directly as `src` attributes without any URL sanitization
+- **PR**: fix/codeql-security-fixes (#213)
+
+## Detection Acceleration
+
+- **Level**: CI (CodeQL)
+  **What was added**: CodeQL `js/xss-through-dom` rule already detects this pattern. The gap was in prevention — no rule told agents to sanitize user-provided URLs.
+  **Diagnosis time before**: CodeQL alerts sat open; pattern was introduced without awareness of the risk
+  **Diagnosis time after**: This rule prevents the pattern at authoring time
+
+- **Level**: Editor (this rule)
+  **What was added**: Always-applied Cursor rule that instructs agents to sanitize any user-provided URL before rendering it as a `src` or `href` attribute. The rule provides a ready-to-use sanitizer function.
+  **Diagnosis time before**: Agent writes `<img src={userInput}>` without thinking about protocol injection
+  **Diagnosis time after**: Agent sees this rule and adds `sanitizeMediaUrl()` wrapper automatically

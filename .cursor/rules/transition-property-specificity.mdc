@@ -1,0 +1,93 @@
+---
+description: "Use specific CSS transition properties instead of transition-all to avoid layout thrashing"
+globs: "src/**/*.tsx"
+alwaysApply: true
+---
+
+# Transition Property Specificity — Learned from widespread transition-all overuse
+
+50+ components use Tailwind's `transition-all`, which transitions every CSS property on the element — including layout-triggering properties like `width`, `height`, `margin`, and `padding`. When hover or state changes modify these properties alongside visual ones (color, shadow), the browser runs layout recalculation on every animation frame even though only the visual properties needed transitioning.
+
+## The Rule
+
+Never use `transition-all` in new code. Always specify the exact properties being transitioned.
+
+### Replacement table
+
+| If you are transitioning... | Use instead of `transition-all` |
+|---|---|
+| Colors (text, background, border) | `transition-colors` |
+| Opacity | `transition-opacity` |
+| Transform (scale, translate, rotate) | `transition-transform` |
+| Box shadow | `transition-shadow` |
+| Colors + shadow | `transition-[color,background-color,border-color,box-shadow]` |
+| Colors + transform | `transition-[color,background-color,border-color,transform]` |
+| Opacity + transform | `transition-[opacity,transform]` |
+| Multiple specific properties | `transition-[prop1,prop2,prop3]` (Tailwind arbitrary value) |
+
+### Why `transition-all` is harmful
+
+1. **Layout thrashing** — if `width`, `height`, `padding`, or `margin` change during a transition, the browser recalculates layout every frame. `transition-all` animates these even when they aren't the intended target.
+2. **Paint invalidation** — properties like `box-shadow` and `background-color` trigger paint. Transitioning them alongside layout properties compounds the cost.
+3. **Unintended animations** — when new CSS properties are added to an element later, `transition-all` silently transitions them. This creates unexpected animations and makes debugging harder.
+4. **Compositor bypass** — only `opacity` and `transform` can be fully handled by the GPU compositor. `transition-all` prevents the browser from optimizing to compositor-only rendering.
+
+### When `transition-all` might seem necessary
+
+If an element transitions 4+ properties on hover, you likely need to simplify the hover effect. Most hover effects should change at most 2-3 properties. If you genuinely need many property transitions, list them explicitly:
+
+```tsx
+// Instead of transition-all, list what you need
+className="transition-[color,background-color,border-color,box-shadow,transform] duration-300"
+```
+
+### Duration conventions
+
+| Context | Duration |
+|---|---|
+| Button/link hover (colors only) | `duration-150` (150ms) |
+| Card hover (shadow + border) | `duration-200` (200ms) |
+| Panel expand/collapse | `duration-300` (300ms) |
+| Page transition, large reveal | `duration-500` (500ms) |
+
+## Examples
+
+### Wrong (causes layout thrashing)
+
+```tsx
+<Link className="transition-all duration-300 hover:shadow-lg hover:border-primary/40">
+```
+
+This transitions shadow and border-color, but `transition-all` also animates any padding, margin, or width changes on the element.
+
+### Right (only transitions what's needed)
+
+```tsx
+<Link className="transition-[box-shadow,border-color] duration-300 hover:shadow-lg hover:border-primary/40">
+```
+
+### Common patterns
+
+```tsx
+// Button — color + background change on hover
+<button className="transition-colors duration-150 hover:bg-primary hover:text-white">
+
+// Card — shadow + border on hover
+<div className="transition-[box-shadow,border-color] duration-200 hover:shadow-md hover:border-primary/30">
+
+// Icon — scale on hover
+<div className="transition-transform duration-200 group-hover:scale-110">
+
+// Tooltip — fade in/out
+<div className="transition-opacity duration-200 opacity-0 group-hover:opacity-100">
+
+// Dropdown menu — fade + slide
+<div className="transition-[opacity,transform] duration-200">
+```
+
+## Origin
+
+- **Failure**: 50+ components used `transition-all`, causing unnecessary layout recalculation during hover effects that only needed color/shadow/opacity transitions
+- **Date**: 2026-03-16
+- **Root cause**: `transition-all` was the default choice when adding any CSS transition, rather than specifying the exact properties being animated
+- **PR**: fix/hover-animation-jank

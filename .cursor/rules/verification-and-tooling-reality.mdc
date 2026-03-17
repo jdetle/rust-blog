@@ -1,0 +1,31 @@
+---
+description: Enforce realistic verification and tool-aware quality gates
+alwaysApply: true
+---
+
+# Verification and Tooling Reality
+
+Align quality gates with what tools can actually measure.
+
+## Verify with the same mechanism that enforces
+
+- Use the real gate command before completion (for example: `scripts/enforce/*`).
+- Validate every touched package with its package-local workflow before repo-level runs.
+- Treat hanging commands as failures: stop, diagnose, and rerun with bounded steps.
+
+## Do not infer unsupported metrics
+
+- Only report metrics a tool emits directly.
+- If a requested metric is not natively available (for example branch coverage in Bun output), state that explicitly and propose a concrete alternative.
+- Do not re-label one metric as another.
+
+## Keep lint/format signal clean
+
+- Remove generated artifacts (for example `dist/`) before lint/format checks unless intentionally included.
+- Run package-required hygiene steps before finalizing.
+- Resolve diagnostics in changed files; do not hide them.
+
+## Parse outputs defensively
+
+- Gate scripts must fail on parse errors, missing sections, or partial output.
+- Prefer simple, portable shell constructs in enforcement scripts.

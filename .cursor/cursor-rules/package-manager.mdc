@@ -1,0 +1,19 @@
+---
+description: Always use bun as the package manager — never npm, yarn, or pnpm
+alwaysApply: true
+---
+
+# Package Manager: bun
+
+Use `bun` for all package management and script execution across every project. Never use `npm`, `yarn`, or `pnpm`.
+
+| Task | Command |
+|---|---|
+| Install dependencies | `bun install` |
+| Add a package | `bun add <package>` |
+| Add a dev dependency | `bun add -d <package>` |
+| Remove a package | `bun remove <package>` |
+| Run a script | `bun run <script>` |
+| Execute a binary | `bunx <binary>` (not `npx`) |
+
+The lockfile is `bun.lock` (not `bun.lockb`, not `package-lock.json`).

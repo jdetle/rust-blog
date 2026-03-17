@@ -25,3 +25,5 @@ target
 .next/
 node_modules/
 .env.local
+.env
+.cursor/mcp.json

@@ -1,0 +1,214 @@
+---
+description: Responsive design implementation — content prioritization, breakpoint conventions, progressive hiding, touch targets, and grid adaptation patterns
+globs: "**/*.tsx"
+alwaysApply: false
+slug: responsive-design
+title: Responsive Design Implementation
+domain: react
+ruleType: narrow
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - responsive
+  - breakpoints
+  - mobile-first
+  - tailwind
+---
+
+# Responsive Design Implementation
+
+This project uses Tailwind CSS v4 with mobile-first responsive design. Base (unprefixed) styles target the smallest viewport; breakpoint prefixes progressively enhance for larger screens.
+
+## Breakpoint Conventions
+
+| Breakpoint | Width | Layout | Navigation | Columns |
+|---|---|---|---|---|
+| Base (0-639px) | Mobile | Single column, stacked | Hamburger menu | 1 |
+| `sm` (640px+) | Large mobile / small tablet | Two columns where helpful | Hamburger menu | 1-2 |
+| `md` (768px+) | Tablet | Desktop nav visible, expanded cards | Desktop nav bar | 2 |
+| `lg` (1024px+) | Desktop | Sidebars visible, full detail panels | Desktop nav + sidebar TOC | 2-4 |
+| `xl` (1280px+) | Wide desktop | Max-width containers, extra whitespace | Full nav | 3-4 |
+
+## Content Priority Tiers
+
+Every UI element belongs to one of three visibility tiers. When building or modifying a component, classify each element and apply the correct responsive visibility.
+
+### Tier 1 — Always Visible
+
+Shown at all breakpoints. This is the essential content a user needs regardless of device.
+
+- Page title (`h1`)
+- Primary content (skill cards, rule cards, main body text)
+- Primary action button (CTA, submit, install)
+- Navigation trigger (hamburger on mobile, full nav on desktop)
+- Search input
+- Status badges that affect user decisions (approval status, deprecated warning)
+
+### Tier 2 — Hidden Below `sm` (640px)
+
+Secondary information that adds context but isn't essential for the core task. Use `hidden sm:inline-flex` or `hidden sm:block`.
+
+- Source type badges, scope badges
+- Metadata labels (submitted by, category badge in list rows)
+- Persona count indicators
+- Table of contents secondary items
+- Filter count labels (show icon-only below `sm`)
+
+### Tier 3 — Hidden Below `lg` (1024px)
+
+Supplementary UI that enhances desktop but would clutter mobile. Use `hidden lg:block`.
+
+- Sidebar navigation (provide horizontal scroll alternative on mobile)
+- Table of contents sidebar (provide sticky horizontal nav on mobile)
+- Step connectors and decorative elements
+- Expanded stat grids (show 2-col on mobile, full grid on `lg`)
+- Detailed description text that duplicates what's in the main content area
+
+### When Desktop-Only Content Needs a Mobile Alternative
+
+If hiding a Tier 3 element removes functionality (not just visual polish), provide a compact alternative:
+
+| Desktop element | Mobile alternative | Pattern |
+|---|---|---|
+| Sidebar category nav | Horizontal scrollable pill bar | `lg:hidden` on pills, `hidden lg:block` on sidebar |
+| Sidebar TOC | Sticky horizontal section nav | `lg:hidden` on bar, `hidden lg:block` on sidebar |
+| Multi-column stat grid | 2-column grid | `grid-cols-2 lg:grid-cols-5` |
+| Inline metadata row | Stacked card layout | `flex-col sm:flex-row` |
+
+## Touch Target Sizing
+
+Interactive elements on mobile must meet WCAG 2.5.5 minimum target size:
+
+- **Minimum**: 44x44px touch target area (applies to buttons, links, form controls)
+- Tailwind helpers: `min-h-[44px] min-w-[44px]` or use `p-3` / `py-2.5 px-4` to achieve sufficient size
+- Space between adjacent touch targets: at least 8px (`gap-2`)
+- The header hamburger button already uses `h-9 w-9` — acceptable since it has padding around it, but prefer `h-11 w-11` for standalone touch targets
+
+## Grid Adaptation Table
+
+Standard column counts per breakpoint. Use these as defaults; deviate only with a reason.
+
+| Content type | Base | `sm` | `md` | `lg` | `xl` |
+|---|---|---|---|---|---|
+| Skill/Rule cards | 1 | 2 | 2 | 2-3 | 3 |
+| Stat cards | 2 | 3 | 3 | 4-5 | 5 |
+| Form fields | 1 | 2 | 2 | 2-3 | 3 |
+| Feature cards | 1 | 2 | 2 | 3 | 3-4 |
+| Info tips | 1 | 2 | 3 | 3 | 3 |
+
+## Progressive Hiding Patterns
+
+### Pattern 1: Simple hide/show
+
+Use when the element is purely informational and its absence doesn't block any task.
+
+```tsx
+<span className="hidden sm:inline-flex">
+  <SourceTypeBadge sourceType={skill.sourceType} />
+</span>
+```
+
+### Pattern 2: CollapsiblePanel
+
+Use when the content is valuable on mobile but shouldn't take vertical space by default. The panel provides user-controlled disclosure.
+
+```tsx
+<CollapsiblePanel title="Details" defaultOpen>
+  {/* Content */}
+</CollapsiblePanel>
+```
+
+The `CollapsiblePanel` component already handles responsive behavior: collapsible below `lg`, always-expanded at `lg`.
+
+### Pattern 3: Horizontal scroll alternative
+
+Use when a vertical sidebar nav is hidden on mobile but the user still needs to navigate. Replace with a horizontal scrollable bar.
+
+```tsx
+{/* Mobile: horizontal pills */}
+<nav className="flex gap-2 overflow-x-auto pb-2 lg:hidden">
+  {links.map((link) => (
+    <a key={link.id} href={`#${link.id}`}
+       className="shrink-0 rounded-full bg-secondary px-4 py-1.5 text-sm font-medium text-muted">
+      {link.label}
+    </a>
+  ))}
+</nav>
+
+{/* Desktop: vertical sidebar */}
+<aside className="hidden w-48 shrink-0 lg:block">
+  <nav className="sticky top-20 space-y-1">
+    {links.map((link) => (
+      <a key={link.id} href={`#${link.id}`} className="block rounded-lg px-3 py-2 text-sm ...">
+        {link.label}
+      </a>
+    ))}
+  </nav>
+</aside>
+```
+
+### Pattern 4: Layout direction flip
+
+Use when a row of items overflows on mobile. Stack vertically on mobile, go horizontal from `sm` or `md`.
+
+```tsx
+<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+  {/* Items stack on mobile, row on desktop */}
+</div>
+```
+
+### Pattern 5: Truncation with overflow protection
+
+Use for text values that could overflow their container on mobile (author names, URLs, long labels).
+
+```tsx
+<dd className="ml-auto max-w-[140px] truncate font-medium sm:max-w-none">
+  {skill.author}
+</dd>
+```
+
+## Container Padding
+
+Use consistent responsive padding across all page containers:
+
+```tsx
+className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"
+```
+
+Narrower content areas (`max-w-3xl`, `max-w-4xl`) use the same padding pattern.
+
+## Anti-Patterns
+
+### Horizontal overflow on mobile
+
+Never allow content wider than the viewport. Test every page at 375px width.
+
+- **Wrong**: Fixed-width elements (`w-[600px]`) without a responsive alternative
+- **Wrong**: Tables without `overflow-x-auto` wrapper
+- **Wrong**: `overflow-hidden` on a container that has scrollable children (clips the scrollbar)
+- **Right**: `overflow-x-auto` on code blocks and wide tables
+- **Right**: `max-w-full` on images and embedded content
+
+### Hiding without alternatives
+
+Don't hide functional elements on mobile without providing an alternative way to access the same functionality.
+
+- **Wrong**: `hidden lg:block` on the only navigation to page sections
+- **Right**: `hidden lg:block` on sidebar + `lg:hidden` on horizontal scroll nav
+
+### Viewport-unit sizing
+
+Avoid `100vw` (includes scrollbar width, causes horizontal overflow). Use `w-full` instead. For height, prefer `min-h-screen` with `dvh` fallback over `100vh`.
+
+### Fixed positioning without scroll handling
+
+Sticky headers and nav bars must account for existing sticky elements. The main header is `top-0 h-14`. Secondary sticky elements should use `top-14` to stack below it.
+
+## Testing Responsive Changes
+
+After any layout, spacing, or typography change:
+
+1. Run `npx playwright test e2e/visual-sweep.spec.ts` to capture screenshots at all three viewports
+2. Review screenshots in `screenshots/` for overflow, truncation, and layout issues
+3. Verify the hamburger menu opens correctly on mobile
+4. Check that all interactive elements have sufficient touch target size (44px+)

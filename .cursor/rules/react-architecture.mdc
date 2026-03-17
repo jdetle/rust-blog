@@ -1,0 +1,96 @@
+---
+description: React application architecture — file structure, layered separation, module boundaries
+globs: "src/**/*.tsx,src/**/*.ts"
+alwaysApply: false
+slug: react-architecture
+title: React Application Architecture
+domain: react
+ruleType: broad
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - react
+  - architecture
+  - layering
+  - file-structure
+---
+
+# React Application Architecture
+
+## Layered Separation (Martin Fowler)
+
+React is a view library. Business logic does not belong in components. Separate concerns into layers with strict dependency direction:
+
+```
+  components/  →  lib/         →  types/
+  (presentation)  (domain+data)   (shared contracts)
+
+  Components import lib.
+  Lib never imports components.
+  Types are shared by both.
+```
+
+- **Presentation** (`components/`, `app/`): Renders UI from props. Handles layout, user interaction, and visual state. No SQL, no business rules.
+- **Domain + Data** (`lib/`): Queries, business logic, validation, data transformations. Framework-agnostic — testable without React.
+- **Contracts** (`types/`): Shared interfaces that both layers depend on. Changes here ripple intentionally.
+
+## Colocation (Kent Dodds)
+
+Things that change together live together. Don't prematurely abstract into shared folders.
+
+```
+src/app/skills/
+  page.tsx              ← route entry
+  [slug]/
+    page.tsx            ← dynamic route
+src/components/
+  SkillCard.tsx         ← used by multiple routes → shared components/
+  SearchBar.tsx
+src/lib/
+  skills.ts             ← data access for skills domain
+  search.ts             ← search logic
+```
+
+**When to colocate vs. share:**
+- If only one route uses it → colocate next to that route.
+- If two+ routes use it → move to `components/` or `lib/`.
+- If it's a general utility → move to `lib/`.
+
+## Module Boundaries
+
+Each module (`lib/skills.ts`, `lib/search.ts`) should have a clear public API. Internal helpers stay unexported. Don't reach into another module's internals.
+
+```tsx
+// ✅ Clean boundary — consumer doesn't know about SQL
+import { getSkillBySlug } from '@/lib/skills';
+
+// ❌ Leaky boundary — consumer depends on db internals
+import { db } from '@/lib/db';
+db.prepare('SELECT * FROM skills WHERE slug = ?').get(slug);
+```
+
+## Error Boundaries
+
+Wrap distinct UI sections in error boundaries so a failure in one section doesn't crash the entire page. Place boundaries at:
+- Route layout level (catch page-level crashes)
+- Around independent widgets (sidebar, dashboard panels)
+- Never at the individual component level (too granular)
+
+Use Next.js `error.tsx` files for route-level error handling. For section-level, use `react-error-boundary` or a custom class component.
+
+## Import Conventions
+
+- Use `@/` path alias for all imports from `src/`.
+- Group imports: external packages first, then `@/lib`, then `@/components`, then `@/types`.
+- Never use relative imports that climb more than one level (`../../`). Use the alias instead.
+
+## Naming Conventions
+
+| Thing | Convention | Example |
+|---|---|---|
+| Component files | PascalCase | `SkillCard.tsx` |
+| Utility/lib files | camelCase | `skills.ts` |
+| Type files | camelCase | `index.ts` in `types/` |
+| Route files | Next.js convention | `page.tsx`, `layout.tsx`, `error.tsx`, `loading.tsx` |
+| Test files | Mirror source name | `SkillCard.test.tsx` |
+| Server Actions | `app/actions.ts` or colocated | `actions.ts` |

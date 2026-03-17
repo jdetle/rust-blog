@@ -1,0 +1,25 @@
+---
+description: Auto-trigger Copilot coding agent to implement PR review feedback, poll for completion, and merge
+alwaysApply: true
+---
+
+# Copilot Review — Default Behavior
+
+After any `git push` to a branch with an open PR that has unresolved review comments, the agent should:
+
+1. Fetch the review comments to summarize what needs fixing
+2. Post a `@copilot` trigger comment on the PR with a summary of the required changes
+3. Run `poll-and-merge.sh` to wait for Copilot to finish and CI to pass
+4. Prompt the user for confirmation before merging
+
+## Opting Out
+
+To disable this behavior, set `alwaysApply: false` in this rule or delete it entirely. The skill at `.cursor/skills/copilot-review/SKILL.md` remains available for manual invocation regardless.
+
+## Merge Policy
+
+Merges to `main` are always squash merges. The poll-and-merge script enforces this automatically — non-squash strategies are overridden when the PR targets `main`.
+
+## Skill Reference
+
+See `.cursor/skills/copilot-review/SKILL.md` for the full workflow, prerequisites, and edge case handling.

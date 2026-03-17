@@ -1,0 +1,148 @@
+---
+description: Notification conventions for agent sessions and background pollers
+globs:
+alwaysApply: true
+---
+
+# Notifications
+
+There are two types of notification. Pick the right one based on whether the user needs to do something. Both generate an HTML status report at `~/.cursor/agent-status.html` that opens when the notification is clicked.
+
+## Action Required (sets marker)
+
+Use when you need the user to review, choose, or respond before you can continue.
+
+```
+hooks/notify.sh "Specific action — e.g. review PR summary, choose option A or B"
+```
+
+With optional context flags:
+```
+hooks/notify.sh "Review PR summary" --pr "https://github.com/org/repo/pull/42" --action "Approve or request changes"
+```
+
+When the user responds, clear the marker:
+```
+hooks/notify.sh --clear
+```
+
+**When to use:**
+- When you ask a question and are waiting for an answer
+- When you present options and need the user to choose
+- When something failed and needs the user's attention
+- When work is done but the user must review/approve before next steps (e.g., PR summary ready to submit)
+
+## Done (no marker)
+
+Use when work is finished and the user doesn't need to do anything — just an FYI.
+
+```
+hooks/notify.sh --done "Build passed, changes pushed to origin"
+```
+
+With optional context flags:
+```
+hooks/notify.sh --done "All checks passed, pushed to feat/my-branch" --pr "https://github.com/org/repo/pull/42" --action "Merge when ready"
+```
+
+**When to use:**
+- After completing all tasks in a multi-step request where no review is needed
+- After a long-running command finishes with a passing result (build, test suite, deploy)
+- After finishing a todo list where the result is unambiguous
+
+## Optional Flags
+
+| Flag | Description | When to pass |
+|---|---|---|
+| `--pr URL` | PR URL — renders as a clickable button in the report | Always, when a PR exists for the current branch |
+| `--action TEXT` | Next-action hint — renders as italic guidance in the report | When the user needs to do something specific |
+
+Always pass `--pr` if a PR exists for the current branch. The report is much more useful with a direct link.
+
+## Notification Message Content
+
+Every notification MUST explain what happened. Never send vague messages.
+
+Good examples:
+- `"PR summary saved to clipboard — review and submit at github.com/..."`
+- `"3 test failures need your attention — see terminal output"`
+- `"All checks passed, pushed to feat/my-branch"`
+
+Bad examples:
+- `"Task complete"` — what task? What do I do now?
+- `"Waiting for input"` — input on what?
+- `"Done"` — done with what?
+
+## Click-to-Open Status Report
+
+Every notification generates an HTML report under `~/.cursor/notifications/` with the git hash and epoch timestamp in the filename:
+
+```
+~/.cursor/notifications/agent-status-<hash>-<epoch>.html
+```
+
+A symlink at `~/.cursor/agent-status.html` always points to the latest report. When `terminal-notifier` is installed, clicking the notification opens the versioned report directly.
+
+The report includes:
+- **Type badge**: Action Required (amber), Done (green), Error (red), Session Ended (blue)
+- **Hero message**: The notification text, prominently displayed
+- **PR button**: Direct link to the pull request (when `--pr` is passed)
+- **Git context**: Branch, worktree path, recent commits, diff stat vs main
+- **Footer**: Git short hash and filename for traceability
+
+### Notification History
+
+Previous reports are preserved in `~/.cursor/notifications/`. Each filename encodes the git commit it was generated from, making it easy to correlate notifications with specific commits:
+
+```bash
+ls ~/.cursor/notifications/
+# agent-status-abc1234-1741500000.html
+# agent-status-abc1234-1741500300.html
+# agent-status-def5678-1741501200.html
+```
+
+To clean up old reports:
+
+```bash
+find ~/.cursor/notifications/ -name "agent-status-*.html" -mtime +7 -delete
+```
+
+### Prerequisite: terminal-notifier
+
+```bash
+brew install terminal-notifier
+```
+
+Without `terminal-notifier`, notifications fall back to `osascript` (banner only, no click action). The report is still generated — open `~/.cursor/agent-status.html` manually (symlink to latest).
+
+## How It Works
+
+```
+hooks/notify.sh
+  ├── hooks/generate-status-report.sh
+  │     ├── writes ~/.cursor/notifications/agent-status-<hash>-<epoch>.html
+  │     ├── symlinks ~/.cursor/agent-status.html → latest report
+  │     └── outputs versioned path to stdout
+  └── terminal-notifier -open file://<versioned-report-path>
+       (fallback: osascript display notification)
+```
+
+The `.cursor/hooks/stop-notify.sh` lifecycle hook uses the same report generator for session-end notifications, auto-detecting PR URLs via `gh pr view`.
+
+## Background Poller Notifications
+
+Long-running background pollers (e.g., `poll_children.py --watch`) send macOS notifications directly via `terminal-notifier` (with `osascript` fallback) and generate their own domain-specific HTML reports:
+
+| Event | Notification |
+|----|----|
+| New tickets discovered | Immediately — include count and ticket IDs |
+| Stale tickets detected (but no new bugs) | Immediately — include count and staleness threshold |
+| No new tickets AND no stale tickets | **Once per hour** (heartbeat) — confirm poller is healthy with active ticket count |
+
+Heartbeat cadence: the poller tracks `_last_heartbeat` in memory and only fires when >= 60 minutes have elapsed since the last heartbeat notification. New-ticket and stale-ticket notifications reset the need for a heartbeat (the user already knows the poller is alive).
+
+## When NOT to Notify
+
+- Mid-task between your own tool calls (don't spam)
+- When you are about to immediately continue with more work
+- For simple single-turn Q&A that doesn't require approval

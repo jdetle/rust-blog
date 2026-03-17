@@ -1,0 +1,80 @@
+---
+description: Prevent overflow clipping in fullscreen overlays
+globs: src/components/**/*.tsx, src/app/**/*.tsx
+alwaysApply: true
+---
+# Fullscreen Overlay Scroll Safety — Learned from foreword content clipping
+
+A fullscreen onboarding overlay used `overflow-hidden` on all phases, including text-heavy screens. On shorter viewports the bottom of the foreword was clipped with no way to scroll. The bug was invisible on tall desktop screens and only surfaced on mobile/tablet heights.
+
+## The Rule
+
+Every `fixed inset-0` overlay that displays dynamic or multi-paragraph content must allow vertical scrolling. Never use `overflow-hidden` on a container whose children might exceed the viewport height.
+
+### Pattern: scrollable overlay with centered content
+
+```tsx
+// CORRECT — scrollable wrapper + auto-centering child
+<div className="fixed inset-0 z-50 overflow-y-auto bg-black">
+  <div className="my-auto flex min-h-dvh items-center justify-center px-6 py-16">
+    {/* content that may exceed viewport */}
+  </div>
+</div>
+```
+
+### Why `my-auto` instead of `items-center` on the scroll container
+
+Combining `overflow-y-auto` with `flex items-center` on the **same element** causes a well-known CSS bug: when content exceeds the container, flexbox centers the overflow equally above and below the visible area. The top of the content is clipped because the scrollbar only starts from the container's top edge — it cannot scroll upward into the negative overflow.
+
+The fix: apply `overflow-y-auto` to the outer wrapper **without** `items-center`. Place a child div with `my-auto` inside. `margin: auto` in flexbox centers when there's spare space, but collapses to `0` when the child is larger than the parent — content starts at the top and scrolls naturally downward.
+
+```tsx
+// WRONG — top of content clipped when it overflows
+<div className="fixed inset-0 flex items-center justify-center overflow-y-auto">
+  <div className="max-w-2xl">{longContent}</div>
+</div>
+
+// CORRECT — content centers when short, scrolls from top when tall
+<div className="fixed inset-0 flex justify-center overflow-y-auto">
+  <div className="my-auto max-w-2xl py-16">{longContent}</div>
+</div>
+```
+
+### When `overflow-hidden` is acceptable
+
+Use `overflow-hidden` only when the content has a **fixed, known size** that is guaranteed to fit the viewport:
+
+- Video players with a constrained `aspect-ratio` and `max-width`
+- Single-line confirmation dialogs
+- Loading spinners
+
+If content length is dynamic (user-generated text, multi-paragraph prose, animated sequences with varying height), use `overflow-y-auto`.
+
+### Padding for breathing room
+
+Always add vertical padding (`py-12` to `py-16`) to the scrollable content container. This:
+
+1. Keeps content away from the viewport edges on short screens
+2. Prevents text from hiding behind fixed-position UI elements (close buttons, progress indicators)
+3. Gives visual breathing room that makes the content feel less cramped
+
+## Checklist for fullscreen overlays
+
+When creating or modifying a `fixed inset-0` component:
+
+1. Does any child content have variable or unbounded height? → Use `overflow-y-auto`
+2. Is the content centered? → Use `my-auto` on the child, not `items-center` on the scroll container
+3. Are there fixed-position elements (close button, skip button)? → Add sufficient `py-*` padding so content doesn't tuck behind them
+4. Test at 375×667 (iPhone SE) — the shortest common viewport. If content clips, the overflow strategy is wrong.
+
+## Cross-reference
+
+- `fullscreen-overlay-background.mdc` — covers the background layer architecture (ensuring gradient/blur/particles always fill the visible area during scroll)
+- `sticky-zindex-hierarchy.mdc` — z-index assignments for overlays vs headers vs page content
+
+## Origin
+
+- **Failure**: Foreword (love-note phase) text was clipped at the bottom on mobile viewports — no way to scroll to the "Show me" button
+- **Date**: 2026-03-14
+- **Root cause**: `overflow-hidden` on the `fixed inset-0` wrapper prevented scrolling; content exceeded viewport height on screens shorter than ~800px
+- **PR**: fix/foreword-overflow (#172)

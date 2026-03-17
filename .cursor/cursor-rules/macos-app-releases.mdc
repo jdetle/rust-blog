@@ -1,0 +1,98 @@
+---
+description: Release framework for macOS apps distributed as DMG installers via GitHub Releases
+globs: apps/*/Makefile, apps/*/project.yml, apps/*/scripts/release.sh, .github/workflows/release-*.yml, .github/workflows/bump-*.yml
+alwaysApply: false
+---
+
+# macOS App Releases — Version Bumping & DMG Distribution
+
+macOS apps in `apps/` are distributed as DMG installers via GitHub Releases. Each app has its own tag namespace, version sources, and release workflow. This rule captures the framework so new apps follow the same pattern.
+
+## Version Source of Truth
+
+Each app stores its version in two files that must stay in sync:
+
+| File | Field | Purpose |
+|---|---|---|
+| `project.yml` | `MARKETING_VERSION` | Xcode build setting — user-visible version (semver) |
+| `project.yml` | `CURRENT_PROJECT_VERSION` | Xcode build number — monotonically increasing integer |
+| `Makefile` | `VERSION` | Used by `make dmg` and `make release` for artifact naming |
+
+The `bump-version.sh` script updates all three atomically. Never edit one without the others.
+
+## Tag Namespace
+
+Each app uses a prefixed tag to avoid collisions with the main Skills Hub releases:
+
+| App | Tag pattern | Example |
+|---|---|---|
+| L1 Triage | `l1-triage-v*` | `l1-triage-v1.2.0` |
+| Skills Hub Setup | `v*` | `v0.1.0` |
+| (new app) | `<app-slug>-v*` | `day-planner-v1.0.0` |
+
+The release workflow filters on its app's tag pattern. The bump workflow creates the tag after committing the version update, which triggers the release workflow automatically.
+
+## Workflow Chain
+
+```
+bump-<app>.yml (manual dispatch)
+  ├── reads current version from project.yml
+  ├── computes new version (major/minor/patch)
+  ├── updates project.yml + Makefile
+  ├── commits: "chore(<app>): bump version to X.Y.Z"
+  ├── tags: <app>-vX.Y.Z
+  ├── pushes commit + tag
+  ├── builds the app (xcodebuild)
+  ├── creates DMG (create-installer-dmg.sh)
+  └── publishes GitHub Release with DMG attached
+
+release-<app>.yml (tag push)
+  └── same build + DMG + release steps (for tag-push triggers)
+```
+
+The bump workflow is the primary entry point — it handles the full lifecycle. The release workflow exists as a fallback for manual tagging.
+
+## Adding a New macOS App
+
+When adding a new macOS app to `apps/`:
+
+1. **Create `project.yml`** with `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in the target settings
+2. **Create `Makefile`** with `VERSION`, `build`, `dmg`, `release`, and `publish` targets
+3. **Create `scripts/bump-version.sh`** — copy from L1 Triage and adjust the sed patterns if the project.yml structure differs
+4. **Create `scripts/create-installer-dmg.sh`** or reuse the shared one at `scripts/create-installer-dmg.sh`
+5. **Create `.github/workflows/bump-<app>.yml`** — copy from `bump-l1-triage.yml`, update the tag prefix and working directory
+6. **Create `.github/workflows/release-<app>.yml`** — copy from `release-l1-triage.yml`, update the tag filter
+
+## Version Bumping Rules
+
+1. **Patch** (`1.0.0` → `1.0.1`): bug fixes, minor UI tweaks, no new features
+2. **Minor** (`1.0.0` → `1.1.0`): new features, non-breaking changes
+3. **Major** (`1.0.0` → `2.0.0`): breaking changes, major redesigns, config format changes
+
+The build number (`CURRENT_PROJECT_VERSION`) auto-increments based on git commit count — never set it manually.
+
+## Dry Run
+
+Both the bump workflow and the local script support dry runs:
+
+- **CI**: Check the "Dry run" checkbox in the workflow dispatch UI. Shows what would change in the job summary without committing.
+- **Local**: Run `bash scripts/bump-version.sh patch` and inspect the output before committing. The script prints the changes but does not `git commit` — you do that manually.
+
+## DMG Creation
+
+Follow the rules in `macos-app-bundle-dmg.mdc`:
+
+- Never combine `-srcfolder` and `-size` in `hdiutil create`
+- Never end the AppleScript with `close`
+- Strip quarantine after creation
+- The shared `create-installer-dmg.sh` handles all of this correctly
+
+## Anti-Patterns
+
+| Pattern | Problem | Fix |
+|---|---|---|
+| Editing `MARKETING_VERSION` without updating `Makefile` | DMG filename mismatches the app version | Use `bump-version.sh` |
+| Manual `git tag` without bumping version files | Tag points to old version in project.yml | Use the bump workflow or script |
+| Using the main `v*` tag namespace for app releases | Collides with Skills Hub releases, triggers wrong workflow | Use `<app>-v*` prefix |
+| Setting `CURRENT_PROJECT_VERSION` manually | Risks non-monotonic build numbers | Let the script compute from git commit count |
+| Running `make release` without checking `gh auth status` | Release creation fails silently | The release script checks auth in preflight |

@@ -1,0 +1,69 @@
+---
+description: Run lint auto-fix after every merge or pull from main to catch formatting drift introduced by the merge
+globs: ""
+alwaysApply: true
+slug: post-merge-lint
+title: Post-Merge Lint
+domain: devops
+ruleType: narrow
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - lint
+  - merge
+  - biome
+  - ci
+---
+
+# Post-Merge Lint — Auto-Fix After Every Merge
+
+After every `git pull`, `git merge`, or GitHub auto-merge that brings in commits from another branch, **immediately run the linter with auto-fix before committing or pushing**.
+
+## Why
+
+Merges combine code from two branches. Even when there are no textual conflicts, the merged result can violate lint rules that neither branch violated independently:
+
+- Import ordering breaks when both branches add imports to the same file
+- Formatting drift when one branch reformats while the other adds new code
+- Unused imports appear when one branch removes the usage and the other keeps the import
+
+CI runs lint on the merged result. If the merge introduces a lint violation, CI fails — even though neither contributor's code was individually wrong.
+
+## The Rule
+
+After any merge (including `git pull` which is fetch + merge):
+
+```bash
+bunx biome check --write .
+```
+
+Then inspect the diff. If Biome changed anything, commit the fix separately:
+
+```bash
+git add -A
+git commit -m "style: auto-fix lint after merge"
+```
+
+## When This Applies
+
+| Event | Action |
+|---|---|
+| `git pull origin main` into a feature branch | Run `biome check --write .` |
+| `git merge main` | Run `biome check --write .` |
+| GitHub auto-merges main into your PR branch | Pull the merge commit, run `biome check --write .`, push |
+| Rebase onto main | Run `biome check --write .` after rebase completes |
+
+## Checklist Before Pushing
+
+1. Pull/merge the latest from the target branch
+2. `bunx biome check --write .` — auto-fix formatting and import ordering
+3. `bun run lint` — verify zero errors
+4. `bun run build` — verify the build still passes
+5. Commit any lint fixes as a separate `style:` commit
+6. Push
+
+## What NOT to Do
+
+- Do not push immediately after a merge without running lint
+- Do not assume "CI will catch it" — the pre-push hook runs lint too, and both will reject the push
+- Do not skip the auto-fix step because "I didn't change that file" — the merge changed it

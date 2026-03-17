@@ -1,0 +1,170 @@
+---
+description: Tailwind component primitives — CVA variants, shared UI components, composition patterns
+globs: "src/components/ui/*.tsx,src/components/*.tsx"
+alwaysApply: false
+slug: tailwind-components
+title: Tailwind Component Primitives
+domain: react
+ruleType: narrow
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - tailwind
+  - cva
+  - components
+  - ui
+---
+
+# Tailwind Component Primitives
+
+Shared UI primitives live in `src/components/ui/`. They use `class-variance-authority` (CVA) for typed variant maps and `cn()` for class composition.
+
+## Available Primitives
+
+| Component | Path | Variants |
+|---|---|---|
+| `Badge` | `ui/badge` | `size`: sm, md |
+| `Button` | `ui/button` | `variant`: primary, secondary, ghost, danger, success, warning, inverse; `size`: sm, md, lg, xl |
+| `Input` | `ui/input` | `variant`: default, ghost, error; `inputSize`: sm, md, lg |
+| `Textarea` | `ui/input` | Same as Input |
+| `Select` | `ui/input` | Same as Input |
+| `Card` | `ui/card` | `variant`: default, interactive, accent, success; `padding`: none, sm, md |
+
+## When to Use Primitives vs Inline Classes
+
+| Situation | Use |
+|---|---|
+| Any `<button>` with visual styling | `<Button variant="..." size="...">` |
+| Any `<input>`, `<textarea>`, `<select>` in a form | `<Input>`, `<Textarea>`, `<Select>` from `ui/input` |
+| Any status/category/domain badge | Existing domain badge wrappers (e.g., `CategoryBadge`) or `<Badge>` directly |
+| A container with border + bg + shadow | `<Card>` or card classes via `cardVariants()` |
+| A Link styled as a button | `<Link className={cn(buttonVariants({ variant, size }), "extra-classes")}>` |
+
+Never hand-write `rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white` on a raw `<button>` — use the `Button` component.
+
+## CVA Structure
+
+Every primitive follows this pattern:
+
+```tsx
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "@/lib/cn";
+
+export const thingVariants = cva(
+  "base-classes-shared-by-all-variants",
+  {
+    variants: {
+      variant: {
+        default: "variant-specific-classes",
+        alternate: "other-classes",
+      },
+      size: {
+        sm: "small-size-classes",
+        md: "medium-size-classes",
+      },
+    },
+    defaultVariants: { variant: "default", size: "md" },
+  }
+);
+```
+
+### Rules for CVA Definitions
+
+1. **Base classes** contain everything shared across all variants — layout, typography, transitions, focus styles.
+2. **Variant classes** contain only what differs — colors, sizes, padding.
+3. **`defaultVariants`** is required — consumers should get a sensible default without specifying every variant.
+4. **Export the variants function** alongside the component — consumers may need it for Links or polymorphic elements.
+
+## Every Primitive Accepts `className`
+
+The `className` prop is merged last via `cn()` so consumers can override any default:
+
+```tsx
+export function Button({ variant, size, className, ...props }: ButtonProps) {
+  return (
+    <button
+      className={cn(buttonVariants({ variant, size }), className)}
+      {...props}
+    />
+  );
+}
+```
+
+This means `<Button variant="primary" className="w-full">` works — `w-full` is added without conflicting with the variant's padding.
+
+## Use `forwardRef` for Interactive Elements
+
+Inputs, buttons, textareas, and selects need ref forwarding for form libraries and focus management:
+
+```tsx
+export const Input = forwardRef<HTMLInputElement, InputProps>(
+  ({ variant, inputSize, className, ...props }, ref) => (
+    <input
+      ref={ref}
+      className={cn(inputVariants({ variant, inputSize }), className)}
+      {...props}
+    />
+  )
+);
+Input.displayName = "Input";
+```
+
+## Domain Badge Pattern
+
+Domain-specific badges (CategoryBadge, DomainBadge, SeniorityBadge, etc.) are thin wrappers over the generic `Badge` primitive. They:
+
+1. Look up metadata from a `*_META` record in `@/types`
+2. Resolve the icon via `resolveIcon()` from `@/lib/icons`
+3. Pass everything to `<Badge icon={...} label={...} colorClasses={...} />`
+
+When creating a new badge type:
+
+```tsx
+import { resolveIcon } from "@/lib/icons";
+import { SOME_META, type SomeType } from "@/types";
+import { Badge } from "./ui/badge";
+
+export function SomeBadge({ value, className }: { value: SomeType; className?: string }) {
+  const meta = SOME_META[value];
+  if (!meta) return null;
+
+  return (
+    <Badge
+      icon={resolveIcon(meta.icon)}
+      label={meta.label}
+      colorClasses={meta.color}
+      className={className}
+    />
+  );
+}
+```
+
+Add the icon to `ICON_REGISTRY` in `src/lib/icons.ts` if it's not already there.
+
+## Adding New Variants
+
+When an existing primitive needs a new variant:
+
+1. Add the variant value to the CVA `variants` object
+2. Add corresponding TypeScript type (automatic via `VariantProps`)
+3. Update this rule's "Available Primitives" table
+
+When a component needs styling that doesn't fit any existing primitive, create a new one in `src/components/ui/` following the CVA pattern. Don't add one-off styling to an existing primitive's base classes.
+
+## Directory Convention
+
+```
+src/components/
+├── ui/                  # Shared primitives (Badge, Button, Input, Card)
+│   ├── badge.tsx
+│   ├── button.tsx
+│   ├── card.tsx
+│   └── input.tsx
+├── CategoryBadge.tsx    # Domain wrapper over Badge
+├── SkillCard.tsx        # Domain component using primitives
+└── ...
+```
+
+- `ui/` contains generic, domain-agnostic primitives
+- Domain components in `src/components/` consume `ui/` primitives and add business logic
+- Page components in `src/app/` consume domain components

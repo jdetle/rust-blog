@@ -1,0 +1,76 @@
+---
+description: Every agent session that produces code must end with a perfectly clean biome report — zero errors and zero warnings on all changed files
+alwaysApply: true
+---
+
+# Biome Clean Gate — No Shipping With Lint Violations
+
+Before declaring any code-producing work complete — committing, pushing, opening a PR, or telling the user "done" — the agent **must** run `bunx biome check .` and verify the output shows **zero errors and zero warnings** on files touched in the session.
+
+## The Rule
+
+Every code-producing agent session ends with:
+
+```bash
+bunx biome check .
+```
+
+The session is not done until the output reads:
+
+```
+Checked N files in Xms. No fixes applied.
+```
+
+with **no errors and no warnings** listed. Any other output means there is work left to do.
+
+## Workflow
+
+1. **After every substantive edit**, run `bunx biome check --write <changed-files>` to auto-fix what Biome can.
+2. **Before the final commit**, run `bunx biome check .` (full project) and verify clean output.
+3. **If warnings remain** that Biome cannot auto-fix:
+   - Fix them manually (see the fix table below and in `zero-warnings.mdc`)
+   - If the warning is pre-existing and not introduced by this session, note it but do not block on it — the goal is to never **increase** the warning count
+4. **If errors remain**, they must be fixed before committing. No exceptions.
+
+## Pre-Existing Warnings
+
+If `biome check .` reports warnings that existed before the agent's changes:
+
+- Run `biome check` scoped to only the files the agent changed: `bunx biome check <file1> <file2> ...`
+- If the scoped check is clean, the session passes
+- If the scoped check has warnings, fix them — the agent introduced or failed to fix them
+
+To determine if a warning is pre-existing, compare against `origin/main`:
+
+```bash
+git stash && bunx biome check . 2>&1 | tail -5 && git stash pop
+```
+
+## What "Clean" Means
+
+| Output | Verdict |
+|---|---|
+| `Checked N files in Xms. No fixes applied.` (no errors/warnings above) | Clean — work is done |
+| `Found 1 warning.` (pre-existing, not in changed files) | Acceptable — note it |
+| `Found 1 warning.` (in a file the agent touched) | Not clean — fix it |
+| `Found N errors.` | Not clean — fix all errors |
+| `Found N errors. Found M warnings.` | Not clean — fix everything |
+
+## Common Fixes
+
+| Biome diagnostic | Fix |
+|---|---|
+| `noUnusedImports` | Remove the unused import |
+| `useButtonType` | Add `type="button"` to non-submit buttons |
+| `noArrayIndexKey` | Use a stable unique key |
+| `noExplicitAny` | Replace `any` with a concrete type or `unknown` |
+| `useFocusableInteractive` | Add `tabIndex` to interactive elements |
+| `noSvgWithoutTitle` | Add `aria-hidden="true"` (decorative) or `<title>` (meaningful) |
+| `useSemanticElements` | Use semantic HTML (`<nav>`, `<header>`, `<main>`) |
+
+## What NOT to Do
+
+- Do not push with `--no-verify` to skip lint — the pre-commit hook runs Biome, and bypassing it just defers the failure to CI
+- Do not suppress warnings with `biome-ignore` unless the suppression is genuinely warranted and includes a reason
+- Do not tell the user "done" when `biome check` has unfixed warnings in files you touched
+- Do not run `biome check` only on changed files and skip the full project check — pre-existing issues in files you import from may surface

@@ -1,0 +1,125 @@
+# Server/Client Component Boundary
+
+In the Next.js App Router, every `.tsx` file in `src/app/` and `src/components/` is a **server component by default** unless it has `"use client"` at the top. Server components cannot pass functions (event handlers, callbacks) as props — they must be serializable.
+
+## The Rule
+
+**Never add `onClick`, `onChange`, `onSubmit`, `onBlur`, `onFocus`, or any `on*` event handler to a JSX element inside a server component.** If an element needs interactivity, extract it into a dedicated client component.
+
+## How to Fix
+
+When you need interactivity inside a server component, extract the interactive element into its own client component file:
+
+```tsx
+// ExternalRepoLink.tsx — Client Component
+"use client";
+
+export function ExternalRepoLink({ href, name }: { href: string; name: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      aria-label={`${name} repository`}
+    >
+      <ExternalLink className="h-3.5 w-3.5" />
+    </a>
+  );
+}
+
+// SkillCard.tsx — Server Component (no "use client")
+import { ExternalRepoLink } from "./ExternalRepoLink";
+
+export function SkillCard({ skill }: { skill: SkillSummary }) {
+  return (
+    <Link href={`/skills/${skill.slug}`}>
+      {skill.repository && (
+        <ExternalRepoLink href={skill.repository} name={skill.name} />
+      )}
+    </Link>
+  );
+}
+```
+
+## Decision Framework
+
+| Situation | Action |
+|---|---|
+| Element needs an event handler (`onClick`, `onChange`, etc.) | Extract to a client component |
+| Element is purely display (text, images, links without handlers) | Keep in server component |
+| A single element in a large component needs interactivity | Extract **just that element** — don't add `"use client"` to the whole file |
+| Component already has `"use client"` | Event handlers are fine — it's already a client component |
+| You want to pass a Server Action (not a regular function) | Server Actions can be passed as props — they're the exception |
+
+## Lazy-Loading Client Components from a Server Component
+
+`next/dynamic` with `{ ssr: false }` **cannot be called directly in a server component**. Next.js will fail the build with:
+
+```
+`ssr: false` is not allowed with `next/dynamic` in Server Components.
+Please move it into a Client Component.
+```
+
+When you want to lazy-load a client-only widget (e.g., a command palette, chatbot, or keyboard shortcut overlay) from a server-rendered layout, create a thin client wrapper:
+
+```tsx
+// DeferredWidgets.tsx — Client Component
+"use client";
+
+import dynamic from "next/dynamic";
+
+const CommandPalette = dynamic(
+  () => import("@/components/shared/CommandPalette").then((m) => m.CommandPalette),
+  { ssr: false },
+);
+
+export function DeferredWidgets() {
+  return <CommandPalette />;
+}
+```
+
+```tsx
+// layout.tsx — Server Component
+import { DeferredWidgets } from "@/components/layout/DeferredWidgets";
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html>
+      <body>
+        {children}
+        <DeferredWidgets />
+      </body>
+    </html>
+  );
+}
+```
+
+This is the correct pattern for performance optimization (removing widgets from the critical bundle). It is **not** a workaround for event handler issues — those should be fixed by extracting the interactive element properly.
+
+## What NOT to Do
+
+- **Don't add `"use client"` to a large component just because one element needs `onClick`.** Extract the interactive part instead. This keeps the server component tree as large as possible, which means less JavaScript sent to the browser.
+- **Don't use `dynamic(() => import(...), { ssr: false })` directly in a server component.** It will fail the build. Create a `"use client"` wrapper instead.
+- **Don't use `dynamic({ ssr: false })` as a workaround for event handler issues.** Fix the boundary properly by extracting the interactive element.
+- **Don't suppress the error.** "Event handlers cannot be passed to Client Component props" is always a real bug.
+
+## Self-Check Before Committing
+
+When editing a server component (any `.tsx` without `"use client"`), search for `on` props:
+
+```
+onClick, onChange, onSubmit, onBlur, onFocus, onKeyDown, onKeyUp, onMouseEnter, onMouseLeave
+```
+
+If any are present, the component either needs `"use client"` or the interactive element needs to be extracted into a client component.
+
+When using `next/dynamic` with `{ ssr: false }`, verify the calling file has `"use client"` at the top. If it doesn't, the build will fail.
+
+## Origin
+
+- **Failure (event handlers)**: `onClick` passed as prop in server component — runtime error
+- **Failure (ssr: false)**: `next/dynamic({ ssr: false })` used in `src/app/layout.tsx` (server component) — build error: "ssr: false is not allowed with next/dynamic in Server Components"
+- **Date**: 2026-03-16
+- **Root cause**: `next build` rejects `ssr: false` in files without `"use client"`. The fix is a thin client wrapper component that contains the dynamic imports.
+- **PR**: test/lighthouse-enforcement (#209)

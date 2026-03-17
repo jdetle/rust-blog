@@ -1,0 +1,30 @@
+---
+description: Keep implementation pragmatic, scoped, and outcome-driven
+alwaysApply: true
+---
+
+# Pragmatic Delivery
+
+Use these defaults to avoid over-engineering and scope drift.
+
+## Confirm intent before execution
+
+- If verbs are ambiguous (for example: "build", "wire", "finish"), confirm whether the user means compile, implement, or productionize.
+- For large requests, lock scope with 1-2 critical questions before editing.
+
+## Prefer smallest viable increment
+
+- Deliver the thinnest change that satisfies the explicit acceptance criteria first.
+- Defer optional architecture cleanup unless it unblocks delivery.
+- Keep each pass end-to-end: implement, verify, and report concrete outcomes.
+
+## Sequence work by dependency and risk
+
+- Foundations first (shared contracts/config), then dependent features.
+- Parallelize only independent domains; serialize integration and final verification.
+- If repository state conflicts with assumptions, stop and realign before continuing.
+
+## Report truthfully
+
+- Do not claim "done" from intent alone; only after verification output confirms it.
+- Call out residual gaps, constraints, or assumptions explicitly.

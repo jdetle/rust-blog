@@ -1,0 +1,99 @@
+---
+description: React testing patterns — testing trophy, RTL conventions, what to test
+globs: "**/*.test.tsx,**/*.test.ts"
+alwaysApply: false
+slug: react-testing
+title: React Testing
+domain: testing
+ruleType: narrow
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - react
+  - testing-library
+  - rtl
+  - integration-tests
+---
+
+# React Testing
+
+## The Testing Trophy (Kent Dodds)
+
+Invest testing effort where confidence-per-dollar is highest:
+
+```
+        ╱ E2E ╲           ← Few: critical user journeys (Playwright)
+       ╱────────╲
+      ╱Integration╲       ← Most: components with real children, hooks, context
+     ╱──────────────╲
+    ╱   Unit tests   ╲    ← Some: pure functions, utilities, reducers
+   ╱──────────────────╲
+  ╱  Static analysis   ╲  ← Foundation: TypeScript, ESLint
+ ╱──────────────────────╲
+```
+
+Integration tests give the most confidence. They render a component with its real children and test behavior the way a user experiences it.
+
+## Query Priority (Testing Library)
+
+Use queries in this order — accessible queries first:
+
+1. `getByRole` — matches ARIA roles (`button`, `heading`, `textbox`). Preferred.
+2. `getByLabelText` — form fields with associated labels.
+3. `getByPlaceholderText` — when no label exists.
+4. `getByText` — non-interactive text content.
+5. `getByTestId` — last resort, when no semantic query works.
+
+Always use `screen.*` — don't destructure from `render()`.
+
+```tsx
+// ❌ Implementation detail — brittle
+const { container } = render(<SearchBar />);
+const input = container.querySelector('input.search-input');
+
+// ✅ User-centric — resilient to refactors
+render(<SearchBar />);
+const input = screen.getByRole('textbox', { name: /search/i });
+```
+
+## Test Behavior, Not Implementation
+
+Tests should assert what the user sees and can do, never internal state or component internals.
+
+```tsx
+// ❌ Tests implementation — breaks on any refactor
+expect(component.state.isOpen).toBe(true);
+
+// ✅ Tests behavior — survives refactors
+await userEvent.click(screen.getByRole('button', { name: /open/i }));
+expect(screen.getByRole('dialog')).toBeVisible();
+```
+
+## Arrange-Act-Assert
+
+Every test follows the same rhythm:
+
+```tsx
+test('filters skills by category', async () => {
+  // Arrange
+  render(<SkillsPage skills={mockSkills} />);
+
+  // Act
+  await userEvent.click(screen.getByRole('button', { name: /testing/i }));
+
+  // Assert
+  expect(screen.getByText('Jest Patterns')).toBeInTheDocument();
+  expect(screen.queryByText('Docker Setup')).not.toBeInTheDocument();
+});
+```
+
+## Async Patterns
+
+Use `findBy*` (which waits) for content that appears after async operations. Use `waitForElementToBeRemoved` for disappearing elements. Never use arbitrary `setTimeout` waits in tests.
+
+## What NOT to Test
+
+- Styling or CSS class names (unless behavior depends on them)
+- Third-party library internals
+- Implementation details (state shape, hook call counts, private methods)
+- Snapshot tests for large component trees — they rot fast and no one reviews the diff

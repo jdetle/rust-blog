@@ -1,0 +1,253 @@
+---
+description: TypeScript style — strict types, modern patterns, Result types, exhaustive checks, iteration over reduce
+globs: "**/*.{ts,tsx}"
+alwaysApply: false
+slug: typescript-style
+title: TypeScript Style
+domain: typescript
+ruleType: narrow
+version: 2.0.0
+author: PwC TE Skills
+tags:
+  - typescript
+  - style
+  - types
+  - safety
+---
+
+# TypeScript Style
+
+## Strict Compiler Options
+
+Every `tsconfig.json` must enable strict mode and additional safety flags:
+
+```json
+{
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noFallthroughCasesInSwitch": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true
+  }
+}
+```
+
+| Flag | What it catches |
+|---|---|
+| `noUncheckedIndexedAccess` | `arr[i]` returns `T \| undefined` — forces bounds checking |
+| `exactOptionalPropertyTypes` | Distinguishes "absent" from "explicitly `undefined`" |
+| `noPropertyAccessFromIndexSignature` | Forces `obj["key"]` over `obj.key` for index signatures |
+
+## Type Patterns
+
+### Discriminated unions for state
+
+Model states that are mutually exclusive as discriminated unions, not boolean flags:
+
+```typescript
+type AsyncState<T> =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "success"; data: T }
+  | { status: "error"; error: string };
+```
+
+### Branded types for domain boundaries
+
+Prevent mixing structurally identical but semantically different values:
+
+```typescript
+declare const __brand: unique symbol;
+type Brand<T, B extends string> = T & { readonly [__brand]: B };
+
+type UserId = Brand<string, "UserId">;
+type SkillSlug = Brand<string, "SkillSlug">;
+
+function getUser(id: UserId): User { ... }
+getUser("raw-string" as UserId);
+```
+
+### Template literal types for string patterns
+
+```typescript
+type EventName = `on${Capitalize<string>}`;
+type ApiRoute = `/api/${string}`;
+type CSSUnit = `${number}${"px" | "rem" | "em" | "%"}`;
+```
+
+### `satisfies` for validation without widening
+
+```typescript
+const CONFIG = {
+  port: 3000,
+  host: "localhost",
+} satisfies Record<string, string | number>;
+// CONFIG.port is `number`, not `string | number`
+```
+
+### `as const satisfies` for immutable validated data
+
+```typescript
+const CATEGORIES = ["documentation", "testing", "devops"] as const satisfies readonly string[];
+type Category = (typeof CATEGORIES)[number];
+```
+
+## Exhaustive Checks
+
+Every `switch` on a union type must handle all cases. Use a `never` assertion for the default:
+
+```typescript
+function assertNever(value: never): never {
+  throw new Error(`Unhandled case: ${JSON.stringify(value)}`);
+}
+
+function handleState(state: AsyncState<Data>) {
+  switch (state.status) {
+    case "idle": return renderIdle();
+    case "loading": return renderSpinner();
+    case "success": return renderData(state.data);
+    case "error": return renderError(state.error);
+    default: return assertNever(state);
+  }
+}
+```
+
+Alternative: `default: return state satisfies never;` (compile-time only, no runtime check).
+
+## Error Handling — Result Types
+
+For functions that can fail in expected ways, prefer Result types over thrown exceptions:
+
+```typescript
+type Result<T, E = Error> =
+  | { ok: true; value: T }
+  | { ok: false; error: E };
+
+function ok<T>(value: T): Result<T, never> {
+  return { ok: true, value };
+}
+
+function err<E>(error: E): Result<never, E> {
+  return { ok: false, error };
+}
+```
+
+Use this for:
+- Database queries that might not find a row
+- Validation functions
+- Parsing functions
+- API calls where the caller needs to handle both paths
+
+Use `try/catch` for:
+- Unexpected infrastructure failures (network down, disk full)
+- Top-level API route handlers (catch-all with 500 response)
+
+## Iteration Over Reduce
+
+Prefer `for...of`, `.map()`, `.filter()`, `.flatMap()`, and `Object.groupBy()` over `.reduce()`. Reduce obscures intent — a loop with a named accumulator is easier to read, debug, and review.
+
+```typescript
+// Avoid reduce to group
+const grouped = Object.groupBy(items, item => item.type);
+
+// Avoid reduce to sum
+let total = 0;
+for (const item of items) total += item.count;
+```
+
+Exception: simple one-liner sums or string joins where reduce is genuinely the clearest expression.
+
+## No IIFEs
+
+Extract logic into named functions or use block scoping. IIFEs add nesting and ceremony for no benefit.
+
+```typescript
+function resolveConfig(env: string) {
+  if (env === "prod") return prodConfig;
+  return devConfig;
+}
+const config = resolveConfig(env);
+```
+
+## Modern ECMAScript Features
+
+Use the newest stable features. Prefer modern idioms over legacy patterns.
+
+| Prefer | Over |
+|---|---|
+| `satisfies` for literal preservation | bare `as` casts |
+| `using` / `Symbol.dispose` | manual try/finally cleanup |
+| `Object.groupBy()` / `Map.groupBy()` | manual Map construction loops |
+| `Object.fromEntries()` | manual object building loops |
+| `Array.prototype.at(-1)` | `arr[arr.length - 1]` |
+| `structuredClone()` | `JSON.parse(JSON.stringify())` |
+| `??` and `??=` | `\|\|` for defaults |
+| `import type` / `type` keyword in imports | bare imports for type-only use |
+| Template literal types | string enums when pattern enforcement matters |
+| Const type parameters (`<const T>`) | manual `as const` on call sites |
+| `NoInfer<T>` | workarounds to prevent unwanted inference |
+
+## Types: Inheritance and Extension
+
+Build type hierarchies that mirror domain structure. Base types capture shared shape; extensions add specificity. Never duplicate fields across sibling types.
+
+```typescript
+interface SkillSummary {
+  id: string;
+  slug: string;
+  name: string;
+  category: Category;
+}
+
+interface SkillDetail extends SkillSummary {
+  versions: Version[];
+  dependencies: Dependency[];
+}
+```
+
+- Use `interface extends` for data shapes with clear is-a relationships
+- Use intersection (`&`) for ad-hoc composition or mixing in metadata
+- Use `Pick`, `Omit`, `Partial`, `Required` to derive variants — don't redefine subsets by hand
+- Use `satisfies` to validate object literals against a type while preserving narrow inference
+- Row types (DB boundary) and public types (API/component boundary) are separate — map explicitly
+
+## Import Organization
+
+- Use `import type` for type-only imports — zero runtime cost, clearer intent
+- Path aliases (`@/*`) over relative paths beyond one directory up
+- Direct imports over barrel re-exports: `from "@/components/ui/Button"` not `from "@/components/ui"`
+- Let Biome enforce import ordering — don't manually sort
+
+## Runtime Validation
+
+Use Zod at the boundary (API routes, env vars, external data), not deep inside business logic:
+
+```typescript
+const envSchema = z.object({
+  DATABASE_URL: z.string().startsWith("postgresql://"),
+  PORT: z.coerce.number().int().min(1).max(65535),
+});
+
+const env = envSchema.parse(process.env);
+```
+
+## Correct First, Optimize Later
+
+Write the obvious, working version. Profile before optimizing. Never prematurely optimize at the cost of clarity.
+
+1. Make it work — straightforward, readable, correct
+2. Make it right — clean types, clear names, minimal abstraction
+3. Make it fast — only with evidence (profiler, benchmarks, measured bottleneck)
+
+## Self-Documenting Code
+
+Code should read clearly without narration. Comments explain *why*, never *what*.
+
+- Name variables and functions so the code reads as prose
+- Extract complex conditions into well-named boolean variables or predicate functions
+- Consolidate related log data into a single structured call
+- Prefer `const` declarations and immutable patterns — mutability is the exception

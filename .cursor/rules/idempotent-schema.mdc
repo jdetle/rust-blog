@@ -1,0 +1,41 @@
+---
+description: PostgreSQL schema files must be safe to re-apply. Applies when editing schema.pg.sql or creating migration files.
+globs: ["schema.pg.sql", "migrations/**/*.sql"]
+---
+
+# Idempotent PostgreSQL Schemas
+
+Every DDL statement in `schema.pg.sql` and migration files must be safe to run multiple times. The schema is applied by both `psql` in CI and by `seed.ts` at runtime — if any statement fails on re-run, CI breaks for every open PR.
+
+## Rules by Statement Type
+
+| Statement | Idempotent Pattern |
+|---|---|
+| `CREATE TABLE` | `CREATE TABLE IF NOT EXISTS` |
+| `CREATE INDEX` | `CREATE INDEX IF NOT EXISTS` |
+| `CREATE EXTENSION` | `CREATE EXTENSION IF NOT EXISTS` |
+| `CREATE FUNCTION` | `CREATE OR REPLACE FUNCTION` |
+| `CREATE TYPE` | Wrap in `DO $$ BEGIN ... EXCEPTION WHEN duplicate_object THEN NULL; END $$;` |
+| `CREATE POLICY` | Prepend `DROP POLICY IF EXISTS <name> ON "<Table>";` (PG has no `IF NOT EXISTS` for policies) |
+| `CREATE TRIGGER` | Prepend `DROP TRIGGER IF EXISTS <name> ON "<Table>";` (PG has no `IF NOT EXISTS` for triggers) |
+| `CREATE ROLE` | Wrap in `DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '...') THEN CREATE ROLE ...; END IF; END $$;` |
+| `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` | Already idempotent (no-op if already enabled) |
+| `GRANT` | Already idempotent |
+
+## Why This Matters
+
+The CI pipeline runs `psql -f schema.pg.sql` to set up the database structure, then `seed.ts` re-applies the same schema before inserting data. If any DDL statement is not idempotent, the second application fails and blocks all CI jobs.
+
+## Quick Check Before Committing
+
+Search for bare `CREATE POLICY` without a preceding `DROP POLICY IF EXISTS`:
+
+```bash
+rg "^CREATE POLICY" schema.pg.sql | while read -r line; do
+  name=$(echo "$line" | awk '{print $3}')
+  table=$(echo "$line" | awk '{print $5}')
+  rg -q "DROP POLICY IF EXISTS $name ON $table" schema.pg.sql || echo "MISSING: DROP POLICY IF EXISTS $name ON $table"
+done
+```
+
+If any output appears, add the missing `DROP POLICY IF EXISTS` statement immediately before the corresponding `CREATE POLICY`.

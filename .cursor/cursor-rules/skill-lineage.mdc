@@ -1,0 +1,78 @@
+---
+description: Broad-narrow inheritance model for skills and rules
+alwaysApply: true
+slug: skill-lineage
+title: Skill & Rule Lineage
+domain: typescript
+ruleType: narrow
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - lineage
+  - skills
+  - broad-narrow
+  - inheritance
+---
+# Skill & Rule Lineage — Broad/Narrow Inheritance
+
+Skills and rules follow a two-tier classification: **broad** (foundational, reusable) and **narrow** (specialized for a specific business outcome). The relationship is many-to-many — a narrow item can extend multiple broad items, and a broad item can have multiple narrow specializations.
+
+## When to Classify
+
+| Type | Use when | Examples |
+|------|----------|----------|
+| **Broad** | The capability is general-purpose and reusable across domains | `compare-word-docs` (any .docx comparison), `react-component-patterns` |
+| **Narrow** | The capability solves a specific business workflow | `compare-deep-dives` (Deep Dive documents), `react-hooks-discipline` |
+
+Default is `narrow`. Only classify as `broad` when the skill/rule explicitly serves as scaffolding that other items build upon.
+
+## Relationship Types
+
+| Relationship | Meaning |
+|---|---|
+| `extends` | The narrow item builds directly on the broad item's core capability |
+| `augments` | The narrow item uses the broad item as a supporting building block, not its primary lineage |
+
+## Declaring Lineage in SKILL.md
+
+Narrow skills declare their parents in frontmatter:
+
+```yaml
+---
+name: compare-deep-dives
+skillType: narrow
+extends: [compare-word-docs]
+---
+```
+
+Broad skills list their specializations (informational — source of truth is `extends` on the narrow side):
+
+```yaml
+---
+name: compare-word-docs
+skillType: broad
+narrowSpecializations: [compare-deep-dives]
+---
+```
+
+## Naming Conventions
+
+- Broad skills use general verbs describing the capability: `compare-word-docs`, `generate-mermaid`
+- Narrow skills add the business context: `compare-deep-dives`, `generate-arch-diagrams`
+
+## Database Representation
+
+Lineage is stored in junction tables:
+
+- `SkillLineage(broadSkillId, narrowSkillId, relationship)`
+- `RuleLineage(broadRuleId, narrowRuleId, relationship)`
+
+Both use ON DELETE CASCADE. The `Skill.skillType` and `Rule.ruleType` columns store the tier classification.
+
+## Rules
+
+1. Every narrow skill/rule that extends a broad parent must declare it in both the SKILL.md frontmatter (`extends:`) and the seed data (`SkillLineage`/`RuleLineage` rows).
+2. A broad skill should be usable on its own — it is not just an abstract base. Users should be able to invoke it directly for general-purpose work.
+3. Do not create circular lineage. Broad items never extend narrow items.
+4. When adding a new narrow skill, check if an existing broad skill covers the foundational capability. If so, extend it rather than duplicating.
+5. The UI shows lineage on detail pages: "Extends" for parents, "Specializations" for children. Both link to the related item.

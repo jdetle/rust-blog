@@ -1,0 +1,143 @@
+---
+description: Prevent bun test hangs in CI and local pre-push hooks
+alwaysApply: true
+---
+
+# Bun Test CI Safety — Learned from coverage deadlock + macOS file-count hang
+
+Two distinct Bun test runner bugs caused the CI `lint-build-test` job to hang indefinitely: (1) `bun test --coverage` never exits when coverage instrumentation interacts with tests that spawn background processes, and (2) `bun test` on macOS deadlocks when invoked with >= 7 test files (all tests pass but the process never exits).
+
+## The Rules
+
+### 1. Never run `bun test --coverage` against tests that spawn background processes
+
+Tests that call `Bun.spawn()`, `child_process.exec()`, or launch background shell scripts prevent the coverage instrumentation from completing. The LCOV reporter waits for all spawned processes to exit, but orphaned background processes (e.g., PR pollers, watchers) never do.
+
+**Always scope coverage to test files you control:**
+
+```bash
+# WRONG — includes notification tests that spawn background shell scripts
+bun test --coverage src
+
+# RIGHT — explicit paths, skip directories with spawned processes
+bun test --coverage src/__tests__/*.test.ts src/__tests__/adversarial/
+```
+
+And exclude the offending source files from coverage in `bunfig.toml`:
+
+```toml
+coveragePathIgnorePatterns = [
+  "**/learn/intern-quest/_data/**",
+  "**/learn/intern-quest/_components/**",
+]
+```
+
+### 2. Always set step-level timeouts on CI test steps
+
+```yaml
+- name: Run unit tests with coverage
+  run: bun run test:ci
+  timeout-minutes: 5
+```
+
+If `bun test` hangs, the step is killed after 5 minutes instead of consuming the full job timeout (default 360 minutes on GitHub Actions).
+
+### 3. On macOS, batch test files in groups of <= 5
+
+`bun test` on macOS (as of v1.3.x) deadlocks when invoked with 7+ test files. All tests pass and results are printed, but the process never exits. This does **not** happen on Linux.
+
+**In `test-ci.sh`**, detect the platform and batch accordingly:
+
+```bash
+HAS_TIMEOUT=false
+command -v timeout &>/dev/null && HAS_TIMEOUT=true
+
+if $HAS_TIMEOUT; then
+  # Linux: single invocation with safety timeout
+  timeout 90 bun test "${paths[@]}"
+else
+  # macOS: batch in groups of 5
+  while [ "$i" -lt "${#paths[@]}" ]; do
+    batch=("${paths[@]:i:5}")
+    bun test "${batch[@]}"
+    i=$(( i + 5 ))
+  done
+fi
+```
+
+### 4. Skip local coverage on macOS
+
+Coverage + many files + macOS = guaranteed hang. Generate coverage only in CI (Linux) where neither bug manifests.
+
+```bash
+if [[ "$FAIL" -eq 0 && "$NO_COVERAGE" == false ]]; then
+  if $HAS_TIMEOUT; then
+    timeout 120 bun test --coverage "${paths[@]}" || true
+  fi
+  # macOS: no coverage, CI generates it
+fi
+```
+
+### 5. Tests that spawn processes must clean up in afterEach
+
+Any test that calls `Bun.spawn()` or creates child processes must kill them in `afterEach`:
+
+```typescript
+const spawned: Subprocess[] = [];
+
+afterEach(() => {
+  for (const proc of spawned) {
+    proc.kill();
+  }
+  spawned.length = 0;
+});
+
+// In test:
+const proc = Bun.spawn(["bash", "script.sh"]);
+spawned.push(proc);
+```
+
+## Examples
+
+### Wrong (caused the CI hang)
+
+```bash
+# test-ci.sh — runs ALL tests under src/ including notification tests
+bun test --grep-invert 'LocalStack' src &
+# Then runs coverage against everything
+bun test --coverage src
+```
+
+### Right (prevents recurrence)
+
+```bash
+# Scoped paths, no notification tests, batched on macOS, timeouts everywhere
+UNIT_PATHS=(src/__tests__/*.test.ts)
+
+if $HAS_TIMEOUT; then
+  timeout 90 bun test --grep-invert 'LocalStack' "${ALL_PATHS[@]}" &
+else
+  # macOS: batch in groups of 5 to avoid deadlock
+  run_batched "${UNIT_PATHS[@]}" &
+fi
+```
+
+## Origin
+
+- **Failure**: CI `lint-build-test` job cancelled after 9+ minutes — `bun test --coverage` hung after all tests passed
+- **Secondary failure**: Pre-push hook hung indefinitely on macOS — `bun test` with 21 files deadlocked
+- **Date**: 2026-03-13
+- **Root cause**: (1) Notification tests spawn background shell processes via `Bun.spawn()` that prevent coverage instrumentation from completing. (2) Bun v1.3.x on macOS deadlocks when processing >= 7 test files in a single invocation.
+- **PR**: feat/intern-quest-game
+
+## Detection Acceleration
+
+- **Level**: CI
+  **What was added**: `timeout-minutes: 5` on the test step in `ci.yml`. Previously the step ran until the job's default timeout (360 min), wasting CI minutes and blocking the PR.
+  **Diagnosis time before**: 9+ minutes of CI runtime before manual cancellation
+  **Diagnosis time after**: 5 minutes max, with clear "timeout" signal in CI logs
+
+- **Level**: Pre-commit / Pre-push
+  **What was added**: Platform-aware batching in `test-ci.sh`. macOS batches files in groups of 5; Linux uses `timeout 90`.
+  **Diagnosis time before**: Pre-push hook hung indefinitely, requiring manual `kill -9`
+  **Diagnosis time after**: Completes in ~5.5s on macOS, 90s max on Linux

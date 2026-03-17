@@ -1,0 +1,85 @@
+---
+description: Prevent scroll lock leaks — every body overflow mutation must have a cleanup
+globs: "**/*.tsx"
+alwaysApply: false
+---
+
+# Scroll Lock Safety — Learned from stuck pages
+
+`VideoOnboardingYouTube` set `document.body.style.overflow = "hidden"` in three branches of a `useEffect` but only returned a cleanup function for one of them. When the component navigated away to the cinema experience via `router.push`, it unmounted without restoring overflow. Every subsequent page was unscrollable.
+
+## The Rule
+
+Every `document.body.style.overflow = "hidden"` **must** have a corresponding restore, and the restore must be guaranteed to run — not dependent on the user clicking a specific button.
+
+### Required pattern
+
+```tsx
+useEffect(() => {
+  document.body.style.overflow = "hidden";
+  return () => {
+    document.body.style.overflow = "";
+  };
+}, []);
+```
+
+The cleanup function is non-negotiable. If the effect sets overflow to hidden on any code path, **every** code path must end with a `return () => { ... }` that restores it.
+
+### Anti-patterns
+
+| Pattern | Problem |
+|---|---|
+| Setting overflow in an effect, restoring only in a callback | Unmount without callback = permanent lock |
+| Conditional returns from useEffect where some branches skip cleanup | Branches that don't return a cleanup leak the lock |
+| Restoring overflow in `router.push` but not in the effect cleanup | Race condition — effect cleanup may run after navigation |
+| Multiple effects that each set overflow without coordinating | Last-write-wins; one cleanup may clobber another |
+
+### Navigation as an exit path
+
+When a component sets `overflow: hidden` and then navigates (`router.push`, `router.replace`, `<Link>`), it must restore overflow **before** the navigation call AND in the effect cleanup. The effect cleanup is the safety net; the explicit restore before navigation prevents a visual flicker.
+
+```tsx
+useEffect(() => {
+  if (phase === "navigate-away") {
+    document.body.style.overflow = "";
+    router.push("/next-page");
+  }
+}, [phase, router]);
+```
+
+### Test requirements
+
+Every component that sets `document.body.style.overflow` must have tests for:
+
+1. **Scroll locked on mount** — `expect(document.body.style.overflow).toBe("hidden")`
+2. **Scroll restored on dismiss/close** — the happy path
+3. **Scroll restored on unmount without interaction** — `unmount()` then assert
+4. **Scroll restored on every navigation path** — if the component can navigate away, each path gets a test
+5. **Scroll restored on skip/escape** — any shortcut that bypasses the normal flow
+
+The test structure:
+
+```tsx
+test("scroll restored on unmount even without dismiss", () => {
+  const { unmount } = render(<OverlayComponent />);
+  expect(document.body.style.overflow).toBe("hidden");
+  unmount();
+  expect(document.body.style.overflow).toBe("");
+});
+```
+
+## Components that set body overflow
+
+| Component | File | Scope |
+|---|---|---|
+| `VideoOnboardingYouTube` | `src/components/shared/VideoOnboardingYouTube.tsx` | Full-screen onboarding overlay |
+| `VideoOnboarding` | `src/components/shared/VideoOnboarding.tsx` | Legacy video onboarding |
+
+When adding a new component that locks scroll, add it to this table and write the required tests.
+
+## Origin
+
+- **Failure**: Navigating from onboarding to cinema pages left `body.style.overflow = "hidden"`, making every cinema page unscrollable
+- **Date**: 2026-03-12
+- **Root cause**: `useEffect` in `VideoOnboardingYouTube` had three code paths that set `overflow: hidden` but only one returned a cleanup function
+- **Fix**: Always return a cleanup function from the effect, plus explicitly restore overflow before `router.push`

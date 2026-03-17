@@ -1,0 +1,89 @@
+---
+description: Use Promise.allSettled for independent parallel async operations to enable graceful degradation
+globs: "**/*.ts,**/*.tsx"
+alwaysApply: false
+slug: promise-resilience
+title: Promise Resilience — Partial Failure Tolerance
+domain: typescript
+ruleType: broad
+version: 1.0.0
+author: PwC TE Skills
+tags:
+  - typescript
+  - async
+  - resilience
+  - fault-tolerance
+---
+
+# Promise Resilience — Partial Failure Tolerance
+
+When running independent async operations in parallel, use `Promise.allSettled` so that one failure degrades gracefully instead of crashing everything. Use the `settledValues` utility from `src/lib/settled.ts` for type-safe extraction with automatic error logging.
+
+## Decision Framework
+
+| Use `Promise.allSettled` | Use `Promise.all` |
+|---|---|
+| Independent data fetches for a page | All-or-nothing preconditions (both IPv4+IPv6 must bind) |
+| Best-effort batch processing (validate N skills) | Paired I/O from one source (stdout + stderr of one process) |
+| Client-side parallel fetches (session + config) | Atomic transactions where partial completion is invalid |
+| Script-level discovery (warm routes, fetch slugs) | Test assertions that intentionally verify all promises succeed |
+
+The test: "If promise #3 fails, can the caller still do something useful with promises #1, #2, #4?" If yes, use `allSettled`.
+
+## Required Pattern
+
+Import `settledValues` from `src/lib/settled.ts` for tuple-style extraction with typed defaults:
+
+```tsx
+import { settledValues } from "@/lib/settled";
+
+const [skills, categories] = settledValues(
+  await Promise.allSettled([getAllSkills(), getCategories()]),
+  [[], []],
+  "SkillsPage",
+);
+```
+
+For batch processing where you need per-item failure details, use `settledPartition`:
+
+```tsx
+import { settledPartition } from "@/lib/settled";
+
+const { fulfilled, rejected } = settledPartition(
+  await Promise.allSettled(items.map(processItem)),
+);
+if (rejected.length > 0) {
+  console.error(`${rejected.length} items failed:`, rejected);
+}
+```
+
+## Observability — Never Swallow Failures
+
+Every `Promise.allSettled` call site must ensure rejected results are logged. The `settledValues` utility does this automatically via `console.error` with a caller label. If you use `Promise.allSettled` directly without the utility, you must log rejections yourself.
+
+Silent failures are worse than crashes — they hide bugs. The goal is graceful UX degradation with full server-side visibility.
+
+## Defaults Must Be Safe
+
+The fallback for a rejected promise must produce a valid degraded result:
+
+| Data type | Safe default |
+|---|---|
+| Array (list of items) | `[]` — downstream `.map()`, `.filter()`, `.length` all work |
+| Count / number | `0` |
+| Object with required fields | Zero-valued object: `{ total: 0, items: [] }` |
+| Nullable | `null` — only if the consumer already handles null |
+
+Never use `undefined` as a default where the consumer expects a real value.
+
+## Server Component Context
+
+Custom `ErrorBoundary` components cannot catch errors from Server Components — only Next.js `error.tsx` files can. This means if `Promise.all` rejects in an async page function, the entire page crashes to the root error page. `Promise.allSettled` with defaults is the only way to achieve section-level degradation without a full Suspense refactor.
+
+## Fault Tolerance Tiers
+
+This rule addresses Tier 1. Higher tiers are documented for future reference:
+
+- **Tier 1 — Fail-soft with defaults (current):** `Promise.allSettled` + typed defaults. Partial failures render empty sections instead of crashing the page.
+- **Tier 2 — Suspense bulkheads (future):** Each data section becomes an independent async Server Component in its own `<Suspense>` boundary. Sections load and fail independently with skeleton fallbacks.
+- **Tier 3 — Circuit breaker (future, if needed):** For external API dependencies, track failure counts per endpoint and return cached data when tripped.
