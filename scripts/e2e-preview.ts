@@ -12,6 +12,12 @@ if (!url) {
 }
 
 const base = url.replace(/\/$/, "");
+const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+const headers: Record<string, string> = {};
+if (bypassSecret) {
+  headers["x-vercel-protection-bypass"] = bypassSecret;
+}
+
 const endpoints = [
   { path: "/", name: "home" },
   { path: "/posts", name: "posts" },
@@ -24,7 +30,11 @@ async function main() {
   for (const { path, name } of endpoints) {
     const target = `${base}${path}`;
     try {
-      const res = await fetch(target, { method: "GET", redirect: "follow" });
+      const res = await fetch(target, {
+        method: "GET",
+        redirect: "follow",
+        headers,
+      });
       if (!res.ok) {
         console.error(`FAIL ${name} ${target}: ${res.status} ${res.statusText}`);
         failed++;

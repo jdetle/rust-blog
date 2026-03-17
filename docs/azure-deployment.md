@@ -4,7 +4,11 @@ Checklist to deploy the analytics-ingestion service to Azure Container Apps.
 
 ## E2E Preview (Vercel)
 
-The E2E Preview workflow runs smoke tests against the Vercel deploy preview. If it fails with 401, disable **Deployment Protection** for preview deployments in Vercel → Project Settings → Deployment Protection.
+The E2E Preview workflow runs smoke tests against the Vercel deploy preview. If you have **Deployment Protection** enabled:
+
+1. Vercel → Project Settings → Security → Deployment Protection → **Protection Bypass for Automation**
+2. Create a bypass secret (e.g. "CI E2E")
+3. Add it to GitHub: Repository → Settings → Secrets → Actions → `VERCEL_AUTOMATION_BYPASS_SECRET`
 
 ## Prerequisites
 
