@@ -312,6 +312,8 @@ fn write_env(posthog_key: &str, clarity_id: &str, cosmos: &CosmosCredentials) {
         .filter(|l| {
             !l.starts_with("POSTHOG_")
                 && !l.starts_with("CLARITY_")
+                && !l.starts_with("NEXT_PUBLIC_CLARITY_ID")
+                && !l.starts_with("NEXT_PUBLIC_GA4_ID")
                 && !l.starts_with("COSMOS_")
                 && !l.starts_with("ANALYTICS_")
         })
@@ -322,6 +324,8 @@ fn write_env(posthog_key: &str, clarity_id: &str, cosmos: &CosmosCredentials) {
     lines.push("# Analytics services".to_string());
     lines.push(format!("POSTHOG_API_KEY={posthog_key}"));
     lines.push(format!("CLARITY_PROJECT_ID={clarity_id}"));
+    lines.push(format!("NEXT_PUBLIC_CLARITY_ID={clarity_id}"));
+    lines.push("NEXT_PUBLIC_GA4_ID=G-XXXXXXXXXX".to_string());
     lines.push(String::new());
     lines.push("# Azure Cosmos DB (Cassandra API)".to_string());
     lines.push(format!("COSMOS_CONTACT_POINT={}", cosmos.contact_point));
