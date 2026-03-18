@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-03-17 vercel-deploy-prebuilt](./2026-03-17-vercel-deploy-prebuilt.md)
+  - decision: merge completed; fix correct and low-risk
+  - unresolved risk: none
+  - follow-up: verify Deploy to Vercel job passes on next main push
+
 - [2026-03-17 analytics-cleanup-ci-ga4](./2026-03-17-analytics-cleanup-ci-ga4.md)
   - decision: proceed with push and merge
   - unresolved risk: dead script refs in raw HTML; posts/ vs content/posts/ duplication
