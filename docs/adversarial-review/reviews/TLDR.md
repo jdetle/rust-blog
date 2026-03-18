@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-03-18 analytics-my-events](./2026-03-18-analytics-my-events.md)
+  - decision: merge completed; multi-source analytics aggregation
+  - unresolved risk: Personal API key; rate-limit if abuse
+  - follow-up: set POSTHOG_PERSONAL_API_KEY, POSTHOG_PROJECT_ID in Vercel
+
 - [2026-03-17 vercel-deploy-prebuilt](./2026-03-17-vercel-deploy-prebuilt.md)
   - decision: merge completed; fix correct and low-risk
   - unresolved risk: none
