@@ -701,8 +701,8 @@ export function ClientProfile({
 		setUserEventsLoading(true);
 		setUserEventsError(null);
 		const url = new URL("/api/analytics/my-events", window.location.origin);
-		if (distinctId) url.searchParams.set("user_id", distinctId);
 		if (fp) url.searchParams.set("fingerprint", fp);
+		if (distinctId) url.searchParams.set("distinct_id", distinctId);
 		url.searchParams.set("limit", "50");
 		if (!distinctId && !fp) {
 			setUserEventsLoading(false);

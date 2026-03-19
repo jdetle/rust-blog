@@ -9,6 +9,8 @@ supersedes: ""
 
 # Multi-Source Analytics for Fingerprinted Sessions
 
+> **See also**: [analytics-fingerprint-unified-table.md](./analytics-fingerprint-unified-table.md) — full API research and unified table design (primary key = fingerprint).
+
 ## Goal
 
 Associate every fingerprinted browser session with data from analytics providers (GA, Clarity, Plausible, PostHog, Vercel Analytics) and share that data with returning visitors.

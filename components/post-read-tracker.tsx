@@ -1,18 +1,18 @@
 "use client";
 
-import { useEffect } from "react";
 import posthog from "posthog-js";
+import { useEffect } from "react";
 
 export function PostReadTracker({
-  slug,
-  title,
+	slug,
+	title,
 }: {
-  slug: string;
-  title: string;
+	slug: string;
+	title: string;
 }) {
-  useEffect(() => {
-    posthog.capture("post_read", { slug, title });
-  }, [slug, title]);
+	useEffect(() => {
+		posthog.capture("post_read", { slug, title });
+	}, [slug, title]);
 
-  return null;
+	return null;
 }
