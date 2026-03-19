@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-03-18 rules-post-replace-pageviews](./2026-03-18-rules-post-replace-pageviews.md)
+  - decision: proceed with push
+  - unresolved risk: none
+  - follow-up: optional — prune empty posts/2026-q1/
+
 - [2026-03-18 analytics-my-events](./2026-03-18-analytics-my-events.md)
   - decision: merge completed; multi-source analytics aggregation
   - unresolved risk: Personal API key; rate-limit if abuse
