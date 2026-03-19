@@ -1,0 +1,30 @@
+# Runs twice daily against production to catch obvious visual regressions
+# (empty pages, missing content, broken rendering).
+name: Visual Regression Check
+
+on:
+  schedule:
+    # Midnight and noon UTC
+    - cron: "0 0 * * *"
+    - cron: "0 12 * * *"
+  workflow_dispatch: # Allow manual run
+
+jobs:
+  check:
+    name: Production content check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.10"
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Visual regression check (production)
+        run: bun run visual-regression
+        env:
+          PRODUCTION_URL: https://jdetle.com

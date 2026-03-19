@@ -115,19 +115,31 @@ All sources normalize to:
 
 ---
 
-## 5. Current State vs Target
+## 5. Three-Table Aggregation (Current Implementation)
+
+The `my-events` API queries by **all three identifiers** (fingerprint, user_id, distinct_id) when provided, aggregating from three conceptual tables:
+
+| Table / query key | Warehouse (session_id) | PostHog (distinct_id) |
+|-------------------|------------------------|------------------------|
+| fingerprint       | Query 1                 | Query 1                 |
+| user_id           | Query 2                 | Query 2                 |
+| distinct_id       | Query 3                 | Query 3                 |
+
+Results are deduplicated by `(source, event_type, page_url, event_date)` and merged. The client sends all three params when available to maximize data collection.
+
+## 6. Current State vs Target
 
 | Component | Current | Target |
 |-----------|---------|--------|
-| Warehouse query | `WHERE session_id = ?` (secondary index) | `WHERE fingerprint = ?` (partition key) |
-| PostHog fetch | Next.js route calls PostHog API by distinct_id | Same; ensure distinct_id = fingerprint |
+| Warehouse query | `WHERE session_id = ?` × 3 (fingerprint, user_id, distinct_id) | Same; or `WHERE fingerprint = ?` (partition key) |
+| PostHog fetch | 3 calls by each identifier, merge | Same |
 | Vercel | pull_vercel is stub | Drain endpoint; parse fingerprint from payload; write to events_by_fingerprint |
 | GA4 | Not integrated | BigQuery job → events_by_fingerprint |
-| my-events API | Fetches warehouse + PostHog, merges | Query events_by_fingerprint only (or both during migration) |
+| my-events API | Fetches warehouse + PostHog by all 3 keys, merges | Query events_by_fingerprint only (or both during migration) |
 
 ---
 
-## 6. Migration Path
+## 7. Migration Path
 
 1. **Create** `analytics.events_by_fingerprint` table
 2. **Backfill**: Copy from `analytics.events` where `session_id` is non-empty; use `session_id` as `fingerprint`
@@ -138,7 +150,11 @@ All sources normalize to:
 
 ---
 
-## 7. References
+## 8. Deep API Research
+
+> **See also**: [analytics-api-deep-research.md](./analytics-api-deep-research.md) — full API capabilities, limits, query patterns, and union schema for maximum data collection across all providers.
+
+## 9. References
 
 - [PostHog Events API](https://posthog.com/docs/api/events) — `distinct_id` filter
 - [Vercel Web Analytics Drain Schema](https://vercel.com/docs/drains/reference/analytics) — deviceId, sessionId, eventData

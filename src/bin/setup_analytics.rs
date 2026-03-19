@@ -235,6 +235,28 @@ async fn setup_cosmos_db(resource_group: &str) -> CosmosCredentials {
         "--max-throughput", "4000",
     ]);
 
+    println!("  Creating user_profiles table...");
+    let profiles_schema = serde_json::json!({
+        "columns": [
+            {"name": "session_id", "type": "text"},
+            {"name": "llm_summary", "type": "text"},
+            {"name": "updated_at", "type": "timestamp"},
+        ],
+        "partitionKeys": [
+            {"name": "session_id"},
+        ],
+    });
+    let profiles_schema_str = serde_json::to_string(&profiles_schema).unwrap();
+    run_az(&[
+        "cosmosdb", "cassandra", "table", "create",
+        "--account-name", COSMOS_ACCOUNT,
+        "--resource-group", resource_group,
+        "--keyspace-name", COSMOS_KEYSPACE,
+        "--name", "user_profiles",
+        "--schema", &profiles_schema_str,
+        "--max-throughput", "400",
+    ]);
+
     println!("  Retrieving connection info...");
     let contact_point = format!("{COSMOS_ACCOUNT}.cassandra.cosmos.azure.com");
     let username = COSMOS_ACCOUNT.to_string();

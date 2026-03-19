@@ -7,7 +7,7 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
-import { fetchEventsByDistinctId } from "@/lib/posthog-api";
+import { fetchEventsByDistinctId, fetchEventsByQuery } from "@/lib/posthog-api";
 
 export interface UnifiedEvent {
 	event_id: string;
@@ -34,10 +34,10 @@ export async function GET(request: NextRequest) {
 	const limitParam = searchParams.get("limit");
 	const limit = Math.min(Number.parseInt(limitParam ?? "50", 10) || 50, 100);
 
-	// Lookup key: fingerprint preferred, then user_id, then distinct_id (PostHog fallback before fingerprint is ready)
-	const lookupKey = fingerprint || userId || distinctId;
+	const identifiers = [fingerprint, userId, distinctId].filter(Boolean);
+	const uniqueIds = [...new Set(identifiers)];
 
-	if (!lookupKey) {
+	if (uniqueIds.length === 0) {
 		return NextResponse.json(
 			{ error: "Provide fingerprint, user_id, or distinct_id" },
 			{ status: 400 },
@@ -47,58 +47,70 @@ export async function GET(request: NextRequest) {
 	const allEvents: UnifiedEvent[] = [];
 	const seenKeys = new Set<string>();
 
-	// 1. Warehouse (Rust analytics-ingestion / ScyllaDB)
+	// 1. Warehouse (ScyllaDB) — query by each identifier
 	if (ANALYTICS_API_URL) {
-		try {
-			const url = new URL("/user-events", ANALYTICS_API_URL);
-			url.searchParams.set("user_id", lookupKey);
-			url.searchParams.set("limit", String(limit));
+		for (const id of uniqueIds) {
+			try {
+				const url = new URL("/user-events", ANALYTICS_API_URL);
+				url.searchParams.set("user_id", id);
+				url.searchParams.set("limit", String(limit));
 
-			const res = await fetch(url.href, {
-				headers: { Accept: "application/json" },
-				next: { revalidate: 30 },
-			});
+				const res = await fetch(url.href, {
+					headers: { Accept: "application/json" },
+					next: { revalidate: 30 },
+				});
 
-			if (res.ok) {
-				const data = (await res.json()) as {
-					events?: Array<{
-						event_id: string;
-						event_type: string;
-						source: string;
-						page_url: string;
-						event_date: string;
-						event_time?: number;
-					}>;
-				};
-				for (const e of data.events ?? []) {
-					const ev: UnifiedEvent = {
-						event_id: e.event_id,
-						event_type: e.event_type,
-						source: "warehouse",
-						page_url: e.page_url ?? "",
-						event_date: e.event_date ?? "",
-						event_time: e.event_time,
+				if (res.ok) {
+					const data = (await res.json()) as {
+						events?: Array<{
+							event_id: string;
+							event_type: string;
+							source: string;
+							page_url: string;
+							event_date: string;
+							event_time?: number;
+						}>;
 					};
-					const key = toEventKey(ev);
-					if (!seenKeys.has(key)) {
-						seenKeys.add(key);
-						allEvents.push(ev);
+					for (const e of data.events ?? []) {
+						const ev: UnifiedEvent = {
+							event_id: e.event_id,
+							event_type: e.event_type,
+							source: "warehouse",
+							page_url: e.page_url ?? "",
+							event_date: e.event_date ?? "",
+							event_time: e.event_time,
+						};
+						const key = toEventKey(ev);
+						if (!seenKeys.has(key)) {
+							seenKeys.add(key);
+							allEvents.push(ev);
+						}
 					}
 				}
+			} catch (err) {
+				console.warn("Warehouse fetch failed:", err);
 			}
-		} catch (err) {
-			console.warn("Warehouse fetch failed:", err);
 		}
 	}
 
-	// 2. PostHog (by distinct_id — works with fingerprint after identify, or distinct_id before)
-	if (lookupKey && POSTHOG_PERSONAL_API_KEY && POSTHOG_PROJECT_ID) {
+	// 2. PostHog — Query API (multi-id in one call) with Events API fallback
+	if (uniqueIds.length > 0 && POSTHOG_PERSONAL_API_KEY && POSTHOG_PROJECT_ID) {
 		try {
-			const posthogEvents = await fetchEventsByDistinctId(lookupKey, {
+			let posthogEvents = await fetchEventsByQuery(uniqueIds, {
 				personalApiKey: POSTHOG_PERSONAL_API_KEY,
 				projectId: POSTHOG_PROJECT_ID,
 				limit,
 			});
+			if (posthogEvents.length === 0) {
+				for (const id of uniqueIds) {
+					const fallback = await fetchEventsByDistinctId(id, {
+						personalApiKey: POSTHOG_PERSONAL_API_KEY,
+						projectId: POSTHOG_PROJECT_ID,
+						limit,
+					});
+					posthogEvents = posthogEvents.concat(fallback);
+				}
+			}
 
 			for (const e of posthogEvents) {
 				const date =

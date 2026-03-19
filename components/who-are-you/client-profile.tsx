@@ -9,6 +9,7 @@ import type {
 	VpnSignal,
 } from "@/lib/vpn-detect";
 import { analyzeClientServerMismatch, computeVerdict } from "@/lib/vpn-detect";
+import { ProfileTicker } from "./profile-ticker";
 
 interface ServerGeo {
 	ip: string | null;
@@ -331,6 +332,7 @@ export function ClientProfile({
 	>([]);
 	const [userEventsLoading, setUserEventsLoading] = useState(false);
 	const [userEventsError, setUserEventsError] = useState<string | null>(null);
+	const [llmSummary, setLlmSummary] = useState<string | null>(null);
 
 	const detectAll = useCallback(async () => {
 		const profile: DetectedProfile = {};
@@ -495,6 +497,8 @@ export function ClientProfile({
 		const fp = canvasFingerprint();
 		setFingerprint(fp);
 		track("fingerprint", fp);
+		// biome-ignore lint/suspicious/noDocumentCookie: Cookie Store API not widely supported; needed for Vercel drain fingerprint
+		document.cookie = `fingerprint=${encodeURIComponent(fp)}; path=/; max-age=31536000; SameSite=Lax`;
 
 		// ── 6. Referral ────────────────────────────────────────────────
 		const ref = document.referrer || sessionStorage.getItem("_referrer") || "";
@@ -703,6 +707,7 @@ export function ClientProfile({
 		const url = new URL("/api/analytics/my-events", window.location.origin);
 		if (fp) url.searchParams.set("fingerprint", fp);
 		if (distinctId) url.searchParams.set("distinct_id", distinctId);
+		if (distinctId) url.searchParams.set("user_id", distinctId);
 		url.searchParams.set("limit", "50");
 		if (!distinctId && !fp) {
 			setUserEventsLoading(false);
@@ -721,9 +726,25 @@ export function ClientProfile({
 						source: string;
 						page_url: string;
 						event_date: string;
+						event_time?: number;
 					}[];
 				}) => {
-					setUserEvents(data.events ?? []);
+					const events = data.events ?? [];
+					setUserEvents(events);
+					// Sync aggregated events to Meta Conversions API for ad optimization
+					if ((fp ?? distinctId) && events.length > 0) {
+						fetch("/api/analytics/meta-sync", {
+							method: "POST",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({
+								fingerprint: fp || undefined,
+								distinct_id: distinctId || undefined,
+								user_id: distinctId || undefined,
+								events,
+							}),
+							keepalive: true,
+						}).catch(() => {});
+					}
 				},
 			)
 			.catch((e) =>
@@ -732,6 +753,26 @@ export function ClientProfile({
 				),
 			)
 			.finally(() => setUserEventsLoading(false));
+	}, [loaded, fingerprint]);
+
+	// Fetch LLM-generated profile summary (from Rust aggregator)
+	useEffect(() => {
+		if (!loaded) return;
+		const distinctId = posthog.get_distinct_id?.();
+		const fp = fingerprint;
+		if (!distinctId && !fp) return;
+
+		const url = new URL("/api/analytics/user-profile", window.location.origin);
+		if (fp) url.searchParams.set("fingerprint", fp);
+		if (distinctId) url.searchParams.set("distinct_id", distinctId);
+		if (distinctId) url.searchParams.set("user_id", distinctId);
+
+		fetch(url.href)
+			.then((r) => (r.ok ? r.json() : { summary: null }))
+			.then((data: { summary?: string | null }) => {
+				if (data.summary) setLlmSummary(data.summary);
+			})
+			.catch(() => {});
 	}, [loaded, fingerprint]);
 
 	return (
@@ -1009,6 +1050,38 @@ export function ClientProfile({
 				</dl>
 			</section>
 
+			{/* ── How to reduce what sites know ───────────────────────────── */}
+			<section className="detect-section anti-tracking-tips">
+				<h2>How to reduce what sites know</h2>
+				<p className="detect-note">
+					You can make it harder for sites to identify you. These tools work
+					without technical know-how:
+				</p>
+				<ul className="anti-tracking-list">
+					<li>
+						<strong>uBlock Origin</strong> — Free browser extension that blocks
+						trackers and ads. Works in Chrome, Firefox, Edge.
+					</li>
+					<li>
+						<strong>Firefox Strict mode</strong> — Built-in. Open Settings →
+						Privacy &amp; Security → Enhanced Tracking Protection → Strict.
+					</li>
+					<li>
+						<strong>Brave browser</strong> — Blocks trackers by default. Good
+						option if you want privacy without installing extensions.
+					</li>
+					<li>
+						<strong>DuckDuckGo</strong> — Search engine that doesn&apos;t track
+						you. Use it instead of Google for search.
+					</li>
+					<li>
+						<strong>Private/Incognito windows</strong> — Don&apos;t rely on them
+						alone (fingerprints still work), but they help avoid cookie-based
+						tracking.
+					</li>
+				</ul>
+			</section>
+
 			{/* ── Analytics Tools ───────────────────────────────────────── */}
 			<section className="detect-section">
 				<h2>Analytics Tools Watching You</h2>
@@ -1026,6 +1099,16 @@ export function ClientProfile({
 						</li>
 					))}
 				</ul>
+			</section>
+
+			{/* ── Profile Ticker (picture building) ─────────────────────────── */}
+			<section className="detect-section">
+				<h2>Your Picture (building as you browse)</h2>
+				<p className="detect-note">
+					Events stream in like a ticker — the more you interact, the richer it
+					gets.
+				</p>
+				<ProfileTicker events={userEvents} loading={userEventsLoading} />
 			</section>
 
 			{/* ── Your Event History ─────────────────────────────────────── */}
@@ -1067,11 +1150,18 @@ export function ClientProfile({
 			<section className="detect-section">
 				<h2>The Composite Picture</h2>
 				{summary ? (
-					<p
-						className="summary-paragraph"
-						// biome-ignore lint/security/noDangerouslySetInnerHtml: summary built from esc()escaped profile fields only
-						dangerouslySetInnerHTML={{ __html: summary }}
-					/>
+					<>
+						<p
+							className="summary-paragraph"
+							// biome-ignore lint/security/noDangerouslySetInnerHtml: summary built from esc()escaped profile fields only
+							dangerouslySetInnerHTML={{ __html: summary }}
+						/>
+						{llmSummary && (
+							<p className="summary-paragraph" style={{ marginTop: "1rem" }}>
+								<strong>From your browsing:</strong> {llmSummary}
+							</p>
+						)}
+					</>
 				) : (
 					<p className="summary-paragraph">Building your profile&hellip;</p>
 				)}
