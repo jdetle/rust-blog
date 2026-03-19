@@ -19,5 +19,5 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "scripts/ingest-env"]
+  "exclude": ["node_modules", "scripts/ingest-env", "scripts/e2e-preview.ts", "scripts/visual-regression-check.ts"]
 }

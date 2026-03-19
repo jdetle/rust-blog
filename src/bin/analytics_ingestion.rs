@@ -10,6 +10,7 @@ use rust_blog::aggregate::{spawn_aggregation_loop, Aggregator};
 use rust_blog::analytics::AnalyticsDb;
 use rust_blog::api::{self, cors_layer};
 use rust_blog::forward::PostHogForwarder;
+use rust_blog::summarize;
 use tokio::net::TcpListener;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -50,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
         posthog,
     };
     let aggregator = Arc::new(Aggregator::new(
-        db,
+        db.clone(),
         posthog_api_key,
         clarity_token,
         vercel_token,
@@ -61,7 +62,9 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/health", get(api::health))
         .route("/api/events", post(api::ingest_event))
+        .route("/api/drain/vercel", post(api::vercel_drain))
         .route("/user-events", get(api::user_events))
+        .route("/user-profile", get(api::user_profile))
         .with_state(state)
         .layer(cors_layer());
 
@@ -74,6 +77,16 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("listening on http://{}", listener.local_addr()?);
 
     spawn_aggregation_loop(aggregator);
+
+    let summarize_enabled = std::env::var("SUMMARIZE_ENABLED").unwrap_or_else(|_| "true".into()) != "false";
+    if let Some(anthropic_key) = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.is_empty()) {
+        if summarize_enabled {
+            tracing::info!("summarization enabled, spawning loop");
+            summarize::spawn_summarization_loop(db.clone(), anthropic_key, "jdetle-blog".to_string());
+        }
+    } else if summarize_enabled {
+        tracing::debug!("ANTHROPIC_API_KEY not set, summarization disabled");
+    }
 
     axum::serve(listener, app).await?;
     Ok(())

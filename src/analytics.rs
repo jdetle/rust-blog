@@ -53,9 +53,17 @@ impl AnalyticsEvent {
     }
 }
 
+pub struct UserProfile {
+    pub session_id: String,
+    pub llm_summary: String,
+    pub updated_at: i64,
+}
+
 pub struct AnalyticsDb {
     session: Arc<Session>,
     insert_stmt: PreparedStatement,
+    upsert_profile_stmt: PreparedStatement,
+    get_profile_stmt: PreparedStatement,
 }
 
 impl AnalyticsDb {
@@ -77,9 +85,19 @@ impl AnalyticsDb {
 
         let insert_stmt = session.prepare(insert_cql).await?;
 
+        let upsert_profile_cql = "INSERT INTO analytics.user_profiles \
+            (session_id, llm_summary, updated_at) VALUES (?, ?, ?)";
+        let upsert_profile_stmt = session.prepare(upsert_profile_cql).await?;
+
+        let get_profile_cql =
+            "SELECT session_id, llm_summary, updated_at FROM analytics.user_profiles WHERE session_id = ?";
+        let get_profile_stmt = session.prepare(get_profile_cql).await?;
+
         Ok(Self {
             session: Arc::new(session),
             insert_stmt,
+            upsert_profile_stmt,
+            get_profile_stmt,
         })
     }
 
@@ -175,5 +193,112 @@ impl AnalyticsDb {
             });
         }
         Ok(events)
+    }
+
+    /// Query events from the last N days for a given site. Used to discover session_ids for summarization.
+    pub async fn query_recent_events(
+        &self,
+        site_id: &str,
+        days: u32,
+        limit_per_day: i32,
+    ) -> Result<Vec<AnalyticsEvent>, Box<dyn std::error::Error + Send + Sync>> {
+        let origin = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
+        let today = Utc::now().date_naive();
+        let days = days.min(30);
+        let mut all_events = Vec::new();
+
+        let cql = "SELECT site_id, event_date, event_time, event_id, event_type, source, \
+                   page_url, user_agent, referrer, session_id, properties \
+                   FROM analytics.events WHERE site_id = ? AND event_date = ? LIMIT ?";
+
+        let prepared = self.session.prepare(cql).await?;
+
+        for i in 0..days {
+            let date = today - chrono::Duration::days(i as i64);
+            let date_days = date.signed_duration_since(origin).num_days() as i32;
+
+            let result = self
+                .session
+                .execute_unpaged(&prepared, (site_id, date_days, limit_per_day))
+                .await?;
+
+            let rows = result.into_rows_result()?;
+            for row in rows.rows::<(
+                String,
+                i32,
+                i64,
+                Uuid,
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+            )>()? {
+                let (site_id, date_days, event_time, event_id, event_type, source, page_url, user_agent, referrer, session_id, properties) = row?;
+                let event_date = origin
+                    .checked_add_signed(chrono::Duration::days(date_days as i64))
+                    .unwrap_or(origin);
+                all_events.push(AnalyticsEvent {
+                    site_id,
+                    event_date,
+                    event_time,
+                    event_id,
+                    event_type,
+                    source,
+                    page_url,
+                    user_agent,
+                    referrer,
+                    session_id,
+                    properties,
+                });
+            }
+        }
+
+        all_events.sort_by(|a, b| b.event_time.cmp(&a.event_time));
+        Ok(all_events)
+    }
+
+    /// Upsert a user profile (LLM summary) for a session_id.
+    pub async fn upsert_user_profile(
+        &self,
+        session_id: &str,
+        llm_summary: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let updated_at = Utc::now().timestamp_millis();
+        self.session
+            .execute_unpaged(
+                &self.upsert_profile_stmt,
+                (session_id, llm_summary, updated_at),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Get user profile by session_id.
+    pub async fn get_user_profile(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<UserProfile>, Box<dyn std::error::Error + Send + Sync>> {
+        if session_id.is_empty() {
+            return Ok(None);
+        }
+
+        let result = self
+            .session
+            .execute_unpaged(&self.get_profile_stmt, (session_id,))
+            .await?;
+
+        let rows = result.into_rows_result()?;
+        if let Some(row) = rows.rows::<(String, Option<String>, Option<i64>)>()?.next() {
+            let (sid, summary, updated_at) = row?;
+            return Ok(Some(UserProfile {
+                session_id: sid,
+                llm_summary: summary.unwrap_or_default(),
+                updated_at: updated_at.unwrap_or(0),
+            }));
+        }
+        Ok(None)
     }
 }

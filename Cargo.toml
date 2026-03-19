@@ -15,6 +15,10 @@ path = "src/bin/analytics_ingestion.rs"
 name = "setup-analytics"
 path = "src/bin/setup_analytics.rs"
 
+[[bin]]
+name = "seed-mock-analytics"
+path = "src/bin/seed_mock_analytics.rs"
+
 [dependencies]
 axum = { version = "0.7", features = ["macros", "json"] }
 chrono = { version = "0.4", features = ["serde"] }
@@ -30,3 +34,7 @@ tower-http = { version = "0.6", features = ["cors"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 uuid = { version = "1", features = ["v4", "serde"] }
+rand = "0.8"
+rand_chacha = "0.3"
+
+[dev-dependencies]

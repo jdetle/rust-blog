@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-03-19 analytics-mocking-llm-ticker](./2026-03-19-analytics-mocking-llm-ticker.md)
+  - decision: proceed with merge; add anti-tracking guidance + reduced-motion
+  - unresolved risk: LLM cost at scale; Cosmos not in CI
+  - follow-up: cost monitoring for summarization; consider #[ignore] on Cosmos test
+
 - [2026-03-18 rules-post-replace-pageviews](./2026-03-18-rules-post-replace-pageviews.md)
   - decision: proceed with push
   - unresolved risk: none

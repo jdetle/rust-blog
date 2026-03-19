@@ -1,7 +1,7 @@
-import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
 import { AnalyticsProvider } from "@/components/analytics-provider";
+import { VercelAnalyticsWithFingerprint } from "@/components/vercel-analytics-with-fingerprint";
 
 import "@/public/blog.css";
 
@@ -24,7 +24,7 @@ export default function RootLayout({
 			<body>
 				{children}
 				<AnalyticsProvider />
-				<Analytics />
+				<VercelAnalyticsWithFingerprint />
 				<SpeedInsights />
 			</body>
 		</html>

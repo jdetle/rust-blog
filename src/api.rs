@@ -1,4 +1,4 @@
-//! HTTP API for the analytics ingestion service: health check, event ingestion, and user event queries.
+//! HTTP API for the analytics ingestion service: health check, event ingestion, user event queries, and Vercel drain.
 
 use std::sync::Arc;
 
@@ -9,6 +9,7 @@ use axum::{
     Json,
 };
 use crate::analytics::{AnalyticsDb, AnalyticsEvent, IncomingEvent};
+use crate::vercel_drain::VercelDrainPayload;
 use crate::forward::PostHogForwarder;
 use serde::Serialize;
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
@@ -27,6 +28,14 @@ pub struct UserEventsQuery {
     pub fingerprint: String,
     #[serde(default = "default_limit")]
     pub limit: u32,
+}
+
+#[derive(serde::Deserialize)]
+pub struct UserProfileQuery {
+    #[serde(default)]
+    pub user_id: String,
+    #[serde(default)]
+    pub fingerprint: String,
 }
 
 fn default_limit() -> u32 {
@@ -116,6 +125,64 @@ pub async fn user_events(
 
     let dtos: Vec<UserEventDto> = events.iter().map(UserEventDto::from).collect();
     (StatusCode::OK, Json(serde_json::json!({ "events": dtos }))).into_response()
+}
+
+pub async fn user_profile(
+    State(state): State<AppState>,
+    Query(params): Query<UserProfileQuery>,
+) -> impl IntoResponse {
+    let lookup_id = if !params.user_id.is_empty() {
+        params.user_id.clone()
+    } else if !params.fingerprint.is_empty() {
+        params.fingerprint.clone()
+    } else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Provide user_id or fingerprint"})),
+        )
+            .into_response();
+    };
+
+    match state.db.get_user_profile(&lookup_id).await {
+        Ok(Some(profile)) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "summary": profile.llm_summary,
+                "updated_at": profile.updated_at
+            })),
+        )
+            .into_response(),
+        Ok(None) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "summary": null, "updated_at": null })),
+        )
+            .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "user profile query failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Failed to query profile"})),
+            )
+                .into_response()
+        }
+    }
+}
+
+pub async fn vercel_drain(
+    State(state): State<AppState>,
+    Json(payload): Json<VercelDrainPayload>,
+) -> impl IntoResponse {
+    let events = payload.events();
+    let mut stored = 0;
+    for ev in events {
+        let analytics_ev = ev.to_analytics_event();
+        if let Err(e) = state.db.insert_event(&analytics_ev).await {
+            tracing::error!(error = %e, "failed to store Vercel drain event");
+        } else {
+            stored += 1;
+        }
+    }
+    (StatusCode::ACCEPTED, Json(serde_json::json!({ "stored": stored }))).into_response()
 }
 
 pub fn cors_layer() -> CorsLayer {
