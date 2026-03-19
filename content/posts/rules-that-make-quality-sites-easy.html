@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Rules that make quality sites easy</title>
+    <link rel="stylesheet" href="/posts/blog.css">
+</head>
+<body>
+<main class="site-shell">
+    <div class="frame article">
+        <header class="list-header">
+            <p class="eyebrow">Journal</p>
+            <h1 class="page-title">Rules that make quality sites easy</h1>
+            <p class="byline">By John Detlefs · March 18, 2026</p>
+        </header>
+
+        <article class="article-content">
+            <p>I've been collecting Cursor rules for a while now. Every time something breaks in production, or a bug slips through review, or I spend an hour debugging something that could've been caught at commit time, I add a rule. The rules file has gotten kind of long. Someone asked me to summarize them and explain why the whole setup makes it easy to ship good websites. I tried to explain it in chat and it came out like a bullet-point document. So I'm turning it into a post.</p>
+
+            <p>The short version: it's not the rules themselves that help. It's that each one encodes a failure. When the site header disappeared behind page content because of a z-index collision, I wrote sticky-zindex-hierarchy. When the foreword overlay clipped on mobile and you couldn't scroll to the button, I wrote fullscreen-overlay-scroll. When the database returned errors but the API sent back 200 with an empty array so monitoring thought everything was fine, I wrote error-transparency. You get the idea. The rules are a running log of "we already paid for this mistake, don't pay again."</p>
+
+            <h2>Defense in depth</h2>
+
+            <p>What makes it actually work is that the rules don't just live in a doc. They feed into editor guidance (so you see them when you're writing), pre-commit hooks (Biome runs, you can't push with lint violations), pre-push checks (merge main first, run adversarial review), and CI (tests, smoke, CodeQL). If you miss it in the editor, the hook catches it. If the hook fails, CI fails. And the adversarial review step forces someone (or some agent) to actually look at the diff before it goes out. No single layer is perfect. Four layers together catch most of the dumb stuff.</p>
+
+            <p>The rules also spell out the correct pattern, not just "don't do X." Outbound-url-safety doesn't say "avoid SSRF." It says use <code>new URL(path, "https://api.example.com")</code> and validate the origin. User-media-url-validation gives you a copy-paste <code>sanitizeMediaUrl</code> function. You don't have to reason your way to the right answer every time. The answer is right there.</p>
+
+            <h2>The boring stuff that matters</h2>
+
+            <p>Half the rules are about workflow and process. Merge main before push. One problem per PR. Work in a dedicated worktree. Conventional commits. It sounds like corporate process theater until you've been on a branch for two weeks and main has reorganized half the component imports and your build is red and you didn't notice because you never pulled. Or you've opened a PR that "fixes the auth bug and also adds a new dashboard and refactors the API client" and the review is a nightmare. The boring rules prevent that. They're boring because they work.</p>
+
+            <p>Same deal with vendoring policy and language policy. We use Bun and TypeScript for the web stuff, Rust for CLIs and tooling. No Python. No adding a package when you can write the function in twenty lines. Every dependency is a trust decision. The rules push you to own your code instead of accumulating supply-chain risk. It's more work upfront. Less work when something breaks.</p>
+
+            <h2>UX rules that actually ship</h2>
+
+            <p>The other half is UX and design. Color contrast (WCAG AA, approved token pairings so you're not guessing). Fullscreen overlay scroll (my-auto on the child, not items-center on the scroll container, or the top clips on short viewports). Sticky z-index hierarchy (header at 60, overlays at 50, modals at 100). Hover content jank (don't conditionally render on hover, use opacity; reserve layout space; debounce hover intent for grids). Media interactivity (if it looks like a play button, it plays inline, period).</p>
+
+            <p>These came from bugs. Real bugs. Users couldn't reach the nav. Text was unreadable on tinted backgrounds. Hovering across a card grid made tooltips flicker so fast they were useless. The rules capture the fix. When you're building the next thing, you don't rediscover the bug. You just follow the rule.</p>
+
+            <h2>Security without the theater</h2>
+
+            <p>API routes must enforce auth or explicitly say they're public. No masking server errors as 200 with empty data. User-provided URLs get sanitized before they hit <code>src</code> or <code>href</code>. Use <code>new URL()</code> for fetch, never template literal interpolation. Most of this was CodeQL catching patterns that could become exploitable if copied somewhere less constrained. The rules bake the safe pattern in so you don't have to think about it.</p>
+
+            <h2>Why it feels easy</h2>
+
+            <p>When everything is wired up — rules in the editor, hooks on commit and push, CI that actually runs the same checks — you stop making the same mistakes. You make new ones instead (which is progress). The rules don't guarantee quality. They dramatically shrink the space of "obvious failures" so you can focus on the hard stuff. Architecture. Product decisions. Edge cases that aren't in the playbook yet.</p>
+
+            <p>If you're starting from nothing, this probably seems like overkill. Ninety-odd rules? Worktrees? Adversarial review before every push? Yeah. It took a while to accumulate. But the alternative is debugging the same class of bug over and over. I'd rather write a rule once and move on.</p>
+        </article>
+
+        <nav class="nav-row">
+            <a href="/posts">All posts</a>
+            <a href="/who-are-you">Who are you?</a>
+            <a href="/">Home</a>
+        </nav>
+    </div>
+</main>
+<script src="/posts/analytics.js" defer></script>
+</body>
+</html>
