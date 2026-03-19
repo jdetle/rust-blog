@@ -21,7 +21,10 @@ pub struct AppState {
 
 #[derive(serde::Deserialize)]
 pub struct UserEventsQuery {
+    #[serde(default)]
     pub user_id: String,
+    #[serde(default)]
+    pub fingerprint: String,
     #[serde(default = "default_limit")]
     pub limit: u32,
 }
@@ -88,7 +91,18 @@ pub async fn user_events(
     State(state): State<AppState>,
     Query(params): Query<UserEventsQuery>,
 ) -> impl IntoResponse {
-    let events: Vec<_> = match state.db.query_events_by_user(&params.user_id, params.limit).await {
+    let lookup_id = if !params.user_id.is_empty() {
+        params.user_id.clone()
+    } else if !params.fingerprint.is_empty() {
+        params.fingerprint.clone()
+    } else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Provide user_id or fingerprint"})),
+        )
+            .into_response();
+    };
+    let events: Vec<_> = match state.db.query_events_by_user(&lookup_id, params.limit).await {
         Ok(ev) => ev,
         Err(e) => {
             tracing::error!(error = %e, "user events query failed");

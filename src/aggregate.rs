@@ -14,6 +14,9 @@ pub struct Aggregator {
     client: Client,
     clarity_token: Option<String>,
     posthog_api_key: String,
+    vercel_token: Option<String>,
+    google_creds_path: Option<String>,
+    meta_token: Option<String>,
 }
 
 impl Aggregator {
@@ -21,12 +24,18 @@ impl Aggregator {
         db: Arc<AnalyticsDb>,
         posthog_api_key: String,
         clarity_token: Option<String>,
+        vercel_token: Option<String>,
+        google_creds_path: Option<String>,
+        meta_token: Option<String>,
     ) -> Self {
         Self {
             db,
             client: Client::new(),
             clarity_token,
             posthog_api_key,
+            vercel_token,
+            google_creds_path,
+            meta_token,
         }
     }
 
@@ -35,15 +44,39 @@ impl Aggregator {
         self.pull_clarity().await;
         self.pull_posthog().await;
         self.pull_vercel().await;
+        self.pull_ga4().await;
+        self.pull_meta().await;
         tracing::info!("aggregation cycle complete");
     }
 
-    /// Vercel Web Analytics has no public REST API for pulling events.
-    /// Data can be exported manually via dashboard CSV, or via Vercel Drains (Pro/Enterprise).
+    /// Vercel Web Analytics: no pull API. Data arrives via Vercel Drains (Pro/Enterprise)
+    /// pushing to our POST /api/events. VERCEL_TOKEN enables drain config via API.
     async fn pull_vercel(&self) {
-        tracing::debug!(
-            "Vercel Analytics: no pull API — use dashboard CSV export or Vercel Drains"
-        );
+        if self.vercel_token.is_some() {
+            tracing::debug!(
+                "Vercel token configured — drains push to /api/events; no pull needed"
+            );
+        } else {
+            tracing::debug!("Vercel: no token; configure drain in dashboard to receive events");
+        }
+    }
+
+    /// GA4: per-user data requires BigQuery export. GOOGLE_APPLICATION_CREDENTIALS
+    /// points to service account JSON. Query user_pseudo_id (set to fingerprint in gtag).
+    async fn pull_ga4(&self) {
+        if let Some(ref path) = self.google_creds_path {
+            tracing::debug!(
+                path = %path,
+                "GA4 BigQuery: credentials present — BigQuery query by user_pseudo_id not yet implemented"
+            );
+        }
+    }
+
+    /// Meta: no API to pull per-user events. META_ACCESS_TOKEN is for Conversion API (sending).
+    async fn pull_meta(&self) {
+        if self.meta_token.is_some() {
+            tracing::debug!("Meta token configured — no pull API; use for Conversion API (send)");
+        }
     }
 
     async fn pull_clarity(&self) {

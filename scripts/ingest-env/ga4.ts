@@ -50,7 +50,7 @@ async function appendEnv(key: string, value: string) {
 	const content = existsSync(ENV_FILE) ? readFileSync(ENV_FILE, "utf-8") : "";
 	const lines = content.split("\n").filter((l) => !l.startsWith(`${key}=`));
 	lines.push(`${key}=${value}`);
-	writeFileSync(ENV_FILE, lines.join("\n") + "\n");
+	writeFileSync(ENV_FILE, `${lines.join("\n")}\n`);
 }
 
 async function run(...args: string[]) {
