@@ -291,7 +291,7 @@ impl AnalyticsDb {
             .await?;
 
         let rows = result.into_rows_result()?;
-        for row in rows.rows::<(String, Option<String>, Option<i64>)>()? {
+        if let Some(row) = rows.rows::<(String, Option<String>, Option<i64>)>()?.next() {
             let (sid, summary, updated_at) = row?;
             return Ok(Some(UserProfile {
                 session_id: sid,
