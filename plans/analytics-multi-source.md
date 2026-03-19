@@ -45,6 +45,18 @@ Associate every fingerprinted browser session with data from analytics providers
 1. **First visit**: Fingerprint computed on who-are-you. Sent to PostHog (register), ScyllaDB (custom ingest), Clarity (identify).
 2. **Return visit**: User has same fingerprint. We query PostHog by distinct_id, ScyllaDB by fingerprint. Merge and display.
 
+## API Keys for analytics-ingestion
+
+| Provider | Env var | Purpose | Pull? |
+|----------|---------|---------|-------|
+| **Vercel** | `VERCEL_TOKEN` | Drain config via API; drains PUSH to /api/events | No pull — receive |
+| **Google** | `GOOGLE_APPLICATION_CREDENTIALS` | BigQuery query by user_pseudo_id (fingerprint) | Yes (BigQuery) |
+| **Meta** | `META_ACCESS_TOKEN` | Conversion API (send server-side events) | No pull |
+| **PostHog** | `POSTHOG_API_KEY`, `POSTHOG_PERSONAL_API_KEY` | Pull events by distinct_id | Yes |
+| **Clarity** | `CLARITY_EXPORT_TOKEN` | Export API (aggregate) | Partial |
+
+Ingest scripts: `bun run ingest:vercel-token`, `ingest:google-bigquery`, `ingest:meta-token`.
+
 ## Security & Privacy
 
 - Personal API keys server-side only (never exposed to client).
