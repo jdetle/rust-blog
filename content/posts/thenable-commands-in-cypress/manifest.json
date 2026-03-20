@@ -7,5 +7,10 @@
 	"authorship": {
 		"human": "human",
 		"ai": "ai"
+	},
+	"heroImage": {
+		"url": "https://images.unsplash.com/photo-1551033406-611cf9a28f67?w=1400&q=80&auto=format&fit=crop",
+		"alt": "Green terminal code on a screen",
+		"credit": "Photo by Markus Spiske on Unsplash"
 	}
 }

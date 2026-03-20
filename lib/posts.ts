@@ -30,6 +30,12 @@ export interface PostNote {
 	note: string;
 }
 
+export interface HeroImage {
+	url: string;
+	alt: string;
+	credit?: string;
+}
+
 export interface MultiVersionPost {
 	kind: "multi";
 	slug: string;
@@ -41,6 +47,7 @@ export interface MultiVersionPost {
 	defaultVersion: string;
 	versions: PostVersion[];
 	notes: Record<string, PostNote[]>;
+	heroImage?: HeroImage;
 }
 
 export type AnyPost = Post | MultiVersionPost;
@@ -134,6 +141,14 @@ function parseMultiVersionPost(dirName: string): MultiVersionPost | null {
 	const topAuthorship: Authorship =
 		versionAuthorship[defaultKey] ?? VERSION_AUTHORSHIP[defaultKey] ?? "human";
 
+	const heroImage: HeroImage | undefined = manifest.heroImage
+		? {
+				url: manifest.heroImage.url,
+				alt: manifest.heroImage.alt ?? manifest.title ?? "",
+				credit: manifest.heroImage.credit,
+			}
+		: undefined;
+
 	return {
 		kind: "multi",
 		slug: dirName,
@@ -145,7 +160,14 @@ function parseMultiVersionPost(dirName: string): MultiVersionPost | null {
 		defaultVersion: defaultKey,
 		versions,
 		notes,
+		heroImage,
 	};
+}
+
+export function estimateReadingTime(html: string): number {
+	const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+	const words = text.split(" ").length;
+	return Math.max(1, Math.ceil(words / 230));
 }
 
 function parseDateString(dateStr: string): number {

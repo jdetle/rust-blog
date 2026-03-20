@@ -19,5 +19,10 @@
 		"product": "ai",
 		"business": "ai",
 		"engineering": "ai"
+	},
+	"heroImage": {
+		"url": "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=1400&q=80&auto=format&fit=crop",
+		"alt": "Complex architecture and scaffolding",
+		"credit": "Photo by Scott Blake on Unsplash"
 	}
 }

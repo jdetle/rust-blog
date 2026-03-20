@@ -7,5 +7,10 @@
 	"authorship": {
 		"human": "human",
 		"ai": "ai"
+	},
+	"heroImage": {
+		"url": "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1400&q=80&auto=format&fit=crop",
+		"alt": "Earth at night showing data center lights and network connections",
+		"credit": "Photo by NASA on Unsplash"
 	}
 }

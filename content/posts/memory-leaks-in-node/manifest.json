@@ -7,5 +7,10 @@
 	"authorship": {
 		"human": "human",
 		"ai": "ai"
+	},
+	"heroImage": {
+		"url": "https://images.unsplash.com/photo-1518432031352-d6fc5c10da5a?w=1400&q=80&auto=format&fit=crop",
+		"alt": "Dark code on a computer screen",
+		"credit": "Photo by Markus Spiske on Unsplash"
 	}
 }

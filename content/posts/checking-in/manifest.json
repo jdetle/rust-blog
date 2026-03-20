@@ -7,5 +7,10 @@
 	"authorship": {
 		"human": "human",
 		"ai": "ai"
+	},
+	"heroImage": {
+		"url": "https://images.unsplash.com/photo-1499951360447-b19be8fe80f5?w=1400&q=80&auto=format&fit=crop",
+		"alt": "Person at desk with laptop",
+		"credit": "Photo by Avel Chuklanov on Unsplash"
 	}
 }

@@ -3,11 +3,12 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { AnimatedFrame } from "@/components/animated-frame";
 import { AuthorshipBadge } from "@/components/authorship-badge";
+import { HeroImage } from "@/components/hero-image";
 import { MultiVersionBody } from "@/components/multi-version-body";
 import { NavRow } from "@/components/nav-row";
 import { PostReadTracker } from "@/components/post-read-tracker";
 import { ShareBar } from "@/components/share-bar";
-import { getAllPosts, getPost } from "@/lib/posts";
+import { getAllPosts, getPost, estimateReadingTime } from "@/lib/posts";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://jdetle.com";
 
@@ -53,10 +54,18 @@ export default async function PostPage({ params }: Props) {
 	if (!post) notFound();
 
 	const isMulti = post.kind === "multi";
+	const heroImage = isMulti ? post.heroImage : undefined;
+
+	const bodyHtml = isMulti
+		? post.versions.find((v) => v.key === post.defaultVersion)?.bodyHtml ?? ""
+		: post.bodyHtml;
+	const readTime = estimateReadingTime(bodyHtml);
 
 	return (
 		<main className="site-shell">
 			<AnimatedFrame className={isMulti ? "" : "article"}>
+				{heroImage && <HeroImage hero={heroImage} />}
+
 				<header className="list-header">
 					<p className="eyebrow">Essay</p>
 					<h1 className="page-title">{post.title}</h1>
@@ -65,6 +74,8 @@ export default async function PostPage({ params }: Props) {
 							{post.author && <>By {post.author}</>}
 							{post.author && post.date && <> &middot; </>}
 							{post.date}
+							{post.date && <> &middot; </>}
+							<span className="reading-time">{readTime} min read</span>
 							{!isMulti && (
 								<AuthorshipBadge authorship={post.authorship} />
 							)}
