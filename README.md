@@ -36,7 +36,9 @@ Run alongside the Next.js app when Cosmos + Clarity + PostHog are configured:
 cargo run --bin analytics-ingestion
 ```
 
-Serves HTTP on port 8080 (`GET /health`, `POST /api/events`, `GET /user-events?user_id=...`). Accepts client events at `POST /api/events`, stores them in Cosmos DB, and forwards to PostHog. Pulls events from Clarity and PostHog every 15 minutes. Requires `COSMOS_*`, `POSTHOG_API_KEY`, and optionally `CLARITY_EXPORT_TOKEN` in `.env`.
+Serves HTTP on port 8080 (`GET /health`, `POST /api/events`, `GET /user-events?user_id=...`). Accepts client events at `POST /api/events`, stores them in Cosmos DB, and forwards to PostHog. Pulls events from Clarity and PostHog every 15 minutes. Requires `COSMOS_*`, `POSTHOG_API_KEY`, and optionally `CLARITY_EXPORT_TOKEN` in `.env`. Optional: `POSTHOG_PROJECT_ID` (default `1`) and `CLARITY_EXPORT_URL` override provider base URLs.
+
+**Load / perf testing:** [docs/analytics-load-testing.md](docs/analytics-load-testing.md) (k6, oha, `cargo bench`).
 
 **Cosmos DB:** Create the secondary index for user-events queries (run once):
 
