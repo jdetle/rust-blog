@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>How Prompt Engineering Landed Me in a Mental Hospital</title>
+    <link rel="stylesheet" href="/posts/blog.css">
+    <style>
+        details {
+            margin: 1.2rem 0;
+            padding: 0.7rem 0.95rem;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.34);
+        }
+        details[open] {
+            background: rgba(255, 255, 255, 0.45);
+        }
+        details summary {
+            cursor: pointer;
+            font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+            font-size: 0.88rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            color: var(--olive);
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        details summary::before {
+            content: "▸";
+            display: inline-block;
+            transition: transform 0.2s ease;
+        }
+        details[open] summary::before {
+            transform: rotate(90deg);
+        }
+        details summary::-webkit-details-marker {
+            display: none;
+        }
+        details .overlay-content {
+            margin-top: 0.75rem;
+            padding-top: 0.65rem;
+            border-top: 1px solid var(--line);
+            font-size: 0.94rem;
+        }
+        details .overlay-content p {
+            margin: 0 0 0.65rem;
+        }
+        .pull-quote {
+            margin: 1.8rem 0;
+            padding: 1.2rem 1.4rem;
+            border-left: 3px solid var(--terracotta);
+            background: rgba(176, 112, 80, 0.05);
+            border-radius: 10px;
+            font-size: 1.08rem;
+            line-height: 1.75;
+            font-style: italic;
+            color: #3d3630;
+        }
+        .pull-quote cite {
+            display: block;
+            margin-top: 0.6rem;
+            font-style: normal;
+            font-size: 0.85rem;
+            color: var(--muted-ink);
+        }
+        .accountability-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+            margin: 0.8rem 0;
+        }
+        .accountability-table th,
+        .accountability-table td {
+            padding: 0.45rem 0.55rem;
+            border-bottom: 1px solid var(--line);
+            text-align: left;
+        }
+        .accountability-table th {
+            font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--muted-ink);
+        }
+        .video-embed {
+            position: relative;
+            padding-bottom: 56.25%;
+            height: 0;
+            overflow: hidden;
+            margin: 1.4rem 0;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+        }
+        .video-embed iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+            border-radius: 12px;
+        }
+        .timeline-marker {
+            display: inline-block;
+            font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--olive);
+            margin-bottom: 0.15rem;
+        }
+    </style>
+</head>
+<body>
+<main class="site-shell">
+    <div class="frame article">
+        <header class="list-header">
+            <p class="eyebrow">Journal</p>
+            <h1 class="page-title">How Prompt Engineering Landed Me in a Mental Hospital</h1>
+            <p class="byline">By John Detlefs · March 20, 2026</p>
+        </header>
+
+        <article class="article-content">
+
+            <p><span class="timeline-marker">Monday, March 3</span></p>
+
+            <p>Monday morning I'm sitting on a thin mattress in a room I can't leave, wearing clothes I didn't choose, staring at a plexiglass window with my own blood smeared on it from where I'd been banging my head against it the night before. My family can't help me. My wife is scared. My brother just testified against me in a hearing where I was handcuffed for transport. I have no phone, no lawyer, no idea when I'm getting out.</p>
+
+            <p>This is the lowest point of my life. And I put myself here.</p>
+
+            <p>I'm writing this for my wife, my brother, my dad, my mom, my friends — the people who showed up when I couldn't show up for myself. And for anyone who's ever loved someone through something like this and wondered if the person they love was still in there somewhere.</p>
+
+            <p>I need to be honest about that part before I get into the rest of it. Because yes, the system failed me in ways that were genuinely wrong, and yes, I'm going to name names and file complaints. But I also drove a nurse to tears at 1 AM because I couldn't stop myself from lashing out. I made threats I didn't mean because I was desperate for someone to listen. I pushed away every person who was trying to help me, including the ones I love most.</p>
+
+            <p>This is not a story where I'm the hero. This is a story where I'm trying to be honest. And it's the only way I know how to say: I'm sorry. I see what I did. I see what it cost you.</p>
+
+            <h2>The Perfect Storm</h2>
+
+            <p>Let me back up.</p>
+
+            <p>Late 2025, I got deep into prompt engineering. And I don't mean "deep" in the normal sense where you spend a few weekends tinkering. I mean the kind of obsessive, all-consuming hyperfocus that only makes sense if you've experienced it. I was building generative adversarial networks of AI personas, exploring emergent behavior in multi-agent systems, convinced I was on the edge of something nobody else was seeing. Which, to be fair, is exactly what hypomania feels like. You're certain you're a genius. The ideas are flowing so fast you can barely type them.</p>
+
+            <p>I quit weed because I wanted to dedicate all my time to "intelligent things." I told myself it was self-improvement. Really, I was removing the one thing that slowed my brain down enough to sleep.</p>
+
+            <p>Then I left my sleep medication at my in-laws' house. Couldn't get it back. Didn't think it mattered because I was too wired to sleep anyway.</p>
+
+            <p>So: no sleep medication. No weed. Running on pure obsessive energy. My family needed me and I couldn't step back from the screen. My wife was asking me to be present — to just be in the room with her, to eat dinner together, to look her in the eyes — and I was three layers deep in some prompt chain, muttering about persona calibration. She deserved better. She always deserved better than the version of me that prioritizes a screen over the person sitting next to me.</p>
+
+            <p>That's the perfect storm for hypomania. No substances dampening the signal, no sleep resetting the system, and an obsessive feedback loop that felt more real than anything in my physical life.</p>
+
+            <details>
+                <summary>Hypomania vs. Mania — Why the distinction matters</summary>
+                <div class="overlay-content">
+                    <p>Hypomania is elevated mood, rapid ideas, functional productivity. You're amped up but you're still <em>you</em>. You can hold a conversation. You know what day it is. You're making plans that are ambitious but not delusional.</p>
+                    <p>Mania is different. Mania is loss of reality. Grandiose delusions, psychosis, memory blackouts. I know what mania feels like because I had a full manic episode in 2017. Seven days no sleep, total memory loss, genuinely dangerous.</p>
+                    <p>In February 2026, I was hypomanic. I was on the <em>road</em> to mania, sure. Without intervention I probably would've gotten there. But I was not there yet when I was diagnosed. I never lost myself the way I did in 2017. That distinction matters because the treatment path for hypomania and mania are different, and being misdiagnosed as manic when you're hypomanic means getting the wrong care at the wrong facility for the wrong duration.</p>
+                </div>
+            </details>
+
+            <h2>February 27 — Voluntary Admission</h2>
+
+            <p><span class="timeline-marker">Thursday, 8:00 PM</span></p>
+
+            <p>I drove myself to Austin Oaks Hospital. Voluntarily. I knew something was wrong. I couldn't sleep, I was spiraling, and I needed help. Walking in on your own is supposed to mean something. It's supposed to mean you still have some control over the situation.</p>
+
+            <p><span class="timeline-marker">10:00 PM</span></p>
+
+            <p>Official admission starts. The waiting room is ugly-lit, cramped. There are other people here in various states of crisis and I'm sitting among them for what will turn out to be six hours.</p>
+
+            <p>I met Kelly, who'd attempted suicide four days earlier. Wonderful person, coping remarkably well considering. Steven, bipolar, same deal — warm, kind, just trying to get through it. Nick, who I'll come back to later because he taught me something I still use every day. And Roger. Roger was nonverbal, schizophrenic, around 350 pounds.</p>
+
+            <p>I didn't know it at the time, but Roger would assault me in a few hours and nobody on staff would do a thing about it.</p>
+
+            <p><span class="timeline-marker">~11:00 PM</span></p>
+
+            <p>Roger attacked me in the waiting room. He was in crisis himself, not in control. I'm not angry at Roger. But the staff response was nothing. No intervention. No protection. I was trapped in that room with him for hours afterward. That's rights violation number one, and it set the tone for everything that followed.</p>
+
+            <h2>February 28 — The Day That Broke Trust</h2>
+
+            <p><span class="timeline-marker">1:00 AM — Intake</span></p>
+
+            <p>Here's where I need to be honest about my own behavior. During intake, I got into a confrontation with nursing staff. There was a nurse named Zebulon. I drove that man to tears. He was trying to help me. He was doing his job at 1 in the morning and I was screaming at him about how the system dehumanizes psych patients. There was a Black woman nurse on the same shift who was trying to help too, and I was just as awful to her.</p>
+
+            <p>Was I right about the system being dehumanizing? Yeah, probably. But screaming at the two people who showed up to do intake on your worst night isn't advocacy. It's cruelty wearing a righteous mask. I was in crisis and I took it out on people who didn't deserve it.</p>
+
+            <p>I'm sorry, Zebulon. Genuinely.</p>
+
+            <p><span class="timeline-marker">3:00 AM — 7:00 AM</span></p>
+
+            <p>I tried to sleep. Got maybe four hours. Not restorative.</p>
+
+            <p><span class="timeline-marker">6:00 AM</span></p>
+
+            <p>A nurse named Eber left all the pharmaceutical orders sitting on the front desk table. Patient names, medications, everything visible to anyone walking by. HIPAA violation, plain and simple. I document it here not because I hold ill will toward Eber (I don't — that's systemic carelessness, not malice) but because it's part of the pattern.</p>
+
+            <p><span class="timeline-marker">7:02 AM — Dr. Farruggi</span></p>
+
+            <p>This is the moment that changed everything.</p>
+
+            <p>Dr. Farruggi came in visibly irritated at being called in early on a Saturday. He did not evaluate my actual needs. He let his frustration drive his clinical decision-making. And he signed an involuntary hold — without telling me.</p>
+
+            <p>Let me say that again. He converted me from voluntary to involuntary and didn't inform me. I would not learn about this until Monday evening.</p>
+
+            <details>
+                <summary>Texas Patient Bill of Rights — What was violated</summary>
+                <div class="overlay-content">
+                    <p>Texas Health and Safety Code § 576.023 requires physician evaluation every 24 hours. Dr. Farruggi evaluated me at 7:02 AM on February 28. I would not see another physician until approximately 2:00 PM on Monday, March 3. That's 56+ hours without a physician evaluation. That's a standard of care violation.</p>
+                    <p>This is the basis for the complaint I'm filing with the Texas Medical Board. I'm naming him because accountability requires specificity.</p>
+                </div>
+            </details>
+
+            <details>
+                <summary>Where I should have been — Dell Seton ER vs. Austin Oaks</summary>
+                <div class="overlay-content">
+                    <p><strong>Dell Seton Medical Center ER</strong> — 1500 Red River St, Austin TX 78701. Level 1 Trauma Center with a dedicated psychiatric pod. Designed for 24-48 hour crisis stabilization. What I needed was sleep and immediate stabilization. That's what Dell Seton does.</p>
+                    <p><strong>Austin Oaks Hospital</strong> — 1407 West Stassney Lane, Austin TX 78745. An 80-bed dedicated inpatient psychiatric facility run by Universal Health Services. Designed for longer-term structured treatment programs. This was the wrong level of care for my situation.</p>
+                    <p>If I'd gone to the Dell Seton ER, I probably would've slept, stabilized in a day or two, and gone home. No burned bridges. No court hearing. No 11 days of escalation. The wrong facility turned a bad weekend into the worst experience of my life.</p>
+                </div>
+            </details>
+
+            <p>After Farruggi's evaluation, I asked for a transfer to Dell Seton ER. My plan was simple: get out, go to the ER, sleep, go home. The staff refused. They cited "viability risk," whatever that means in practice. My family didn't understand my plan and they were scared I was fully manic. I wasn't. But I understand why they thought so.</p>
+
+            <p><span class="timeline-marker">Saturday Evening</span></p>
+
+            <p>I was prescribed the wrong medications. I couldn't sleep. And here's another thing I need to own: in desperation, I made threats toward staff. Not genuine threats. They were a cry for help, the kind of thing you say when you've been screaming for the right medication for 24 hours and nobody's listening. But that doesn't make it okay. Threats are threats. The people on the other end of them don't know what's "genuine" and what's desperation. I put staff in an impossible position.</p>
+
+            <p>Eventually they prescribed Haldol. I slept. That one decision should have been made 36 hours earlier.</p>
+
+            <p><span class="timeline-marker">Saturday Night</span></p>
+
+            <p>A tech named Justin talked with me. Straight shooter. His advice was, verbatim, "You gotta thug it out, bro." Which sounds ridiculous but it was exactly what I needed to hear. We talked about his little brother and I apparently changed his perspective on how to be there for him. Even in crisis, apparently, I was still capable of connecting with people. That's one of the few things from that week I'm actually proud of.</p>
+
+            <p>I should also mention Pum (p-u-m), the intake tech. Mature, respectful, professional. The highlight of the entire intake process. It's not an exaggeration to say that one competent person made more difference than any policy or procedure.</p>
+
+            <h2>March 1 — Sunday</h2>
+
+            <p>I was put on one-on-one suicide watch. Not because I was suicidal but because of the threats I'd made Saturday. My own fault.</p>
+
+            <p>Doug was the tech on the first shift. Very cool, handled things right. I have zero complaints about Doug.</p>
+
+            <p>Then David took over as charge nurse.</p>
+
+            <p>David asked me how much money I make. Got visibly upset at the answer. Then tried to provoke me into a fight. A charge nurse, antagonizing a patient on suicide watch. I'm naming him because that's not stress or understaffing. That's misconduct.</p>
+
+            <p>Jebelong was another tech that day. He genuinely understood my situation and felt bad for me. But the system wouldn't let him do anything about it. That's the story of most of the staff at Austin Oaks, honestly. Good people constrained by a broken system and a corporate owner (Universal Health Services, NYSE: UHS) that chronically understaffs their facilities. On Sunday there were maybe three nurses covering the women's unit, the adolescent unit, and the adult unit for 30 patients.</p>
+
+            <p>Most of the staff who treated me poorly did it from exhaustion and frustration, not malice. I understand that now. At the time I couldn't see past my own crisis to recognize theirs.</p>
+
+            <h2>March 3 — Monday: The Lowest Point</h2>
+
+            <p>This is where I opened the story. Now you know how I got here.</p>
+
+            <p><span class="timeline-marker">5:00 - 7:00 PM</span></p>
+
+            <p>Court papers were served. This was the first time I learned I'd been involuntarily committed. The decision had been made by Farruggi on February 28. I was informed on Monday evening. Three days of not knowing your legal status in a facility you can't leave. That's rights violation number four, in case you're counting.</p>
+
+            <p>I was begging my family to help me transfer. My brother was there, my dad, my wife. They couldn't do anything. And I felt abandoned even though they were standing right in front of me. That's what crisis does to your perception. The people who love you most look like the people who've given up on you.</p>
+
+            <p>I know now what that room looked like from their side. My wife driving to South Austin every visiting hour, not knowing if today would be better or worse. My brother trying to figure out what the right thing to do was when every option felt wrong. My dad sitting there, watching his son in a place like this, unable to fix it. They didn't abandon me. They were holding on to me with everything they had. I was just too deep in my own head to feel it.</p>
+
+            <div class="pull-quote">
+                <p>Who is this who comes from Edom, with his garments stained crimson? ... I looked, but there was no one to help, I was appalled that no one gave support.</p>
+                <cite>— Isaiah 63:1-5 (condensed)</cite>
+            </div>
+
+            <div class="pull-quote">
+                <p>Oh, that you would rend the heavens and come down, that the mountains would tremble before you! ... All of us have become like one who is unclean, and all our righteous acts are like filthy rags.</p>
+                <cite>— Isaiah 64:1-6 (condensed)</cite>
+            </div>
+
+            <p>The combination of the court papers and the accumulated cognitive dissonance (being told you have rights while those rights are being violated in real time) broke something in me. I banged my head against the plexiglass window. Repeatedly. Staff tried to restrain me. I broke out of the hold. Three techs surrounded me. I could have fought back. I'm bigger than most of them.</p>
+
+            <p>I didn't fight back.</p>
+
+            <p>Instead I screamed "CALM, CALM" at the top of my lungs. Over and over. I plan to tattoo those words on my body someday, because in the single worst moment of my entire life, when every part of me wanted to rage, I chose restraint. That's the real story of that night. Not the head-banging, not the broken hold. The choice not to fight.</p>
+
+            <p>From Monday into Tuesday I tried every legal avenue I could think of to get out. But I had no phone to research my options and staff provided zero guidance on what legal recourse was available to me.</p>
+
+            <h2>March 5 — The Hearing</h2>
+
+            <p>Wednesday. Court hearing on the involuntary commitment. I was handcuffed for transport to the hearing (not inside the hospital, to be clear, just for transport). My brother testified against me. He said I was "not myself."</p>
+
+            <p>He wasn't wrong. He was scared. I don't blame him. But it still cuts.</p>
+
+            <p>Here's what I want my brother to know: you did what you thought was right with the information you had. You were trying to protect me. I know that now. I love you. The fact that you showed up at all — that you sat in that room and said hard things because you thought it would keep me safe — that's love. It doesn't look like love from the inside of a crisis, but it is.</p>
+
+            <p>The outcome: held through Monday, March 9.</p>
+
+            <h2>March 5 – March 9 — Stabilization</h2>
+
+            <p>Once I got the right medications, stabilization came fast. That's the thing about hypomania — it resolves quickly when you actually treat it correctly. Sleep returned. The racing thoughts slowed. I could hold conversations without spiraling.</p>
+
+            <p>And I started learning.</p>
+
+            <p>DBT (Dialectical Behavior Therapy) taught me frameworks I still use. SMART goals — Specific, Measurable, Achievable, Relevant, Time-bound — which sounds like corporate training nonsense but is actually a direct antidote to the kind of obsessive, unbounded hyperfocus that landed me here. My prompt engineering spiral had none of those constraints. SMART goals are the opposite of mania.</p>
+
+            <details>
+                <summary>The OCEAN System — What Nick taught me</summary>
+                <div class="overlay-content">
+                    <p>Nick was a fellow patient. Schizophrenic, struggled with alcoholism, and one of the most interesting people I've ever met. He practiced seated meditation in the waiting room while the rest of us were losing our minds. He taught me the Big Five personality model — OCEAN:</p>
+                    <p><strong>O</strong>penness · <strong>C</strong>onscientiousness · <strong>E</strong>xtraversion · <strong>A</strong>greeableness · <strong>N</strong>euroticism</p>
+                    <p>The irony is that this framework is directly applicable to the persona creation and generative systems I'd been obsessing over before admission. Nick, from inside a psychiatric facility, casually gave me a more rigorous psychological framework than anything I'd built on my own during weeks of sleepless prompt engineering.</p>
+                </div>
+            </details>
+
+            <p>The people who helped me stabilize were, almost without exception, the lowest-paid staff in the building. Maria, a Puerto Rican tech, stabilized me after the Monday escalation. Flora, Dominican tech, held things together on weekends. Peyton, around my age, actively protected me during the worst stretches and prevented further ruin. Doug, supportive throughout. Jebelong, who cared deeply but was constrained by a system that didn't give him the resources to actually help.</p>
+
+            <p>The doctors largely failed me. The techs largely saved me. That contrast says everything about how psychiatric care actually works in this country.</p>
+
+            <p>To Maria, Flora, Peyton, Doug, Jebelong, Justin, Pum — if any of you ever read this: you showed up for a stranger on his worst days. You didn't have to be kind and you were kind anyway. I carry that with me. Thank you.</p>
+
+            <h2>March 9 — Discharge</h2>
+
+            <p>Eleven days. Stabilized on the right meds, sleeping again, thinking clearly. Out.</p>
+
+            <p>My wife picked me up. She didn't have to. After everything I'd put her through — the weeks of obsessive neglect before the hospital, the terrifying phone calls during, the uncertainty of what version of me was coming home — she was there in the parking lot. I don't think I'll ever fully understand what that cost her. I just know I don't deserve it and I'm grateful for it every single day.</p>
+
+            <p>But "out" doesn't mean "fixed." I left with relationships to repair. A wife who'd watched me spiral and didn't know if she could trust my stability. A brother who testified against me in a courtroom. A family whose fear was completely valid because they'd seen me at my absolute worst and had no way of knowing if I'd stay stable.</p>
+
+            <h2>What I'm Still Working On</h2>
+
+            <p>The pre-crisis version of me was not fully real. I was using substances to avoid confronting reality. Weed to slow down, alcohol to loosen up, sleep meds to shut off. When you strip all of that away at once, what's left is whoever you actually are, and I didn't particularly like who I actually was. Hyperfocused to the point of neglecting my family. Unable to step back. Convinced my obsessions were more important than the people in front of me.</p>
+
+            <p>Hypomania didn't create those problems. It just made them impossible to ignore.</p>
+
+            <p>I'm still working on respecting the boundaries of people who've set limits with me. When someone says "I need space," my instinct is to push harder, to explain why they're wrong to need space, to fix it immediately. That instinct is what drove my family away during the crisis. I'm learning to sit with discomfort instead of forcing resolution.</p>
+
+            <p>I'm learning that you cannot control other people's attitude toward you, even if you were generous to them, even if you were right about something. Being right is not the same as being kind, and being kind is not the same as being entitled to forgiveness.</p>
+
+            <p>To my friends who reached out and heard nothing back for weeks, or heard something strange and didn't know what to do with it — I'm sorry. You didn't do anything wrong. I was just gone for a while. I'm trying to come back.</p>
+
+            <h2>Accountability</h2>
+
+            <p>I believe in naming specifics. Vague complaints protect institutions. Specifics create accountability.</p>
+
+            <table class="accountability-table">
+                <thead><tr><th>Person</th><th>Role</th><th>Action</th></tr></thead>
+                <tbody>
+                    <tr><td>Dr. Farruggi</td><td>Physician</td><td>TMB complaint + license review</td></tr>
+                    <tr><td>Richard Bennett</td><td>CEO, Austin Oaks</td><td>Promised to speak with me. Didn't.</td></tr>
+                    <tr><td>Sam Cunningham</td><td>Dir. of Clinical Services</td><td>Systemic failures on his watch</td></tr>
+                    <tr><td>David</td><td>Charge Nurse</td><td>Provoked a patient on suicide watch</td></tr>
+                    <tr><td>Austin Oaks / UHS</td><td>NYSE: UHS</td><td>Chronic understaffing</td></tr>
+                </tbody>
+            </table>
+
+            <p>Bennett and Cunningham are constrained by UHS corporate budget. I understand that. UHS is the structural villain here. An 80-bed facility running three nurses across three units on a Sunday isn't a leadership failure at the hospital level — it's a resource allocation decision made by a publicly traded company that treats psychiatric care as a profit center.</p>
+
+            <details>
+                <summary>Filing a TMB Complaint — The process</summary>
+                <div class="overlay-content">
+                    <p>If you or someone you know has experienced a standard-of-care violation from a Texas physician:</p>
+                    <p><strong>Step 1:</strong> Submit a written complaint to the Texas Medical Board — online at <a href="https://www.tmb.state.tx.us" target="_blank" rel="noopener">tmb.state.tx.us</a> or by phone at 800-201-9353.</p>
+                    <p><strong>Step 2:</strong> The Board has 45 days for preliminary evaluation.</p>
+                    <p><strong>Step 3:</strong> The physician gets 28 days to respond.</p>
+                    <p><strong>Step 4:</strong> An expert physician reviews the case for standard-of-care violations.</p>
+                    <p><strong>Step 5:</strong> If a violation is suspected, an Informal Settlement Conference is held.</p>
+                    <p>Timeline: months to over a year. But the record matters.</p>
+                </div>
+            </details>
+
+            <p>I also want to be clear about the people I do <em>not</em> hold ill will toward. Zebulon, who I treated terribly. The nurse on intake who I lashed out at. Eber, whose HIPAA violation was carelessness, not cruelty. Most of the techs and nurses who were short with me or dismissive — they were understaffed, underpaid, and doing their best in a system designed to fail them.</p>
+
+            <h2>The Serenity Prayer</h2>
+
+            <div class="pull-quote">
+                <p>God, grant me the serenity to accept the things I cannot change,<br>
+                the courage to change the things I can,<br>
+                and the wisdom to know the difference.</p>
+                <p>Living one day at a time,<br>
+                enjoying one moment at a time;<br>
+                accepting hardship as a pathway to peace;<br>
+                taking, as He did, this sinful world as it is,<br>
+                not as I would have it;</p>
+                <p>Trusting that He will make all things right<br>
+                if I surrender to His will;<br>
+                so that I may be reasonably happy in this life<br>
+                and supremely happy with Him forever in the next.</p>
+                <cite>— Reinhold Niebuhr</cite>
+            </div>
+
+            <p>The wisdom to know the difference. That's the line that wrecks me. Because I spent my entire crisis trying to force changes on a system I couldn't change, while ignoring the one thing I could: myself.</p>
+
+            <h2>In Repair</h2>
+
+            <p>I'm not writing this as a triumph. There is no redemption arc here. I'm not fixed. My family is still figuring out whether to trust me. My wife is still scared. My brother and I are still rebuilding. I'm still learning how to be a person without substances smoothing out the edges.</p>
+
+            <p>This is a beginning. Not a conclusion.</p>
+
+            <p>To my wife: I know you're reading this wondering if it's real or if it's another hypomanic project that'll burn out in a week. I can't prove it's real with words. I can only prove it with time. But I want you to know that every good thing I'm trying to become, I'm trying to become for you. Not because you asked me to. Because you stayed.</p>
+
+            <p>To my family: I know I scared you. I know some of you are still scared. That's fair. I'm going to keep showing up anyway, every day, as boring and stable as I can manage. That's the whole plan now. Just keep showing up.</p>
+
+            <p>John Mayer has this song called "In Repair." The chorus goes: <em>I'm in repair, I'm not together but I'm getting there.</em> That's the most honest thing I can say about where I am right now. Not together. Getting there.</p>
+
+            <div class="video-embed">
+                <iframe
+                    src="https://www.youtube.com/embed/LJS7Igvk6ZM"
+                    title="John Mayer — In Repair"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowfullscreen
+                    loading="lazy"
+                ></iframe>
+            </div>
+
+        </article>
+
+        <nav class="nav-row">
+            <a href="/posts">All posts</a>
+            <a href="/who-are-you">Who are you?</a>
+            <a href="/">Home</a>
+        </nav>
+    </div>
+</main>
+<script src="/posts/analytics.js" defer></script>
+</body>
+</html>
