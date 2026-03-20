@@ -94,4 +94,6 @@ For production, add these as Vercel Environment Variables in the project setting
 
 **Vercel:** Connects via GitHub integration. Production deploys run automatically on push to `main`. PR preview URLs (e.g. `rust-blog-abc123.vercel.app`) are posted as comments. Next.js handles routing — no `vercel.json` needed.
 
-**CI:** `.github/workflows/ci.yml` validates Rust code on every push and PR. Blocks merging if `cargo check`, `cargo clippy -- -D warnings`, `cargo test`, or `cargo build --release` fails.
+**CI:** `.github/workflows/ci.yml` validates Rust (`cargo check`, `cargo clippy -- -D warnings`, `cargo test`, `cargo build --release`, benches) and the Next.js app (`bun test lib`, `bun run build`) on every push and PR.
+
+**E2E preview (`e2e-preview.yml`):** After the deploy-preview smoke test, an optional step runs `bun run verify:analytics-read-apis` when you configure at least one complete provider in GitHub **Secrets**: PostHog (`POSTHOG_PERSONAL_API_KEY` + `POSTHOG_PROJECT_ID`), `CLARITY_EXPORT_TOKEN`, `ANALYTICS_API_URL` (warehouse `GET /health`), or Plausible (`PLAUSIBLE_API_KEY` plus `PLAUSIBLE_SITE_ID` or `NEXT_PUBLIC_PLAUSIBLE_DOMAIN`). The script only GETs read endpoints (Clarity export, Plausible aggregate, warehouse health) or PostHog HogQL counts; it skips providers with missing env. Optional repository **Variables** `POSTHOG_VERIFY_HOURS`, `POSTHOG_VERIFY_ATTEMPTS`, and `POSTHOG_VERIFY_DELAY_MS` tune PostHog retries.

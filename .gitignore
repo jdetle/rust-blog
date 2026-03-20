@@ -31,6 +31,9 @@ node_modules/
 .env*.local
 
 # Playwright
-/test-results/
 /playwright-report/
 /playwright/.cache/
+
+# Visual smoke test screenshots
+screenshots/
+test-results/

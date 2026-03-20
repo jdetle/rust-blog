@@ -27,10 +27,17 @@ async function main(): Promise<void> {
 	}
 
 	for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-		const count = await fetchEventCountRecentHours(HOURS, {
-			personalApiKey,
-			projectId,
-		});
+		let count: number | null = null;
+		try {
+			count = await fetchEventCountRecentHours(HOURS, {
+				personalApiKey,
+				projectId,
+			});
+		} catch (err) {
+			console.warn(
+				`PostHog verify attempt ${attempt}/${MAX_ATTEMPTS}: fetch error — ${err instanceof Error ? err.message : err}`,
+			);
+		}
 
 		if (count !== null && count >= 1) {
 			console.log(
@@ -54,4 +61,7 @@ async function main(): Promise<void> {
 	process.exit(1);
 }
 
-main();
+main().catch((err) => {
+	console.error("PostHog verify script failed:", err);
+	process.exit(1);
+});

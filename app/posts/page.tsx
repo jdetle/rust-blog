@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AnimatedFrame } from "@/components/animated-frame";
+import { AuthorshipBadge } from "@/components/authorship-badge";
 import { NavRow } from "@/components/nav-row";
 import { getAllPosts } from "@/lib/posts";
 
@@ -27,7 +28,10 @@ export default function PostsPage() {
 					{posts.map((post) => (
 						<li key={post.slug}>
 							<Link href={`/posts/${post.slug}`}>
-								<span className="post-title">{post.title}</span>
+								<span className="post-title">
+									{post.title}
+									<AuthorshipBadge authorship={post.authorship} />
+								</span>
 								<span className="post-kicker">{post.date}</span>
 							</Link>
 						</li>

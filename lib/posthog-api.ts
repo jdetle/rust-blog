@@ -177,7 +177,7 @@ export async function fetchEventsByDistinctId(
 
 /**
  * HogQL: count events in the project within the last `hours` hours.
- * Used by CI to verify preview smoke produced PostHog-ingestible traffic.
+ * Used by CI to verify preview traffic reached PostHog.
  */
 export async function fetchEventCountRecentHours(
 	hours: number,
