@@ -9,6 +9,7 @@
 		"start": "bun run --bun next start",
 		"lint": "bun run --bun next lint",
 		"test": "bun test lib",
+		"verify:analytics-read-apis": "bun run scripts/verify-analytics-read-apis.ts",
 		"test:e2e:preview": "bun run scripts/e2e-preview.ts",
 		"smoke:visual": "bun run scripts/visual-smoke-test.ts",
 		"visual-regression": "bun run scripts/visual-regression-check.ts",

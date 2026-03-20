@@ -23,6 +23,7 @@
     "node_modules",
     "scripts/ingest-env",
     "scripts/e2e-preview.ts",
+    "scripts/verify-analytics-read-apis.ts",
     "scripts/visual-regression-check.ts",
     "**/*.test.ts"
   ]
