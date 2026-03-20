@@ -15,9 +15,9 @@ describe("mental health post — discovery & parsing", () => {
 		expect(existsSync(join(DIR, "manifest.json"))).toBe(true);
 	});
 
-	test("ai.html and human.html exist", () => {
-		expect(existsSync(join(DIR, "ai.html"))).toBe(true);
-		expect(existsSync(join(DIR, "human.html"))).toBe(true);
+	test("versions/ai.html and versions/human.html exist", () => {
+		expect(existsSync(join(DIR, "versions", "ai.html"))).toBe(true);
+		expect(existsSync(join(DIR, "versions", "human.html"))).toBe(true);
 	});
 
 	test("getAllPosts() includes this post", () => {

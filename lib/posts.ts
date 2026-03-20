@@ -107,9 +107,10 @@ function parseMultiVersionPost(dirName: string): MultiVersionPost | null {
 	const versionAuthorship: Record<string, Authorship> =
 		manifest.authorship ?? {};
 
+	const versionsDir = join(dirPath, "versions");
 	const versions: PostVersion[] = [];
 	for (const key of manifest.versions ?? []) {
-		const versionPath = join(dirPath, `${key}.html`);
+		const versionPath = join(versionsDir, `${key}.html`);
 		if (!existsSync(versionPath)) continue;
 		const bodyHtml = readFileSync(versionPath, "utf-8").trim();
 		if (!bodyHtml) continue;

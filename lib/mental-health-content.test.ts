@@ -7,6 +7,7 @@ const AI_FILE = join(
 	"content",
 	"posts",
 	"how-prompt-engineering-landed-me-in-a-mental-hospital",
+	"versions",
 	"ai.html",
 );
 const html = readFileSync(AI_FILE, "utf-8");
