@@ -1,0 +1,106 @@
+---
+description: Layout algorithms and paradigms for rendering orchestration DAGs
+globs:
+alwaysApply: false
+---
+
+# DAG Layout Algorithms — Orchestration Graph Rendering
+
+When building a visual DAG for an orchestration or workflow system, the layout algorithm determines whether the graph is readable or a spaghetti disaster. Choose the algorithm based on graph shape, node count, and whether the DAG has massive fan-out.
+
+## Three Visualization Paradigms
+
+Orchestration DAGs can be rendered in three complementary views. No single view answers every question. Build at least two.
+
+| Paradigm | Answers | Best for | Example systems |
+|---|---|---|---|
+| **Node-link graph** (classic DAG) | "What depends on what?" | Structural understanding, dependency debugging | Dagster, Airflow Graph View, React Flow |
+| **Timeline / Gantt** | "What's running now? How long has it taken?" | Real-time monitoring, duration analysis | Temporal Timeline, Perfetto, GitHub Actions |
+| **Terminal tree** (git-log style) | "What just happened?" | Developer-facing CLI tools, streaming output | Dagger TUI, `git log --graph` |
+
+### Node-link graph
+
+The standard. Nodes are boxes, edges show dependencies, layout flows top-to-bottom or left-to-right. Uses the Sugiyama/layered algorithm: assign nodes to layers, minimize edge crossings, assign coordinates.
+
+The problem with wide fan-outs: when 50+ nodes run in parallel at the same layer, the graph goes ultra-wide and edges from the fan-in node become unreadable. Mitigate with group collapsing (see `dag-parallel-scale.mdc`).
+
+### Timeline / Gantt
+
+Each task is a horizontal bar on a time axis. Parallel tasks stack vertically at the same time offset. Color encodes state. Excellent for answering "what's running right now and how long has it been running?" but loses dependency structure.
+
+Temporal uses `vis-timeline` under the hood. Dagger.jl exports Chrome Trace Format viewable in Perfetto. The Rust `tracing-durations-export` crate does the same for `tracing` spans.
+
+### Terminal tree
+
+Dagger's TUI linearizes the DAG into a vertically scrolling tree where columns represent parallel branches. Active operations blink. Completed operations show duration and a green check. Failures float to the top. Sidesteps the entire graph layout problem by using the terminal's scroll buffer as natural history. Implementable with `ratatui` in Rust.
+
+## Layout Algorithm Selection
+
+| Algorithm | Library | Best for | Handles wide fan-out? | Bundle size |
+|---|---|---|---|---|
+| **ELK Layered** | elkjs | Production DAG UIs with ports and hierarchy | Yes — partitioning, compaction, `crossingMinimization.semiInteractive` | ~500KB (WASM) |
+| **Sugiyama** | d3-dag | Moderate DAGs, pure JS, clean TS types | Adequate | ~30KB |
+| **Dagre** | dagrejs/dagre | Simple prototypes, React Flow default | Poor with wide graphs | ~30KB |
+| **Force-directed** | d3-force, Cosmograph | Exploratory/organic layouts | No inherent direction — bad for DAGs | Varies |
+
+### ELK.js configuration for orchestration DAGs
+
+ELK's layered algorithm is the only one that handles 100+ node parallel layers gracefully. Key options:
+
+```typescript
+const layoutOptions = {
+  "elk.algorithm": "layered",
+  "elk.direction": "DOWN",
+  "elk.layered.spacing.nodeNodeBetweenLayers": "80",
+  "elk.spacing.nodeNode": "40",
+  "elk.layered.crossingMinimization.strategy": "LAYER_SWEEP",
+  "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",
+  "elk.layered.compaction.postCompaction.strategy": "EDGE_LENGTH",
+  "elk.portConstraints": "FIXED_SIDE",
+};
+```
+
+- `LAYER_SWEEP` for crossing minimization handles wide layers without exponential blowup
+- `NETWORK_SIMPLEX` for node placement produces tighter, more balanced layouts than `LINEAR_SEGMENTS`
+- Post-compaction by edge length reduces wasted whitespace in sparse regions
+- `FIXED_SIDE` port constraints keep edges anchored to top/bottom of nodes, preventing spaghetti
+
+### When to use Sugiyama (d3-dag) instead
+
+Use d3-dag's Sugiyama when:
+- The DAG has < 200 nodes
+- You need pure JS with no WASM dependency
+- The layout runs client-side and bundle size matters
+- You don't need port constraints or hierarchical nesting
+
+d3-dag is in maintenance mode. For new projects, prefer ELK.js.
+
+## Layout Execution
+
+### Compute layout off the main thread
+
+ELK.js layout computation is synchronous and CPU-intensive for large graphs. Run it in a Web Worker to avoid blocking the UI:
+
+```typescript
+const worker = new Worker(new URL("elkjs/lib/elk.bundled.js", import.meta.url));
+const elk = new ELK({ workerFactory: () => worker });
+const layout = await elk.layout(graph);
+```
+
+### Animate position transitions
+
+When the layout recomputes (node added, state change triggers re-layout), animate nodes from old positions to new positions rather than snapping. React Flow supports this natively with `fitView` transitions. For custom implementations, use Framer Motion's `animate` on x/y.
+
+### Keep the graph rendered during updates
+
+Never unmount the graph to show a spinner. Dagster learned this the hard way (PR #28336). Overlay a loading indicator on top of the existing graph. The user should be able to pan and inspect the previous state while the new layout computes.
+
+## Edge Routing
+
+| Strategy | Use when |
+|---|---|
+| **Polyline** (ELK default) | Clean orthogonal edges, good for layered layouts |
+| **Spline / Bezier** | Softer aesthetic, React Flow default, good for moderate density |
+| **Straight** | Very sparse graphs only — becomes unreadable with crossings |
+
+For dense parallel DAGs, polyline routing with ELK produces the most readable result because edges follow grid lines and avoid overlapping node bodies.

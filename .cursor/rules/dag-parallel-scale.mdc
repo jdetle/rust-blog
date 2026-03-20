@@ -1,0 +1,163 @@
+---
+description: Techniques for visualizing massively parallel DAGs with hundreds of concurrent nodes
+globs:
+alwaysApply: false
+---
+
+# DAG Parallel Scale — Visualizing Massive Fan-Out in Orchestration Systems
+
+When an orchestration system fans out to hundreds of parallel tasks, naive node-link rendering collapses. The graph goes ultra-wide, edges become spaghetti, and the browser chokes rendering 500 SVG nodes. These techniques keep the visualization readable and performant at scale.
+
+## Group Collapsing (the most important technique)
+
+When a fan-out produces 10+ parallel tasks of the same type, render them as a single **batch node** showing aggregate state. Click to expand into individual nodes.
+
+### Batch node display
+
+```
+┌─────────────────────────────────┐
+│  Process Records (47/50)        │
+│  ██████████████████████░░░ 94%  │
+│  ✓ 47  ⟳ 2  ✗ 1               │
+└─────────────────────────────────┘
+```
+
+The batch node shows:
+- Task type name and total count
+- Progress bar (completed / total)
+- State breakdown: completed (check), running (spinner), failed (x)
+
+### Expansion behavior
+
+Clicking a batch node expands it inline, showing individual task nodes in a compact grid or list within a bordered group. The group maintains a single incoming edge and single outgoing edge to the rest of the graph. ELK.js supports this natively with its hierarchical layout — child nodes inside a parent node.
+
+### When to collapse
+
+| Parallel count | Render as |
+|---|---|
+| 1–5 | Individual nodes |
+| 6–20 | Collapsible group (expanded by default if < 10, collapsed if >= 10) |
+| 21–100 | Batch node with progress bar |
+| 100+ | Batch node with count only (no individual expansion — use a detail panel instead) |
+
+## Swim Lanes
+
+Partition parallel tasks into vertical columns by worker, executor, or task type. Tasks flow top-to-bottom within a lane. Cross-lane edges show data dependencies.
+
+```
+Worker A     Worker B     Worker C     Worker D
+─────────    ─────────    ─────────    ─────────
+[Task 1]     [Task 2]     [Task 3]     [Task 4]
+   │            │            │            │
+[Task 5]     [Task 6]     [Task 7]     [Task 8]
+   │            │            │            │
+   └────────────┴────────────┴────────────┘
+                     │
+               [Aggregate]
+```
+
+This layout works well when tasks naturally map to workers/executors (CI/CD pipelines, distributed compute). GitHub Actions uses a version of this for its workflow visualization.
+
+Implement with ELK.js by setting `elk.partitioning.activate: true` and assigning each node a `elk.partitioning.partition` value corresponding to its lane.
+
+## Heat Map Overlay
+
+Instead of showing individual node states in a wide parallel layer, color the entire layer by completion percentage. A gradient from blue (0% done) through cyan (50%) to green (100%) gives instant "how far along is this batch?" without rendering hundreds of nodes.
+
+```tsx
+const layerColor = (completed: number, total: number) => {
+  const pct = completed / total;
+  if (pct >= 1.0) return "#22c55e";
+  if (pct >= 0.5) return `color-mix(in oklch, #22c55e ${pct * 100}%, #06b6d4)`;
+  return `color-mix(in oklch, #06b6d4 ${pct * 200}%, #3b82f6)`;
+};
+```
+
+Apply this as a background on the layer's bounding box in the graph. Individual nodes within the layer can still be rendered but with reduced visual weight (smaller, no border, just dots).
+
+## Radial Layout for Extreme Fan-Out
+
+For extreme fan-outs (hundreds of parallel tasks from a single parent), a radial/sunburst layout around the parent node is more compact than a horizontal spread. Each spoke is a task. Active tasks pulse at their spoke tip.
+
+```
+         [Task 12]
+      [Task 11]  [Task 13]
+    [Task 10]      [Task 14]
+   [Task 9]          [Task 15]
+  [Task 8]    [Parent]    [Task 1]
+   [Task 7]          [Task 2]
+    [Task 6]      [Task 3]
+      [Task 5]  [Task 4]
+```
+
+This works when:
+- All children are at the same depth (single fan-out, not a multi-level tree)
+- The parent node is a natural visual anchor
+- There's no meaningful ordering among the children
+
+D3's `d3.tree` with a radial projection handles this. For React Flow integration, compute positions with d3 and pass them as node coordinates.
+
+## Rendering Technology by Scale
+
+| Visible node count | Technology | Why |
+|---|---|---|
+| < 500 | SVG (React Flow, d3) | Rich interactivity, React components inside nodes, accessibility |
+| 500–10,000 | Canvas (Sigma.js) | SVG DOM overhead becomes prohibitive; Canvas draws directly |
+| 10,000+ | WebGL (Cosmograph, Sigma.js v3) | GPU-accelerated rendering, handles millions of elements |
+
+For orchestration DAGs, group collapsing should keep you under 500 visible nodes at any time. Use SVG with React Flow. If you genuinely need to render thousands of concurrent tasks without collapsing, Sigma.js with WebGL is the move — but you lose the ability to put rich React components inside nodes.
+
+### Sigma.js for large graphs
+
+Sigma.js renders graphs of thousands of nodes and edges using WebGL. It pairs with `graphology` for the data model. Supports React integration via `@react-sigma`:
+
+```typescript
+import { SigmaContainer } from "@react-sigma/core";
+import Graph from "graphology";
+
+const graph = new Graph();
+// ... add nodes and edges
+<SigmaContainer graph={graph} settings={{ renderLabels: true }} />
+```
+
+### Cosmograph for extreme scale
+
+Cosmograph uses GPU-accelerated force layout computation — layout runs on the GPU, not the CPU. Handles graphs that CPU-based force layouts can't (> 100K nodes). Overkill for typical orchestration DAGs but relevant if visualizing a distributed trace with millions of spans.
+
+## Minimap + Detail View
+
+React Flow's built-in `MiniMap` component shows the full graph structure while the main viewport zooms into the active region. For large parallel DAGs:
+
+1. Color minimap nodes by state (blue = running, green = done, red = failed, gray = pending)
+2. Show a "viewport rectangle" on the minimap so the user knows which slice they're looking at
+3. Auto-pan the viewport to the active execution frontier when "follow mode" is enabled
+4. Let the user click on the minimap to jump to any region
+
+## Library Stack for TypeScript/React
+
+| Purpose | Library | Role |
+|---|---|---|
+| Graph canvas | React Flow (xyflow) | Nodes are React components, built-in minimap, controls, animated edges |
+| Layout engine | ELK.js (layered algorithm) | Compute node positions, handle hierarchy and port constraints |
+| State transitions | Framer Motion | Animate color, scale, opacity when node state changes |
+| Node styling | Tailwind CSS | `animate-pulse` for active nodes, color classes for state encoding |
+| Large graph fallback | Sigma.js + graphology | WebGL rendering when SVG can't keep up |
+
+## Library Stack for Rust TUI
+
+| Purpose | Library | Role |
+|---|---|---|
+| TUI framework | ratatui | Dagger-style git-log tree with custom rendering |
+| Span instrumentation | tracing + tracing-durations-export | Record parallel spans, export to Chrome Trace Format |
+| Trace viewer | Perfetto (external) | View exported traces as timeline/Gantt with full zoom |
+| Graph layout (if needed) | petgraph + custom layering | Compute DAG layers for terminal column assignment |
+
+## Anti-Patterns
+
+| Pattern | Problem | Fix |
+|---|---|---|
+| Rendering 200+ individual SVG nodes in a fan-out | Browser lag, unreadable layout | Group collapse into batch node |
+| Force-directed layout for a DAG | No inherent direction, unstable positions | Use ELK layered or Sugiyama |
+| Fixed viewport (no zoom/pan) for large graphs | User can't inspect dense regions | React Flow provides zoom/pan by default |
+| Re-running layout on every state change | Nodes jump around, disorienting | Only re-layout when topology changes (add/remove nodes), not state changes |
+| Same visual treatment for 1 and 100 active nodes | Pulse rings at scale create visual overload | Switch animation strategy based on active count |
