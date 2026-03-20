@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-03-20 privacy-onboarding-wizard](./2026-03-20-privacy-onboarding-wizard.md)
+  - decision: proceed with push; URL guards + honest copy; v1 curated list
+  - unresolved risk: link rot and macOS Settings deep-link drift; Firefox-centric blocker link may not match all users
+  - follow-up: optional CI xcodebuild; periodic URL audit; consider cross-browser copy polish
+
 - [2026-03-20 who-are-you-picture-copy](./2026-03-20-who-are-you-picture-copy.md)
   - decision: proceed with push; copy-only, aligns with plain-language UX feedback
   - unresolved risk: “fingerprint shown above” assumes scroll order on small viewports
