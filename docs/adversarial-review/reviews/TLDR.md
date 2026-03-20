@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-03-20 posthog-ci-verify](./2026-03-20-posthog-ci-verify.md)
+  - decision: proceed with merge; PostHog verify + tests + Bun XFF middleware
+  - unresolved risk: verify step false-negative if preview lacks `NEXT_PUBLIC_POSTHOG_KEY` or HogQL lags past retries; 2h count is project-wide
+  - follow-up: optional HogQL filter on preview URL; tune delays from metrics
+
 - [2026-03-20 privacy-onboarding-wizard](./2026-03-20-privacy-onboarding-wizard.md)
   - decision: proceed with push; URL guards + honest copy; v1 curated list
   - unresolved risk: link rot and macOS Settings deep-link drift; Firefox-centric blocker link may not match all users

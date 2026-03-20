@@ -30,6 +30,10 @@ node_modules/
 .cursor/mcp.json
 .env*.local
 
+# Playwright
+/playwright-report/
+/playwright/.cache/
+
 # Visual smoke test screenshots
 screenshots/
 test-results/

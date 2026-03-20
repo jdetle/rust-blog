@@ -40,3 +40,6 @@ jobs:
 
       - name: Build
         run: bun run build
+
+      - name: Unit tests (lib)
+        run: bun test lib
