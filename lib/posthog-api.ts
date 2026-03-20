@@ -174,3 +174,66 @@ export async function fetchEventsByDistinctId(
 	const events = data.results ?? [];
 	return events;
 }
+
+/**
+ * HogQL: count events in the project within the last `hours` hours.
+ * Used by CI to verify preview traffic reached PostHog.
+ */
+export async function fetchEventCountRecentHours(
+	hours: number,
+	options: { personalApiKey: string; projectId: string },
+): Promise<number | null> {
+	const { personalApiKey, projectId } = options;
+	if (!personalApiKey || !projectId) return null;
+
+	const safeHours = Math.min(Math.max(Math.floor(hours), 1), 168);
+	const hogql = `SELECT count() AS c FROM events WHERE timestamp > now() - INTERVAL ${safeHours} HOUR`;
+
+	const path = `/api/projects/${encodeURIComponent(projectId)}/query/`;
+	const url = new URL(path, POSTHOG_API_BASE);
+
+	const res = await fetch(url.href, {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${personalApiKey}`,
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify({
+			query: {
+				kind: "HogQLQuery",
+				query: hogql,
+			},
+			name: "ci-recent-count",
+		}),
+	});
+
+	if (!res.ok) {
+		console.error(`PostHog Query API HTTP ${res.status}`);
+		return null;
+	}
+
+	const data = (await res.json()) as {
+		columns?: string[];
+		results?: unknown[][];
+		error?: string;
+	};
+
+	if (data.error) {
+		console.error("PostHog Query API error:", data.error);
+		return null;
+	}
+
+	const columns = data.columns ?? [];
+	const results = data.results ?? [];
+	const cIdx = columns.indexOf("c");
+	if (cIdx < 0 || results.length === 0) {
+		return null;
+	}
+	const raw = results[0]?.[cIdx];
+	if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+	if (typeof raw === "string") {
+		const n = Number.parseInt(raw, 10);
+		return Number.isFinite(n) ? n : null;
+	}
+	return null;
+}
