@@ -2,69 +2,18 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const FILE = join(
+const AI_FILE = join(
 	process.cwd(),
 	"content",
 	"posts",
-	"how-prompt-engineering-landed-me-in-a-mental-hospital.html",
+	"how-prompt-engineering-landed-me-in-a-mental-hospital",
+	"ai.html",
 );
-const html = readFileSync(FILE, "utf-8");
+const html = readFileSync(AI_FILE, "utf-8");
 
-describe("mental health post — HTML structure", () => {
-	test("has doctype", () => {
-		expect(html).toMatch(/^<!doctype html>/i);
-	});
-
-	test("has lang attribute", () => {
-		expect(html).toContain('<html lang="en">');
-	});
-
-	test("has viewport meta tag", () => {
-		expect(html).toContain(
-			'<meta name="viewport" content="width=device-width, initial-scale=1">',
-		);
-	});
-
-	test("links blog.css stylesheet", () => {
-		expect(html).toContain('<link rel="stylesheet" href="/posts/blog.css">');
-	});
-
-	test("has site-shell wrapper", () => {
-		expect(html).toContain('class="site-shell"');
-	});
-
-	test("has frame article wrapper", () => {
-		expect(html).toContain('class="frame article"');
-	});
-
-	test("has list-header", () => {
-		expect(html).toContain('class="list-header"');
-	});
-
-	test("has eyebrow label", () => {
-		expect(html).toContain('class="eyebrow"');
-	});
-
-	test("has page-title", () => {
-		expect(html).toContain('class="page-title"');
-	});
-
-	test("has byline", () => {
-		expect(html).toContain('class="byline"');
-	});
-
-	test("has article-content", () => {
-		expect(html).toContain('class="article-content"');
-	});
-
-	test("has nav-row with links", () => {
-		expect(html).toContain('class="nav-row"');
-		expect(html).toContain('href="/posts"');
-		expect(html).toContain('href="/"');
-	});
-
-	test("includes analytics script", () => {
-		expect(html).toContain('src="/posts/analytics.js"');
+describe("mental health post — body content structure", () => {
+	test("body file is non-empty", () => {
+		expect(html.length).toBeGreaterThan(1000);
 	});
 });
 
@@ -368,29 +317,38 @@ describe("mental health post — key narrative beats", () => {
 	});
 });
 
-describe("mental health post — CSS custom styles", () => {
+const CSS_FILE = join(process.cwd(), "posts", "blog.css");
+const css = readFileSync(CSS_FILE, "utf-8");
+
+describe("mental health post — CSS in blog.css", () => {
 	test("defines details element styling", () => {
-		expect(html).toContain("details {");
+		expect(css).toContain(".article-content details {");
 	});
 
 	test("defines pull-quote styling", () => {
-		expect(html).toContain(".pull-quote {");
+		expect(css).toContain(".pull-quote {");
 	});
 
 	test("defines accountability-table styling", () => {
-		expect(html).toContain(".accountability-table {");
+		expect(css).toContain(".accountability-table {");
 	});
 
 	test("defines video-embed responsive styling", () => {
-		expect(html).toContain(".video-embed {");
-		expect(html).toContain("padding-bottom: 56.25%");
+		expect(css).toContain(".video-embed {");
+		expect(css).toContain("padding-bottom: 56.25%");
 	});
 
 	test("defines timeline-marker styling", () => {
-		expect(html).toContain(".timeline-marker {");
+		expect(css).toContain(".timeline-marker {");
 	});
 
 	test("hides default details marker", () => {
-		expect(html).toContain("::-webkit-details-marker");
+		expect(css).toContain("::-webkit-details-marker");
+	});
+
+	test("defines authorship badge styling", () => {
+		expect(css).toContain(".authorship-badge {");
+		expect(css).toContain(".authorship-badge--human {");
+		expect(css).toContain(".authorship-badge--ai {");
 	});
 });

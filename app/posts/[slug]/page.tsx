@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { AnimatedFrame } from "@/components/animated-frame";
+import { AuthorshipBadge } from "@/components/authorship-badge";
 import { MultiVersionBody } from "@/components/multi-version-body";
 import { NavRow } from "@/components/nav-row";
 import { PostReadTracker } from "@/components/post-read-tracker";
@@ -64,6 +65,9 @@ export default async function PostPage({ params }: Props) {
 							{post.author && <>By {post.author}</>}
 							{post.author && post.date && <> &middot; </>}
 							{post.date}
+							{!isMulti && (
+								<AuthorshipBadge authorship={post.authorship} />
+							)}
 						</p>
 					)}
 				</header>

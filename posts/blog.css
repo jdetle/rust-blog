@@ -1298,6 +1298,174 @@ New post skeleton:
     border: 1px solid rgba(184, 148, 58, 0.25);
 }
 
+/* ── Journal / Mental Health Post ─────────────────────────────── */
+
+.article-content details {
+    margin: 1.2rem 0;
+    padding: 0.7rem 0.95rem;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.34);
+}
+
+.article-content details[open] {
+    background: rgba(255, 255, 255, 0.45);
+}
+
+.article-content details summary {
+    cursor: pointer;
+    font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+    font-size: 0.88rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--olive);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.article-content details summary::before {
+    content: "▸";
+    display: inline-block;
+    transition: transform 0.2s ease;
+}
+
+.article-content details[open] summary::before {
+    transform: rotate(90deg);
+}
+
+.article-content details summary::-webkit-details-marker {
+    display: none;
+}
+
+.article-content details .overlay-content {
+    margin-top: 0.75rem;
+    padding-top: 0.65rem;
+    border-top: 1px solid var(--line);
+    font-size: 0.94rem;
+}
+
+.article-content details .overlay-content p {
+    margin: 0 0 0.65rem;
+}
+
+.pull-quote {
+    margin: 1.8rem 0;
+    padding: 1.2rem 1.4rem;
+    border-left: 3px solid var(--terracotta);
+    background: rgba(176, 112, 80, 0.05);
+    border-radius: 10px;
+    font-size: 1.08rem;
+    line-height: 1.75;
+    font-style: italic;
+    color: #3d3630;
+}
+
+.pull-quote cite {
+    display: block;
+    margin-top: 0.6rem;
+    font-style: normal;
+    font-size: 0.85rem;
+    color: var(--muted-ink);
+}
+
+.accountability-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    margin: 0.8rem 0;
+}
+
+.accountability-table th,
+.accountability-table td {
+    padding: 0.45rem 0.55rem;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+}
+
+.accountability-table th {
+    font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted-ink);
+}
+
+.video-embed {
+    position: relative;
+    padding-bottom: 56.25%;
+    height: 0;
+    overflow: hidden;
+    margin: 1.4rem 0;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+}
+
+.video-embed iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 12px;
+}
+
+.timeline-marker {
+    display: inline-block;
+    font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--olive);
+    margin-bottom: 0.15rem;
+}
+
+/* ── Authorship Badge ────────────────────────────────────────── */
+
+.authorship-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+
+.authorship-badge--human {
+    color: var(--olive);
+    background: rgba(122, 128, 88, 0.1);
+    border: 1px solid rgba(122, 128, 88, 0.3);
+}
+
+.authorship-badge--ai {
+    color: var(--muted-ink);
+    background: rgba(42, 35, 28, 0.06);
+    border: 1px solid var(--line);
+}
+
+.authorship-badge svg {
+    width: 0.85rem;
+    height: 0.85rem;
+    flex-shrink: 0;
+}
+
+.byline .authorship-badge {
+    margin-left: 0.5rem;
+}
+
+.post-list .authorship-badge {
+    margin-left: 0.4rem;
+    font-size: 0.62rem;
+    padding: 0.15rem 0.5rem;
+}
+
 /* ── Responsive: Tablet ────────────────────────────────────────── */
 
 @media (max-width: 980px) {

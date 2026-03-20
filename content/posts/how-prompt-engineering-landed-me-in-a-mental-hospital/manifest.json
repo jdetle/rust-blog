@@ -1,0 +1,11 @@
+{
+  "title": "How Prompt Engineering Landed Me in a Mental Hospital",
+  "author": "John Detlefs",
+  "date": "March 20, 2026",
+  "defaultVersion": "human",
+  "versions": ["human", "ai"],
+  "authorship": {
+    "human": "human",
+    "ai": "ai"
+  }
+}

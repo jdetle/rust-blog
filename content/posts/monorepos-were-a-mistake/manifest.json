@@ -4,5 +4,13 @@
   "date": "February 06, 2024",
   "prompt": "Write a blog post about why monorepos are problematic in enterprise software engineering",
   "defaultVersion": "original",
-  "versions": ["slop", "original", "grug", "product", "business", "engineering"]
+  "versions": ["slop", "original", "grug", "product", "business", "engineering"],
+  "authorship": {
+    "slop": "ai",
+    "original": "human",
+    "grug": "ai",
+    "product": "ai",
+    "business": "ai",
+    "engineering": "ai"
+  }
 }

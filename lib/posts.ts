@@ -6,18 +6,22 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 
+export type Authorship = "human" | "ai";
+
 export interface Post {
 	kind: "single";
 	slug: string;
 	title: string;
 	date: string;
 	author: string;
+	authorship: Authorship;
 	bodyHtml: string;
 }
 
 export interface PostVersion {
 	key: string;
 	label: string;
+	authorship: Authorship;
 	bodyHtml: string;
 }
 
@@ -32,6 +36,7 @@ export interface MultiVersionPost {
 	title: string;
 	date: string;
 	author: string;
+	authorship: Authorship;
 	prompt: string;
 	defaultVersion: string;
 	versions: PostVersion[];
@@ -43,10 +48,23 @@ export type AnyPost = Post | MultiVersionPost;
 const VERSION_LABELS: Record<string, string> = {
 	slop: "AI Slop",
 	original: "Original",
+	human: "Human",
+	ai: "AI Draft",
 	grug: "Grug",
 	product: "Product",
 	business: "Business",
 	engineering: "Engineering",
+};
+
+const VERSION_AUTHORSHIP: Record<string, Authorship> = {
+	slop: "ai",
+	ai: "ai",
+	grug: "ai",
+	product: "ai",
+	business: "ai",
+	engineering: "ai",
+	original: "human",
+	human: "human",
 };
 
 const CONTENT_DIR = join(process.cwd(), "content", "posts");
@@ -64,6 +82,11 @@ function parseHtmlPost(filename: string): Post | null {
 	const author = bylineMatch ? bylineMatch[1].trim() : "John Detlefs";
 	const date = bylineMatch ? bylineMatch[2].trim() : "";
 
+	const authorshipMatch = raw.match(
+		/<meta\s+name="authorship"\s+content="(human|ai)"/,
+	);
+	const authorship: Authorship = authorshipMatch?.[1] === "ai" ? "ai" : "human";
+
 	const bodyMatch = raw.match(
 		/<article class="article-content">([\s\S]*?)<\/article>/,
 	);
@@ -71,7 +94,7 @@ function parseHtmlPost(filename: string): Post | null {
 
 	if (!bodyHtml) return null;
 
-	return { kind: "single", slug, title, date, author, bodyHtml };
+	return { kind: "single", slug, title, date, author, authorship, bodyHtml };
 }
 
 function parseMultiVersionPost(dirName: string): MultiVersionPost | null {
@@ -82,6 +105,9 @@ function parseMultiVersionPost(dirName: string): MultiVersionPost | null {
 
 	const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
 
+	const versionAuthorship: Record<string, Authorship> =
+		manifest.authorship ?? {};
+
 	const versions: PostVersion[] = [];
 	for (const key of manifest.versions ?? []) {
 		const versionPath = join(dirPath, `${key}.html`);
@@ -91,6 +117,7 @@ function parseMultiVersionPost(dirName: string): MultiVersionPost | null {
 		versions.push({
 			key,
 			label: VERSION_LABELS[key] ?? key,
+			authorship: versionAuthorship[key] ?? VERSION_AUTHORSHIP[key] ?? "human",
 			bodyHtml,
 		});
 	}
@@ -103,14 +130,19 @@ function parseMultiVersionPost(dirName: string): MultiVersionPost | null {
 		notes = JSON.parse(readFileSync(notesPath, "utf-8"));
 	}
 
+	const defaultKey = manifest.defaultVersion ?? "original";
+	const topAuthorship: Authorship =
+		versionAuthorship[defaultKey] ?? VERSION_AUTHORSHIP[defaultKey] ?? "human";
+
 	return {
 		kind: "multi",
 		slug: dirName,
 		title: manifest.title ?? dirName,
 		date: manifest.date ?? "",
 		author: manifest.author ?? "John Detlefs",
+		authorship: topAuthorship,
 		prompt: manifest.prompt ?? "",
-		defaultVersion: manifest.defaultVersion ?? "original",
+		defaultVersion: defaultKey,
 		versions,
 		notes,
 	};
