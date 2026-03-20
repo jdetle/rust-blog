@@ -837,6 +837,60 @@ New post skeleton:
 	font-family: "SF Mono", "Fira Code", Menlo, monospace;
 }
 
+/* ── Share Bar ────────────────────────────────────────────────── */
+
+.share-bar {
+	margin-top: 1.4rem;
+	padding-top: 0.85rem;
+	border-top: 1px solid var(--line);
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	flex-wrap: wrap;
+}
+
+.share-label {
+	font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+	font-size: 0.78rem;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--olive);
+	flex-shrink: 0;
+}
+
+.share-buttons {
+	display: flex;
+	gap: 0.45rem;
+	flex-wrap: wrap;
+}
+
+.share-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 2rem;
+	padding: 0.3rem 0.7rem;
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.35);
+	font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+	font-size: 0.76rem;
+	letter-spacing: 0.06em;
+	color: var(--ink);
+	cursor: pointer;
+	transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.share-btn:hover {
+	background: rgba(176, 112, 80, 0.1);
+	border-color: rgba(176, 112, 80, 0.35);
+	color: var(--terracotta);
+}
+
+.share-btn:active {
+	transform: scale(0.97);
+}
+
 /* ── Responsive: Tablet ────────────────────────────────────────── */
 
 @media (max-width: 980px) {
@@ -935,5 +989,20 @@ New post skeleton:
 
 	.vpn-verdict-card {
 		padding: 0.8rem;
+	}
+
+	.share-bar {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.5rem;
+	}
+
+	.share-buttons {
+		gap: 0.35rem;
+	}
+
+	.share-btn {
+		font-size: 0.72rem;
+		padding: 0.25rem 0.55rem;
 	}
 }
