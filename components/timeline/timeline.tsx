@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { timeFormat } from "d3-time-format";
 import { useTimelineScales } from "./use-timeline-scales";
 import { TimelineNode } from "./timeline-node";
 import { TimelineTooltip } from "./timeline-tooltip";
@@ -46,7 +45,7 @@ export function Timeline({
 		return () => ro.disconnect();
 	}, []);
 
-	const { ticks, formatTick, positioned } = useTimelineScales(events, {
+	const { ticks, formatTick, positioned, xScale } = useTimelineScales(events, {
 		width,
 		height,
 	});
@@ -84,11 +83,7 @@ export function Timeline({
 				/>
 				{/* Tick marks and labels */}
 				{ticks.map((tick) => {
-					const x = positioned.length > 0
-						? (tick.getTime() - new Date(events[0].date).getTime()) /
-						  (new Date(events[events.length - 1].date).getTime() - new Date(events[0].date).getTime()) *
-						  (width - 48) + 24
-						: 24;
+					const x = positioned.length > 0 ? xScale(tick) : 24;
 					return (
 						<g key={tick.toISOString()}>
 							<line

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useReducedMotion } from "motion/react";
 import type { PostNote } from "@/lib/posts";
 
 interface FootnotedArticleProps {
@@ -17,6 +18,8 @@ export function FootnotedArticle({ bodyHtml, notes }: FootnotedArticleProps) {
 	const articleRef = useRef<HTMLDivElement>(null);
 	const sideRef = useRef<HTMLDivElement>(null);
 	const [expandedNote, setExpandedNote] = useState<number | null>(null);
+	const reduceMotion = useReducedMotion();
+	const [layoutKey, setLayoutKey] = useState(0);
 
 	const toggleNote = useCallback(
 		(id: number) => {
@@ -51,6 +54,15 @@ export function FootnotedArticle({ bodyHtml, notes }: FootnotedArticleProps) {
 		}
 	}, [bodyHtml, notesMap]);
 
+	// Re-run sidenote layout on container resize (handles mobile→desktop transitions)
+	useEffect(() => {
+		const el = articleRef.current;
+		if (!el) return;
+		const ro = new ResizeObserver(() => setLayoutKey((k) => k + 1));
+		ro.observe(el);
+		return () => ro.disconnect();
+	}, []);
+
 	// Position sidenotes aligned to their anchors (desktop)
 	useLayoutEffect(() => {
 		const article = articleRef.current;
@@ -59,6 +71,15 @@ export function FootnotedArticle({ bodyHtml, notes }: FootnotedArticleProps) {
 
 		const sideChildren = sidebar.querySelectorAll<HTMLElement>(".sidenote");
 		if (sideChildren.length === 0) return;
+
+		// Reset inline styles when sidenote column is hidden (mobile)
+		if (getComputedStyle(sidebar).display === "none") {
+			for (const child of sideChildren) {
+				child.style.position = "";
+				child.style.top = "";
+			}
+			return;
+		}
 
 		const articleRect = article.getBoundingClientRect();
 		let lastBottom = 0;
@@ -78,7 +99,7 @@ export function FootnotedArticle({ bodyHtml, notes }: FootnotedArticleProps) {
 
 			lastBottom = top + child.offsetHeight + minGap;
 		}
-	}, [bodyHtml, notes]);
+	}, [bodyHtml, notes, layoutKey]);
 
 	useEffect(() => {
 		const el = articleRef.current;
@@ -139,10 +160,14 @@ export function FootnotedArticle({ bodyHtml, notes }: FootnotedArticleProps) {
 						key={note.id}
 						className={`sidenote${expandedNote === note.id ? " sidenote-active" : ""}`}
 						data-for-note={note.id}
-						style={{
-							opacity: 0,
-							animation: `sidenoteFadeIn 0.3s ease-out ${i * 0.08}s forwards`,
-						}}
+						style={
+							reduceMotion
+								? { opacity: 1 }
+								: {
+										opacity: 0,
+										animation: `sidenoteFadeIn 0.3s ease-out ${i * 0.08}s forwards`,
+								  }
+						}
 					>
 						<span className="sidenote-number">{note.id}</span>
 						<p className="sidenote-text">{note.note}</p>

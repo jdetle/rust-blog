@@ -20,6 +20,19 @@ export function useTimelineScales(
 	const { width = 800, height = 200, padding = defaultPadding } = config;
 
 	return useMemo(() => {
+		if (events.length === 0) {
+			const now = new Date();
+			const xScale = scaleTime()
+				.domain([now, now])
+				.range([padding.left, width - padding.right]);
+			const yScale = scaleLinear()
+				.domain([0, 1])
+				.range([padding.top + 20, height - padding.bottom - 16]);
+			const formatTick = timeFormat("%b %Y");
+			const formatShort = timeFormat("%b %d");
+			return { xScale, yScale, ticks: [], formatTick, formatShort, positioned: [], categories: [] };
+		}
+
 		const dates = events.map((e) => new Date(e.date));
 		const minDate = new Date(Math.min(...dates.map((d) => d.getTime())));
 		const maxDate = new Date(Math.max(...dates.map((d) => d.getTime())));
