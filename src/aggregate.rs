@@ -1,5 +1,7 @@
-use crate::analytics::{AnalyticsDb, AnalyticsEvent};
-use chrono::{NaiveDate, Utc};
+use crate::aggregate_mapping::{clarity_row_to_event, posthog_raw_to_event};
+use crate::analytics::AnalyticsDb;
+use crate::event_sink::EventSink;
+use chrono::Utc;
 use reqwest::Client;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -10,8 +12,10 @@ const CLARITY_EXPORT_URL: &str =
 const POSTHOG_EVENTS_URL: &str = "https://us.posthog.com/api/projects";
 
 pub struct Aggregator {
-    db: Arc<AnalyticsDb>,
+    db: Arc<dyn EventSink>,
     client: Client,
+    clarity_export_url: String,
+    posthog_events_url: String,
     clarity_token: Option<String>,
     posthog_api_key: String,
     vercel_token: Option<String>,
@@ -28,9 +32,44 @@ impl Aggregator {
         google_creds_path: Option<String>,
         meta_token: Option<String>,
     ) -> Self {
+        let clarity_export_url =
+            std::env::var("CLARITY_EXPORT_URL").unwrap_or_else(|_| CLARITY_EXPORT_URL.to_string());
+        let project_id =
+            std::env::var("POSTHOG_PROJECT_ID").unwrap_or_else(|_| "1".to_string());
+        let posthog_events_url =
+            format!("{POSTHOG_EVENTS_URL}/{project_id}/events/");
+        let db_sink: Arc<dyn EventSink> = db;
+        Self::with_endpoints(
+            db_sink,
+            Client::new(),
+            clarity_export_url,
+            posthog_events_url,
+            posthog_api_key,
+            clarity_token,
+            vercel_token,
+            google_creds_path,
+            meta_token,
+        )
+    }
+
+    /// Full constructor for tests: override HTTP client and provider URLs (e.g. wiremock).
+    #[allow(clippy::too_many_arguments)] // test harness mirrors env-driven production `new`
+    pub fn with_endpoints(
+        db: Arc<dyn EventSink>,
+        client: Client,
+        clarity_export_url: String,
+        posthog_events_url: String,
+        posthog_api_key: String,
+        clarity_token: Option<String>,
+        vercel_token: Option<String>,
+        google_creds_path: Option<String>,
+        meta_token: Option<String>,
+    ) -> Self {
         Self {
             db,
-            client: Client::new(),
+            client,
+            clarity_export_url,
+            posthog_events_url,
             clarity_token,
             posthog_api_key,
             vercel_token,
@@ -90,7 +129,7 @@ impl Aggregator {
 
         let res = self
             .client
-            .get(CLARITY_EXPORT_URL)
+            .get(&self.clarity_export_url)
             .bearer_auth(token)
             .query(&[("numOfDays", "1")])
             .send()
@@ -116,25 +155,10 @@ impl Aggregator {
             }
         };
 
-        if let Some(rows) = data.as_array() {
+        if let Some(rows) = crate::aggregate_mapping::clarity_rows_root_array(&data) {
+            let now_ms = Utc::now().timestamp_millis();
             for row in rows {
-                let event = AnalyticsEvent {
-                    site_id: "jdetle-blog".to_string(),
-                    event_date: Utc::now().date_naive(),
-                    event_time: Utc::now().timestamp_millis(),
-                    event_id: Uuid::new_v4(),
-                    event_type: "clarity_insight".to_string(),
-                    source: "clarity".to_string(),
-                    page_url: row
-                        .get("URL")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    user_agent: String::new(),
-                    referrer: String::new(),
-                    session_id: String::new(),
-                    properties: serde_json::to_string(row).unwrap_or_default(),
-                };
+                let event = clarity_row_to_event(row, now_ms, Uuid::new_v4());
                 if let Err(e) = self.db.insert_event(&event).await {
                     tracing::error!(error = %e, "failed to store Clarity event");
                 }
@@ -143,13 +167,16 @@ impl Aggregator {
     }
 
     async fn pull_posthog(&self) {
-        let url = format!("{POSTHOG_EVENTS_URL}/1/events/");
         let today = Utc::now().format("%Y-%m-%d").to_string();
+        let fallback_date = Utc::now().date_naive();
 
         let res = self
             .client
-            .get(&url)
-            .header("Authorization", format!("Bearer {}", self.posthog_api_key))
+            .get(&self.posthog_events_url)
+            .header(
+                "Authorization",
+                format!("Bearer {}", self.posthog_api_key),
+            )
             .query(&[("after", today.as_str()), ("limit", "100")])
             .send()
             .await;
@@ -174,52 +201,10 @@ impl Aggregator {
             }
         };
 
-        let results = data.get("results").and_then(|r| r.as_array());
-        if let Some(events) = results {
+        let now_ms = Utc::now().timestamp_millis();
+        if let Some(events) = crate::aggregate_mapping::posthog_results_array(&data) {
             for raw in events {
-                let event = AnalyticsEvent {
-                    site_id: "jdetle-blog".to_string(),
-                    event_date: raw
-                        .get("timestamp")
-                        .and_then(|t| t.as_str())
-                        .and_then(|s| NaiveDate::parse_from_str(&s[..10], "%Y-%m-%d").ok())
-                        .unwrap_or_else(|| Utc::now().date_naive()),
-                    event_time: Utc::now().timestamp_millis(),
-                    event_id: Uuid::new_v4(),
-                    event_type: raw
-                        .get("event")
-                        .and_then(|e| e.as_str())
-                        .unwrap_or("unknown")
-                        .to_string(),
-                    source: "posthog".to_string(),
-                    page_url: raw
-                        .get("properties")
-                        .and_then(|p| p.get("$current_url"))
-                        .and_then(|u| u.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    user_agent: raw
-                        .get("properties")
-                        .and_then(|p| p.get("$user_agent"))
-                        .and_then(|u| u.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    referrer: raw
-                        .get("properties")
-                        .and_then(|p| p.get("$referrer"))
-                        .and_then(|u| u.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    session_id: raw
-                        .get("distinct_id")
-                        .and_then(|d| d.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    properties: serde_json::to_string(
-                        raw.get("properties").unwrap_or(&serde_json::Value::Null),
-                    )
-                    .unwrap_or_default(),
-                };
+                let event = posthog_raw_to_event(raw, now_ms, Uuid::new_v4(), fallback_date);
                 if let Err(e) = self.db.insert_event(&event).await {
                     tracing::error!(error = %e, "failed to store PostHog event");
                 }
@@ -236,4 +221,163 @@ pub fn spawn_aggregation_loop(aggregator: Arc<Aggregator>) {
             tokio::time::sleep(interval).await;
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::analytics::AnalyticsEvent;
+    use crate::event_sink::EventSink;
+    use async_trait::async_trait;
+    use serde_json::json;
+    use std::sync::Mutex;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    struct RecordingSink(Mutex<Vec<AnalyticsEvent>>);
+
+    impl RecordingSink {
+        fn new() -> Self {
+            Self(Mutex::new(Vec::new()))
+        }
+
+        fn len(&self) -> usize {
+            self.0.lock().expect("lock").len()
+        }
+    }
+
+    #[async_trait]
+    impl EventSink for RecordingSink {
+        async fn insert_event(
+            &self,
+            event: &AnalyticsEvent,
+        ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+            self.0.lock().expect("lock").push(event.clone());
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn clarity_array_inserts_rows() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/export"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                {"URL": "https://example.com/a"},
+                {"URL": "https://example.com/b"}
+            ])))
+            .mount(&server)
+            .await;
+
+        let recording = Arc::new(RecordingSink::new());
+        let sink: Arc<dyn EventSink> = recording.clone();
+        let agg = Aggregator::with_endpoints(
+            sink,
+            Client::new(),
+            format!("{}/export", server.uri()),
+            "http://unused.test/posthog".to_string(),
+            "key".into(),
+            Some("token".into()),
+            None,
+            None,
+            None,
+        );
+
+        agg.pull_clarity().await;
+        assert_eq!(recording.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn clarity_object_root_inserts_nothing() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/export"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"rows": []})))
+            .mount(&server)
+            .await;
+
+        let recording = Arc::new(RecordingSink::new());
+        let sink: Arc<dyn EventSink> = recording.clone();
+        let agg = Aggregator::with_endpoints(
+            sink,
+            Client::new(),
+            format!("{}/export", server.uri()),
+            "http://unused.test/posthog".to_string(),
+            "key".into(),
+            Some("token".into()),
+            None,
+            None,
+            None,
+        );
+
+        agg.pull_clarity().await;
+        assert_eq!(recording.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn posthog_non_success_inserts_nothing() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/events"))
+            .respond_with(ResponseTemplate::new(429).set_body_string("rate limited"))
+            .mount(&server)
+            .await;
+
+        let recording = Arc::new(RecordingSink::new());
+        let sink: Arc<dyn EventSink> = recording.clone();
+        let agg = Aggregator::with_endpoints(
+            sink,
+            Client::new(),
+            "http://unused.test/clarity".to_string(),
+            format!("{}/events", server.uri()),
+            "key".into(),
+            None,
+            None,
+            None,
+            None,
+        );
+
+        agg.pull_posthog().await;
+        assert_eq!(recording.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn posthog_results_inserts_events() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/events"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "results": [
+                    {
+                        "event": "pageview",
+                        "timestamp": "2024-01-15T10:00:00Z",
+                        "distinct_id": "user-1",
+                        "properties": {"$current_url": "https://x.com/"}
+                    }
+                ]
+            })))
+            .mount(&server)
+            .await;
+
+        let recording = Arc::new(RecordingSink::new());
+        let sink: Arc<dyn EventSink> = recording.clone();
+        let agg = Aggregator::with_endpoints(
+            sink,
+            Client::new(),
+            "http://unused.test/clarity".to_string(),
+            format!("{}/events", server.uri()),
+            "key".into(),
+            None,
+            None,
+            None,
+            None,
+        );
+
+        agg.pull_posthog().await;
+        assert_eq!(recording.len(), 1);
+        let ev = &recording.0.lock().expect("lock")[0];
+        assert_eq!(ev.event_type, "pageview");
+        assert_eq!(ev.session_id, "user-1");
+        assert_eq!(ev.source, "posthog");
+    }
 }
