@@ -8,6 +8,7 @@
 		"build": "bun run --bun next build",
 		"start": "bun run --bun next start",
 		"lint": "bun run --bun next lint",
+		"test": "bun test lib",
 		"test:e2e:preview": "bun run scripts/e2e-preview.ts",
 		"visual-regression": "bun run scripts/visual-regression-check.ts",
 		"analytics-ingest": "cargo run --bin analytics-ingestion",

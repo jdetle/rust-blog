@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatPageLabel } from "@/lib/url-display";
 
 export interface TickerEvent {
 	event_id: string;
@@ -11,16 +12,15 @@ export interface TickerEvent {
 }
 
 function formatTickerItem(e: TickerEvent): string {
-	try {
-		const path = e.page_url ? new URL(e.page_url).pathname || "/" : "/";
-		const label =
-			e.event_type === "pageview" || e.event_type === "$pageview"
-				? "Viewed"
-				: e.event_type;
-		return `${label} ${path}`;
-	} catch {
-		return e.event_type || "event";
-	}
+	const label =
+		e.event_type === "pageview" || e.event_type === "$pageview"
+			? "Viewed"
+			: e.event_type;
+	if (!e.page_url) return label;
+	const origin =
+		typeof window !== "undefined" ? window.location.origin : undefined;
+	const short = formatPageLabel(e.page_url, origin);
+	return `${label} ${short}`;
 }
 
 interface ProfileTickerProps {
