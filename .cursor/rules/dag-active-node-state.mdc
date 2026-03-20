@@ -1,0 +1,179 @@
+---
+description: Visual patterns for showing active, pending, completed, and failed nodes in DAG UIs
+globs:
+alwaysApply: false
+---
+
+# DAG Active Node State — Visualizing Liveness in Orchestration Graphs
+
+Every node in an orchestration DAG has a lifecycle state. The visualization must communicate state without requiring hover or click. Color, animation, and iconography encode state at rest.
+
+## State Color Encoding
+
+Every orchestration system uses the same color vocabulary. Don't invent new meanings for these colors.
+
+| State | Background | Border | Icon | Animation |
+|---|---|---|---|---|
+| **Pending / Queued** | `bg-gray-100` / `bg-purple-50` | Dashed, `border-gray-300` | Clock or empty circle | None |
+| **Running** | `bg-blue-50` / `bg-cyan-50` | Solid, `border-blue-400` | Spinner or play | Pulse ring or shimmer |
+| **Completed** | `bg-green-50` | Solid, `border-green-400` | Checkmark | Brief scale-up on completion, then static |
+| **Failed** | `bg-red-50` | Solid, `border-red-400` | X mark | None (failures should be visually stable, not distracting) |
+| **Retrying** | `bg-amber-50` | Dashed, `border-amber-400` | Refresh/retry arrow | Slow pulse |
+| **Skipped** | `bg-gray-50` | Dotted, `border-gray-200` | Skip arrow | None, reduced opacity |
+| **Cancelled** | `bg-gray-100` | Solid, `border-gray-300` | Slash circle | None, reduced opacity |
+
+Use `-text` variants for any text labels inside state-colored nodes (per `color-contrast.mdc`).
+
+## Animation Patterns for Active Nodes
+
+Four patterns from production orchestration systems, ordered by visual density (least noisy to most):
+
+### 1. Shimmer sweep (best at scale)
+
+A gradient sweep across the node surface. Produces less visual noise than pulses when many nodes are active simultaneously. Dagster switched to this (PR #24390) because pulse rings didn't scale well with dozens of concurrent materializations.
+
+```css
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.node-running {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(59, 130, 246, 0.08) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+```
+
+### 2. Spinning border (React Flow's built-in)
+
+React Flow's `NodeStatusIndicator` component provides this out of the box with `loadingVariant="border"`. A `conic-gradient` rotates around the node border. Clean, compact, doesn't affect node dimensions.
+
+```css
+@keyframes spin-border {
+  to { --angle: 360deg; }
+}
+
+.node-running {
+  border: 2px solid transparent;
+  background-image:
+    linear-gradient(white, white),
+    conic-gradient(from var(--angle), #3b82f6 0%, transparent 30%, transparent 70%, #3b82f6 100%);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  animation: spin-border 1.5s linear infinite;
+}
+```
+
+### 3. Pulse ring / sonar (Dagster PR #20556)
+
+Expanding concentric rings that fade out. Good for drawing attention to a single active node. Bad when 20+ nodes pulse simultaneously (visual overload).
+
+```css
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 0.4; }
+  80% { transform: scale(1.6); opacity: 0; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+.node-running::before,
+.node-running::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  border: 2px solid currentColor;
+  animation: pulse-ring 2s ease-out infinite;
+}
+
+.node-running::after {
+  animation-delay: 0.6s;
+}
+```
+
+Use `opacity` and `transform` only — these are compositor-friendly and won't trigger layout (per `transition-property-specificity.mdc`).
+
+### 4. Animated edges (data flowing)
+
+Edges from a running node to its pending children show movement — a dot or dash pattern traveling along the edge path. React Flow supports this with SVG `animateMotion`:
+
+```tsx
+<circle r="3" fill="#3b82f6">
+  <animateMotion dur="1.5s" repeatCount="indefinite" path={edgePath} />
+</circle>
+```
+
+This is subtle but powerful for showing which parts of the graph are "hot" without adding noise to the nodes themselves.
+
+## State Transition Animations
+
+When a node changes state, animate the transition rather than snapping:
+
+| Transition | Animation |
+|---|---|
+| Pending → Running | Border color fade (150ms), shimmer/pulse starts |
+| Running → Completed | Green flash (scale 1.05 → 1.0 over 300ms), shimmer stops, check icon fades in |
+| Running → Failed | Red flash (similar to completion), X icon fades in |
+| Any → Retrying | Brief amber pulse, then slow pulse continues |
+
+Use Framer Motion's `AnimatePresence` and `motion.div` for coordinated state transitions across multiple properties. Raw CSS transitions work but are harder to orchestrate when color, border, icon, and animation all change simultaneously.
+
+```tsx
+<motion.div
+  animate={{
+    borderColor: stateColors[status].border,
+    backgroundColor: stateColors[status].bg,
+    scale: status === "completed" ? [1.05, 1.0] : 1.0,
+  }}
+  transition={{ duration: 0.2, scale: { duration: 0.3 } }}
+>
+  {children}
+</motion.div>
+```
+
+## Surfacing Active and Failed Nodes
+
+Users shouldn't have to scroll or search to find what needs attention.
+
+### Auto-pan to active region
+
+When execution starts or a failure occurs, smoothly pan the viewport to center the active/failed nodes. React Flow's `fitView` with a node filter:
+
+```typescript
+reactFlowInstance.fitView({
+  nodes: nodes.filter((n) => n.data.status === "running" || n.data.status === "failed"),
+  padding: 0.3,
+  duration: 400,
+});
+```
+
+### Sidebar summary
+
+Show a compact list of active and failed nodes in a sidebar, ordered by state priority (failed first, then running, then pending). Each entry links to the node in the graph (click to pan). Dagster's asset sidebar uses status dots for this.
+
+### Minimap coloring
+
+React Flow's `MiniMap` accepts a `nodeColor` function. Color minimap nodes by state so the user can see at a glance where activity is concentrated without inspecting individual nodes:
+
+```tsx
+<MiniMap
+  nodeColor={(node) => ({
+    running: "#3b82f6",
+    failed: "#ef4444",
+    completed: "#22c55e",
+    pending: "#d1d5db",
+  })[node.data.status] ?? "#d1d5db"}
+/>
+```
+
+## What Not to Do
+
+- Don't use `transition-all` on DAG nodes — hundreds of nodes transitioning every CSS property kills performance. Use specific transition properties (per `transition-property-specificity.mdc`).
+- Don't conditionally render DOM for state changes (`{running && <Spinner />}`). Always keep state indicators in the DOM and toggle with `opacity` (per `hover-content-jank.mdc`).
+- Don't unmount the graph to show a loading spinner during re-layout. Overlay the indicator. Users should be able to inspect the previous state while the new layout computes.
+- Don't use the same animation intensity for 1 active node and 100 active nodes. Switch from pulse rings to shimmer when > 10 nodes are active simultaneously.
