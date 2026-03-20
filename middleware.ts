@@ -4,10 +4,22 @@ import { NextResponse } from "next/server";
 /** Max cookie value length — stay under browser 4KB limit */
 const MAX_COOKIE_LENGTH = 2000;
 
+function withForwardedFor(request: NextRequest): Headers {
+	const headers = new Headers(request.headers);
+	// Next.js sets `x-forwarded-for ??= socket.remoteAddress` (base-server). Under Bun,
+	// `remoteAddress` can be undefined, which later becomes an invalid outbound header.
+	if (!headers.get("x-forwarded-for")?.trim()) {
+		headers.set("x-forwarded-for", "127.0.0.1");
+	}
+	return headers;
+}
+
 export function middleware(request: NextRequest) {
 	try {
-		const response = NextResponse.next();
 		const url = request.nextUrl;
+		const response = NextResponse.next({
+			request: { headers: withForwardedFor(request) },
+		});
 
 		// ── UTM capture ────────────────────────────────────────────────────
 		const utmKeys = [
@@ -69,7 +81,9 @@ export function middleware(request: NextRequest) {
 
 		return response;
 	} catch {
-		return NextResponse.next();
+		return NextResponse.next({
+			request: { headers: withForwardedFor(request) },
+		});
 	}
 }
 

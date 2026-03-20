@@ -28,6 +28,8 @@ bun run dev
 
 Open http://localhost:3000.
 
+**CI — PostHog ingestion check (optional):** After Vercel preview smoke, the E2E Preview workflow can run `bun run verify:posthog-ingestion` when repository secrets `POSTHOG_PERSONAL_API_KEY` and `POSTHOG_PROJECT_ID` are set. See [e2e/README.md](e2e/README.md).
+
 ### Running (Rust — analytics ingestion)
 
 Run alongside the Next.js app when Cosmos + Clarity + PostHog are configured:

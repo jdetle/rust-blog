@@ -9,7 +9,11 @@
 		"start": "bun run --bun next start",
 		"lint": "bun run --bun next lint",
 		"test": "bun test lib",
+		"test:e2e": "playwright test",
+		"test:e2e:install": "playwright install chromium",
+		"test:e2e:posthog": "playwright test e2e/posthog.spec.ts",
 		"test:e2e:preview": "bun run scripts/e2e-preview.ts",
+		"verify:posthog-ingestion": "bun run scripts/verify-posthog-ingestion.ts",
 		"visual-regression": "bun run scripts/visual-regression-check.ts",
 		"analytics-ingest": "cargo run --bin analytics-ingestion",
 		"seed:mock-analytics": "cargo run --bin seed-mock-analytics",
@@ -39,6 +43,7 @@
 		"react-dom": "^19.1.0"
 	},
 	"devDependencies": {
+		"@playwright/test": "^1.58.2",
 		"@types/node": "^22.0.0",
 		"@types/react": "^19.1.0",
 		"@types/react-dom": "^19.1.0",

@@ -1,5 +1,8 @@
 # E2E tests against Vercel deploy preview. Non-destructive (GET-only smoke tests).
 # Requires VERCEL_AUTOMATION_BYPASS_SECRET in repo secrets when deployment protection is enabled.
+#
+# Optional PostHog ingestion check (after smoke): set POSTHOG_PERSONAL_API_KEY and
+# POSTHOG_PROJECT_ID as repository secrets so preview traffic is visible in PostHog Query API.
 name: E2E Preview
 
 on:
@@ -34,3 +37,10 @@ jobs:
           PREVIEW_URL: ${{ steps.vercel.outputs.url }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: bun run test:e2e:preview
+
+      - name: Verify PostHog received events (Query API)
+        if: ${{ secrets.POSTHOG_PERSONAL_API_KEY != '' && secrets.POSTHOG_PROJECT_ID != '' }}
+        env:
+          POSTHOG_PERSONAL_API_KEY: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
+          POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+        run: bun run verify:posthog-ingestion

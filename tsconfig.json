@@ -24,6 +24,7 @@
     "scripts/ingest-env",
     "scripts/e2e-preview.ts",
     "scripts/visual-regression-check.ts",
+    "scripts/verify-posthog-ingestion.ts",
     "**/*.test.ts"
   ]
 }
