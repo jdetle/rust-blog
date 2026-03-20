@@ -1,0 +1,8 @@
+{
+  "title": "Monorepos were a mistake",
+  "author": "John Detlefs",
+  "date": "February 06, 2024",
+  "prompt": "Write a blog post about why monorepos are problematic in enterprise software engineering",
+  "defaultVersion": "original",
+  "versions": ["slop", "original", "grug", "product", "business", "engineering"]
+}

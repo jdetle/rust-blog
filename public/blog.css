@@ -1006,3 +1006,227 @@ New post skeleton:
 		padding: 0.25rem 0.55rem;
 	}
 }
+
+/* ── Multi-Version Posts: Version Tabs ──────────────────────────── */
+
+.version-tabs {
+	display: flex;
+	gap: 0;
+	margin: 0.8rem 0 0;
+	padding: 0;
+	border-bottom: 1px solid var(--line-strong);
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+	scrollbar-width: none;
+}
+
+.version-tabs::-webkit-scrollbar {
+	display: none;
+}
+
+.version-tab {
+	all: unset;
+	cursor: pointer;
+	padding: 0.5rem 0.85rem;
+	font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+	font-size: 0.8rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--muted-ink);
+	border-bottom: 2px solid transparent;
+	white-space: nowrap;
+	transition: color 140ms ease, border-color 140ms ease;
+}
+
+.version-tab:hover {
+	color: var(--ink);
+}
+
+.version-tab-active {
+	color: var(--terracotta);
+	border-bottom-color: var(--terracotta);
+	font-weight: 600;
+}
+
+/* ── Multi-Version Posts: Sidenote Layout ───────────────────────── */
+
+.article-versioned {
+	position: relative;
+}
+
+.annotated {
+	text-decoration: underline;
+	text-decoration-style: dotted;
+	text-decoration-color: var(--mustard);
+	text-underline-offset: 0.2em;
+	text-decoration-thickness: 1.5px;
+	cursor: pointer;
+}
+
+.note-ref {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	margin-left: 0.15em;
+	width: 1.2em;
+	height: 1.2em;
+	font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+	font-size: 0.65em;
+	font-weight: 700;
+	color: #fff;
+	background: var(--terracotta);
+	border-radius: 50%;
+	vertical-align: super;
+	cursor: pointer;
+	line-height: 1;
+}
+
+.note-ref:hover {
+	background: var(--ink);
+}
+
+.sidenote-column {
+	display: none;
+}
+
+.sidenote {
+	padding: 0.6rem 0.75rem;
+	background: rgba(255, 255, 255, 0.34);
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	margin-bottom: 0.7rem;
+	font-size: 0.84rem;
+	line-height: 1.55;
+	color: var(--muted-ink);
+}
+
+.sidenote-active {
+	border-color: var(--terracotta);
+	background: rgba(157, 91, 63, 0.06);
+}
+
+.sidenote-number {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.4em;
+	height: 1.4em;
+	font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+	font-size: 0.72rem;
+	font-weight: 700;
+	color: #fff;
+	background: var(--terracotta);
+	border-radius: 50%;
+	margin-right: 0.4rem;
+	flex-shrink: 0;
+	line-height: 1;
+}
+
+.sidenote-text {
+	margin: 0.25rem 0 0;
+	font-style: italic;
+}
+
+/* Mobile: footnotes appear as expandable inline panel */
+
+.footnote-mobile {
+	display: block;
+}
+
+.footnote-inline {
+	margin: 0.8rem 0;
+	padding: 0.7rem 0.9rem;
+	background: rgba(157, 91, 63, 0.06);
+	border-left: 3px solid var(--terracotta);
+	border-radius: 10px;
+	font-size: 0.88rem;
+	line-height: 1.6;
+	position: relative;
+	animation: revealFade 0.3s ease-out forwards;
+}
+
+.footnote-close {
+	all: unset;
+	position: absolute;
+	top: 0.4rem;
+	right: 0.6rem;
+	cursor: pointer;
+	font-size: 1.1rem;
+	color: var(--muted-ink);
+	line-height: 1;
+	padding: 0.2rem;
+}
+
+.footnote-close:hover {
+	color: var(--ink);
+}
+
+/* ── Multi-Version Posts: Prompt Block ──────────────────────────── */
+
+.prompt-block {
+	margin: 0.4rem 0 0;
+	padding: 0.5rem 0.75rem;
+	background: rgba(176, 138, 70, 0.06);
+	border: 1px dashed var(--line);
+	border-radius: 10px;
+	font-family: "SF Mono", "Fira Code", Menlo, monospace;
+	font-size: 0.78rem;
+	color: var(--muted-ink);
+	font-style: italic;
+}
+
+.prompt-block::before {
+	content: "Prompt: ";
+	font-style: normal;
+	font-weight: 600;
+	color: var(--olive);
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	font-size: 0.68rem;
+}
+
+/* ── Desktop: Sidenotes in margin ───────────────────────────────── */
+
+@media (min-width: 768px) {
+	.article-versioned {
+		display: grid;
+		grid-template-columns: minmax(0, var(--max-text)) 14rem;
+		gap: 1.5rem;
+	}
+
+	.article-versioned > .article-content {
+		grid-column: 1;
+	}
+
+	.sidenote-column {
+		display: block;
+		grid-column: 2;
+		grid-row: 1;
+		padding-top: 0;
+	}
+
+	.footnote-mobile {
+		display: none;
+	}
+}
+
+/* ── Mobile: narrower tabs ──────────────────────────────────────── */
+
+@media (max-width: 640px) {
+	.version-tab {
+		padding: 0.4rem 0.6rem;
+		font-size: 0.72rem;
+	}
+
+	.article-versioned {
+		display: block;
+	}
+
+	.sidenote-column {
+		display: none;
+	}
+
+	.footnote-mobile {
+		display: block;
+	}
+}
