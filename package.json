@@ -10,6 +10,7 @@
 		"lint": "bun run --bun next lint",
 		"test": "bun test lib",
 		"test:e2e:preview": "bun run scripts/e2e-preview.ts",
+		"smoke:visual": "bun run scripts/visual-smoke-test.ts",
 		"visual-regression": "bun run scripts/visual-regression-check.ts",
 		"analytics-ingest": "cargo run --bin analytics-ingestion",
 		"seed:mock-analytics": "cargo run --bin seed-mock-analytics",
@@ -39,9 +40,11 @@
 		"react-dom": "^19.1.0"
 	},
 	"devDependencies": {
+		"@anthropic-ai/sdk": "^0.80.0",
 		"@types/node": "^22.0.0",
 		"@types/react": "^19.1.0",
 		"@types/react-dom": "^19.1.0",
+		"playwright": "^1.58.2",
 		"typescript": "^5.8.0"
 	}
 }
