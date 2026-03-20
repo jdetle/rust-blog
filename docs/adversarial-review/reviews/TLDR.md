@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-03-19 share-post-tracking](./2026-03-19-share-post-tracking.md)
+  - decision: proceed with push; clean review
+  - unresolved risk: none
+  - follow-up: add clipboard .catch() for HTTP/unfocused tabs; monitor PostHog for post_shared events
+
 - [2026-03-19 analytics-mocking-llm-ticker](./2026-03-19-analytics-mocking-llm-ticker.md)
   - decision: proceed with merge; add anti-tracking guidance + reduced-motion
   - unresolved risk: LLM cost at scale; Cosmos not in CI
