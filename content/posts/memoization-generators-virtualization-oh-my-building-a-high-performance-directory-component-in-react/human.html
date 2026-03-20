@@ -1,0 +1,99 @@
+            <p>Developers often pretend to know what they&#x27;re doing, especially when they&#x27;re insecure newer developers like myself! Sometimes we happen to stumble upon interesting patterns, think they&#x27;re elegant, and get attached to them rather than using the solution that performs better. In the course of building a file directory, I gleaned some interesting insights into recursion, search, memoization, virtualization, and generator functions. The path getting there exposed me to concepts that I haven&#x27;t really dealt with since my algorithms course in college. Fortunately, my first slow-but-elegant solution, a recursive react component, was supplanted by the use of generator functions in <code>react-vtree</code>, an equally interesting technology. Dealing with folder-based file systems has been one of the more rewarding small features I&#x27;ve had the opportunity to work in my short career.</p>
+            <hr>
+            <p>The idea of a folder-based file system is a ubiquitous abstraction in software. A folder-based filesystem exists as a tree structure. Each folder either contains files which can be thought of as leaf nodes in the tree structure or folders that have the aforementioned folder as a parent.</p>
+            <p>A Glossary for Terms in this Post:</p>
+            <ol>
+            <li><strong>Tree</strong> ← A set of elements where each element has only one parent, which may be itself (called a root node). All paths to a root node are unique → <strong>Directory</strong></li>
+            <li><strong>Node</strong> ← Any element in the tree → <strong>Folder or File</strong></li>
+            <li><strong>Leaf</strong> ← Any node in the tree without children → *<em>File</em></li>
+            </ol>
+            <p>Viewing a set of folders in a directory reveals a clear hierarchy in that we can conditionally render children based on some a folder&#x27;s particular ‘hide/show’ icon that handles click and keypress events.</p>
+            <p>In the course of building a new product for my employer, Meshify, we worked on building a Directory that could:</p>
+            <ul>
+            <li>Search by folder or filename and highlight matched text from the search</li>
+            <li>Highlight a selected folder based on a url <code>folderId</code> parameter</li>
+            <li>Show and hide folder contents from click events</li>
+            <li>Be able to handle ~10K+ folders without crashing or being overly laggy.</li>
+            </ul>
+            <p>I wish I could say that I knew what I was doing when I started working on this problem. The first two insights I had regarded how to store and pass folder data and how to search recursively across folders.</p>
+            <p>Each folder in the list contains a parent folder id. Using this relationship, the list can be iterated over to return a set of children belonging to that folder. We should only have to do this once, invalidating data only on changes to the list of folders. This is the perfect case for a lookup table and memoization. In my case, I decided on a <code>Map</code> data structure and the <code>useMemo</code> hook. It’s worth noting that the use of object and memoization tools from another framework can work as well.</p>
+            <p>While being sure to write meaningful tests on different mocked folder lists, I built out the functionality for creating a memoized map that recomputes data associated with
+The code that I ended up setting on looks like the folder provider in this example <a href="https://codesandbox.io/embed/recursing-chandrasekhar-q7z8r?fontsize=14&amp;hidenavigation=1&amp;theme=dark">Folder Provider</a>.</p>
+            <p>If you want to take anything away from the code above, the most useful part in my mind me was this code snippet.</p>
+            <pre><code class="language-plain text">const childrenMatch = annotatedRoot.children
+        .map(childContainsMatch)
+        .some(Boolean); // same as .some(item =&gt; item == true)</code></pre>
+            <p>A child of a folder can contain a match to search text such that if any folder matches the search text somewhere deep in the tree, all of the folders in the path between the root folders and that folder have the information requisite to display their contents. The folder might need to be open even when a folder does not match the search text provided. In the case that a folder contains other folders, we need to use recursion to search those child folders for any elements that match independent of that folder&#x27;s depth.</p>
+            <p>By knowing that we are guaranteed a return when we reach a folder without any children (you can think of this as a file if that helps), we should avoid potential stack overflow errors. The array method <code>Array.prototype.some</code> in this context will exit as soon as it finds one true return from <code>childContainsMatch</code>.</p>
+            <p>Given this map, we are able to build out a Directory component that handles most of the work we need to do (in theory, more to be revealed).
+Initially, the component I built look something like this:</p>
+            <h2>Control Flow for Folder Component</h2>
+            <ul>
+            <li>Get Folder Info from Map given folder id</li>
+            <li><em>If</em> the folder has children:<ul>
+            <li><em>If</em> search text is present:<ul>
+            <li><em>If</em> this folder name matches search:<ul>
+            <li>Render Name with highlighted search text, show/hide icon with event handlers</li>
+            </ul></li>
+            <li><em>Else</em>:<ul>
+            <li><em>If</em> this folder contains children that match or this folder is set to open:<ul>
+            <li>Map across this folders children, return new Folder component for each</li>
+            </ul></li>
+            </ul></li>
+            </ul></li>
+            <li><em>Else</em>:<ul>
+            <li>Render name &amp; show/hide icon with event handlers</li>
+            <li><em>If</em> the folder is set to open:<ul>
+            <li>Map across children, return new Folder component for each</li>
+            </ul></li>
+            </ul></li>
+            </ul></li>
+            <li><em>Else</em> (is a leaf node):<ul>
+            <li><em>If</em> search text is present:<ul>
+            <li>If name matches search:<ul>
+            <li>Render file name with search highlighting</li>
+            </ul></li>
+            </ul></li>
+            <li><em>Else</em>:<ul>
+            <li>Render file name</li>
+            </ul></li>
+            </ul></li>
+            </ul>
+            <p>As you can see, in the case that a folder has children, the Folder component renders itself recursively! Some of you may not think that’s cool, but it’s the first time I&#x27;ve had a compelling need to use recursion with a React component and I think it’s damn cool.</p>
+            <p>Unfortunately, this scheme doesn&#x27;t perform amazingly with large lists of folders. After some investigation, it was pretty clear that there weren&#x27;t unnecessary re-renders or obviously slow performance issues in the <code>FolderProvider</code> component. The unfortunate truth was that, in some cases, we were simply rendering too many things at once. Without changing any backend APIs, the best solution seemed to be virtualization. After using Twitter to ask what the current state of virtualization was, I was made aware of react-window. Scrolling through the readme of react-window led me to <a href="https://github.com/Lodin/react-vtree">react-vtree</a>. The npm package &quot;provides a lightweight and flexible solution for rendering large tree structures&quot;, just what I was looking for.</p>
+            <p>Would it surprise you if I told you that this added even more complexity to the problem?</p>
+            <p><code>react-vtree</code> is a quick and practical introduction to the utility of generator functions, as well as virtualization. The core functionality of react-vtree lies in a <code>treeWalker</code> generator function that is taken as a prop.</p>
+            <pre><code class="language-plain text">// In the component enclosing the scope of the tree walker funciton
+const { annotatedFolderMap, searchText } = useContext(FolderContext)
+
+function * treeWalker(refresh) { 
+   const stack = []
+   rootFolders.forEach(folder =&gt; { 
+      const data = annotatedFolderMap.get(folder.id)
+      if (searchText !== &quot;&quot; &amp;&amp; isVisible) {
+         stack.push(data);
+      } else {
+         stack.push(folder)
+      }
+  })
+  while (stack.length !== 0) {
+     const currentFolder = stack.pop()
+     const isOpen = yield refresh ? { currentFolderData } : id
+     if (currentFolder.children.length &gt; 0 &amp;&amp; isOpen) {
+        children.map(child =&gt; {  
+           const data = annotatedFolderMap.get(currentFolder.id)
+           if (searchText !== &quot;&quot; &amp;&amp; isVisible) {
+              stack.push(data);
+           } else {
+             if (searchText === &quot;&quot;) {
+                stack.push(data);
+             }
+           }
+        })
+     } 
+   }
+}</code></pre>
+            <p>The function <code>treeWalker</code> here is an example of lazily computed values. The tree that consumes the treeWalker function, looks up the default state for whether the particular folder is open, call this variable <code>defaultIsOpen</code>. The tree then sends that data back to the <code>treeWalker</code> function through the line <code>const {value, done} = iter.next(defaultIsOpen)</code>. The const <code>isOpen</code> in the while loop is set through that call to <code>iter.next</code>. No data is collected unless we are sure it is a member of an open directory or it is a root folder. It is worth noting that the tree walker function is not as lazy as it could be, in that data that is not being rendered can still be collected as a result of calling this generator. This generator function is called any time a node&#x27;s is open state is changed via the provided <code>toggle</code> function.</p>
+            <p><code>react-vtree</code> is build on top of <a href="https://github.com/bvaughn/react-window">react-window</a>. <code>react-window</code> is a virtualization tool, which means that it only renders items that are viewable within your window. The savings are two-fold, less unneccessary data is saved and no unnecessary nodes are rendered. Of course, there is no longer the interesting use of recursion; one can take solace in the fact that this solution uses some of the most modern features of Javascript and the react ecosystem to suitably render thousands of folders <em>blazingly</em> fast.</p>
+            <p>Heres a gif of the final product:</p>
+            <p>In retrospect, the process of building this component mirrored the adage &quot;make it work, make it pretty, and then make it fast&quot;. I wish I could say I knew what I was doing, but I happened to luckily stumble on a convenient separation of concerns. By separating the data concerns from the actual rendered view, the process of refactoring this work to go from using a bespoke, recursive tree component to a virtualized tree with <code>react-vtree</code> was remarkably painless.</p>

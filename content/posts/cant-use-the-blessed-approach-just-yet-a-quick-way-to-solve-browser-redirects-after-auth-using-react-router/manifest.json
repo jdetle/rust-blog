@@ -1,0 +1,11 @@
+{
+	"title": "Cant use the blessed approach just yet? A quick way to solve browser redirects after auth using react-router",
+	"author": "John Detlefs",
+	"date": "May 07, 2020",
+	"defaultVersion": "human",
+	"versions": ["human", "ai"],
+	"authorship": {
+		"human": "human",
+		"ai": "ai"
+	}
+}

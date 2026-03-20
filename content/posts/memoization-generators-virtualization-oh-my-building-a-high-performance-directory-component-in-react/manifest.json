@@ -1,0 +1,11 @@
+{
+	"title": "Memoization, Generators, Virtualization, Oh my! Building a High Performance Directory Component in React",
+	"author": "John Detlefs",
+	"date": "April 12, 2020",
+	"defaultVersion": "human",
+	"versions": ["human", "ai"],
+	"authorship": {
+		"human": "human",
+		"ai": "ai"
+	}
+}

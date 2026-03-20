@@ -63,7 +63,6 @@ const VERSION_AUTHORSHIP: Record<string, Authorship> = {
 	product: "ai",
 	business: "ai",
 	engineering: "ai",
-	original: "human",
 	human: "human",
 };
 
