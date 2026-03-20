@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-03-19 who-are-you-event-viz](./2026-03-19-who-are-you-event-viz.md)
+  - decision: proceed with push; URL decode + viz UI low-risk
+  - unresolved risk: my-events query abuse (same as prior); odd `%` edge cases in stored URLs
+  - follow-up: optional rate-limit; Web Vitals subsection later
+
 - [2026-03-19 analytics-mocking-llm-ticker](./2026-03-19-analytics-mocking-llm-ticker.md)
   - decision: proceed with merge; add anti-tracking guidance + reduced-motion
   - unresolved risk: LLM cost at scale; Cosmos not in CI
