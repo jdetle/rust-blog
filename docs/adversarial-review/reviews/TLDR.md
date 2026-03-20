@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-03-20 who-are-you-picture-copy](./2026-03-20-who-are-you-picture-copy.md)
+  - decision: proceed with push; copy-only, aligns with plain-language UX feedback
+  - unresolved risk: “fingerprint shown above” assumes scroll order on small viewports
+  - follow-up: optional anchor link to fingerprint section if users report confusion
+
 - [2026-03-19 who-are-you-event-viz](./2026-03-19-who-are-you-event-viz.md)
   - decision: proceed with push; URL decode + viz UI low-risk
   - unresolved risk: my-events query abuse (same as prior); odd `%` edge cases in stored URLs
