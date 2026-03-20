@@ -1202,8 +1202,17 @@ export function ClientProfile({
 			<section className="detect-section">
 				<h2>Your Picture (building as you browse)</h2>
 				<p className="detect-note">
-					Events stream in like a ticker — the more you interact, the richer it
-					gets.
+					Not a photograph — a <strong>running sketch</strong> built from what
+					analytics already log: which pages you opened, roughly when, and what
+					kind of action it was. You don&apos;t have to type your name; that
+					trail alone is still enough for stats, campaign measurement, and
+					follow-up ads elsewhere.
+				</p>
+				<p className="detect-note">
+					Below, each line is one stored event, tied to this browser the same
+					way the site usually does it (visitor id from the analytics cookie
+					plus the fingerprint shown above). The strip scrolls like a news
+					ticker; the more you browse, the longer the sketch gets.
 				</p>
 				<ProfileTicker events={userEvents} loading={userEventsLoading} />
 			</section>
@@ -1212,8 +1221,8 @@ export function ClientProfile({
 			<section className="detect-section">
 				<h2>Your Event History</h2>
 				<p className="detect-note">
-					Events from PostHog and the analytics warehouse, associated with your
-					fingerprint or distinct_id.
+					Same events as above, in a list: pulled from the site analytics
+					pipeline and matched to this browser.
 				</p>
 				{userEventsLoading && <p className="detect-note">Loading&hellip;</p>}
 				{userEventsError && (
