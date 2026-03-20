@@ -17,6 +17,12 @@ export type AnalyticsUserEvent = {
 	event_time?: number;
 };
 
+/** Fixed 24 hourly slots for the last-24h histogram (stable React keys). */
+const HOUR_BUCKETS = Array.from({ length: 24 }, (_, slot) => ({
+	id: `hour-bucket-${slot}`,
+	slot,
+}));
+
 function sourceClass(source: string): string {
 	const s = source.toLowerCase();
 	if (s === "posthog") return "event-viz-source--posthog";
@@ -82,6 +88,24 @@ export function EventHistoryViz({ events }: { events: AnalyticsUserEvent[] }) {
 
 	const maxDay = Math.max(1, ...countsByDay.map(([, n]) => n));
 
+	const countsByHour24 = useMemo(() => {
+		const now = Date.now();
+		const start = now - 24 * 60 * 60 * 1000;
+		const buckets = new Array<number>(24).fill(0);
+		for (const e of events) {
+			const t = getEventTimeMs(e);
+			if (t < start || t > now) continue;
+			const idx = Math.min(
+				23,
+				Math.max(0, Math.floor((t - start) / (60 * 60 * 1000))),
+			);
+			buckets[idx] += 1;
+		}
+		return buckets;
+	}, [events]);
+
+	const maxHour = Math.max(1, ...countsByHour24);
+
 	const sources = useMemo(() => {
 		const u = new Set(events.map((e) => e.source));
 		return [...u].sort();
@@ -96,6 +120,49 @@ export function EventHistoryViz({ events }: { events: AnalyticsUserEvent[] }) {
 					</span>
 				))}
 			</section>
+
+			{countsByHour24.some((n) => n > 0) && (
+				<div className="event-viz-density event-viz-density--hours">
+					<div className="event-viz-density-label">
+						Last 24 hours (one bar per hour)
+					</div>
+					<div
+						className="event-viz-density-bars event-viz-density-bars--compact"
+						role="img"
+						aria-label="Event count per hour in the last 24 hours"
+					>
+						{HOUR_BUCKETS.map(({ id, slot }) => {
+							const count = countsByHour24[slot] ?? 0;
+							const hourAgo = 23 - slot;
+							return (
+								<div
+									key={id}
+									className="event-viz-density-cell"
+									title={`~${hourAgo}h ago: ${count} event${count === 1 ? "" : "s"}`}
+								>
+									<div className="event-viz-density-bar-wrap">
+										<motion.div
+											className="event-viz-density-bar event-viz-density-bar--hour"
+											initial={reduceMotion ? false : { height: "0%" }}
+											animate={{
+												height: `${Math.max(8, (count / maxHour) * 100)}%`,
+											}}
+											transition={{
+												type: "spring",
+												stiffness: 320,
+												damping: 26,
+											}}
+										/>
+									</div>
+									<span className="event-viz-density-day event-viz-hour-tick">
+										{slot % 6 === 0 ? `${hourAgo}h` : ""}
+									</span>
+								</div>
+							);
+						})}
+					</div>
+				</div>
+			)}
 
 			{countsByDay.length > 0 && (
 				<div className="event-viz-density">

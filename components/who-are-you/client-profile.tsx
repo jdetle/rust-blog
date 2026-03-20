@@ -1,7 +1,11 @@
 "use client";
 
 import posthog from "posthog-js";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+	aggregateThirdPartyResources,
+	computeExposureScore,
+} from "@/lib/third-party-resources";
 import type {
 	ClientSignals,
 	EdgeSignals,
@@ -10,7 +14,12 @@ import type {
 } from "@/lib/vpn-detect";
 import { analyzeClientServerMismatch, computeVerdict } from "@/lib/vpn-detect";
 import { EventHistoryViz } from "./event-history-viz";
+import { ExposureMeter } from "./exposure-meter";
+import { HeatmapGhostIllustration } from "./heatmap-ghost-illustration";
+import { IdentityStitchingDiagram } from "./identity-stitching";
 import { ProfileTicker } from "./profile-ticker";
+import { ThirdPartyConstellation } from "./third-party-constellation";
+import { TrackerCapabilityMatrix } from "./tracker-capability-matrix";
 
 interface ServerGeo {
 	ip: string | null;
@@ -335,6 +344,11 @@ export function ClientProfile({
 	const [userEventsLoading, setUserEventsLoading] = useState(false);
 	const [userEventsError, setUserEventsError] = useState<string | null>(null);
 	const [llmSummary, setLlmSummary] = useState<string | null>(null);
+	const [thirdPartyHostCount, setThirdPartyHostCount] = useState(0);
+	const [gtmPresent, setGtmPresent] = useState(false);
+	const [distinctIdDisplay, setDistinctIdDisplay] = useState<string | null>(
+		null,
+	);
 
 	const detectAll = useCallback(async () => {
 		const profile: DetectedProfile = {};
@@ -757,6 +771,45 @@ export function ClientProfile({
 			.finally(() => setUserEventsLoading(false));
 	}, [loaded, fingerprint]);
 
+	useEffect(() => {
+		const t = window.setTimeout(() => {
+			try {
+				const origin = window.location.origin;
+				const entries = performance.getEntriesByType(
+					"resource",
+				) as PerformanceResourceTiming[];
+				setThirdPartyHostCount(
+					aggregateThirdPartyResources(origin, entries).length,
+				);
+			} catch {
+				setThirdPartyHostCount(0);
+			}
+		}, 2100);
+		return () => window.clearTimeout(t);
+	}, []);
+
+	useEffect(() => {
+		if (!loaded) return;
+		const t = window.setTimeout(() => {
+			setGtmPresent(
+				!!(window as { google_tag_manager?: unknown }).google_tag_manager,
+			);
+			setDistinctIdDisplay(posthog.get_distinct_id?.() ?? null);
+		}, 400);
+		return () => window.clearTimeout(t);
+	}, [loaded]);
+
+	const exposureScore = useMemo(() => {
+		if (!vpnAssessment) return null;
+		return computeExposureScore({
+			activeTrackerCount: analyticsTools.filter((x) => x.active).length,
+			thirdPartyHostCount,
+			storedEventCount: userEvents.length,
+			vpnVerdict: vpnAssessment.verdict,
+			vpnConfidence: vpnAssessment.confidence,
+		});
+	}, [vpnAssessment, analyticsTools, userEvents.length, thirdPartyHostCount]);
+
 	// Fetch LLM-generated profile summary (from Rust aggregator)
 	useEffect(() => {
 		if (!loaded) return;
@@ -865,6 +918,15 @@ export function ClientProfile({
 						{vpnAssessment.signals.map((s) => (
 							<SignalRow key={s.name} signal={s} />
 						))}
+					</div>
+				)}
+
+				{vpnAssessment && exposureScore !== null && (
+					<div className="exposure-inline">
+						<h3 className="exposure-inline-title">
+							Commercial tracking surface
+						</h3>
+						<ExposureMeter value={exposureScore} />
 					</div>
 				)}
 			</section>
@@ -1033,6 +1095,19 @@ export function ClientProfile({
 				</dl>
 			</section>
 
+			{/* ── Identity stitching (illustrative) ─────────────────────── */}
+			<section className="detect-section">
+				<h2>How identifiers stitch together</h2>
+				<IdentityStitchingDiagram
+					canvasFingerprint={fingerprint}
+					distinctId={distinctIdDisplay}
+					hasFirstPartyCookie={
+						typeof document !== "undefined" &&
+						document.cookie.includes("fingerprint=")
+					}
+				/>
+			</section>
+
 			{/* ── How You Got Here ──────────────────────────────────────── */}
 			<section className="detect-section">
 				<h2>How You Got Here</h2>
@@ -1050,6 +1125,19 @@ export function ClientProfile({
 					/>
 					<DetectRow id="utm" label="UTM tags" value={referral.utm ?? null} />
 				</dl>
+			</section>
+
+			{/* ── Third-party request map ───────────────────────────────── */}
+			<section className="detect-section">
+				<h2>Third-party request map</h2>
+				<ThirdPartyConstellation />
+			</section>
+
+			{/* ── Tracker capability matrix (documented) ─────────────────── */}
+			<section className="detect-section">
+				<h2>What common analytics tools can do</h2>
+				<TrackerCapabilityMatrix />
+				<HeatmapGhostIllustration />
 			</section>
 
 			{/* ── How to reduce what sites know ───────────────────────────── */}
@@ -1101,6 +1189,13 @@ export function ClientProfile({
 						</li>
 					))}
 				</ul>
+				{gtmPresent ? (
+					<p className="detect-note gtm-callout">
+						<strong>Google Tag Manager</strong> is present. It can load
+						additional tags not listed here &mdash; treat the list above as a{" "}
+						<strong>lower bound</strong>.
+					</p>
+				) : null}
 			</section>
 
 			{/* ── Profile Ticker (picture building) ─────────────────────────── */}
