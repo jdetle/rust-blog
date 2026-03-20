@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { AnimatedFrame } from "@/components/animated-frame";
+import { MultiVersionBody } from "@/components/multi-version-body";
 import { NavRow } from "@/components/nav-row";
 import { PostReadTracker } from "@/components/post-read-tracker";
 import { getAllPosts, getPost } from "@/lib/posts";
@@ -26,9 +28,11 @@ export default async function PostPage({ params }: Props) {
 	const post = getPost(slug);
 	if (!post) notFound();
 
+	const isMulti = post.kind === "multi";
+
 	return (
 		<main className="site-shell">
-			<AnimatedFrame className="article">
+			<AnimatedFrame className={isMulti ? "" : "article"}>
 				<header className="list-header">
 					<p className="eyebrow">Essay</p>
 					<h1 className="page-title">{post.title}</h1>
@@ -41,11 +45,17 @@ export default async function PostPage({ params }: Props) {
 					)}
 				</header>
 
-				<article
-					className="article-content"
-					// biome-ignore lint/security/noDangerouslySetInnerHtml: post body from trusted content/posts HTML files
-					dangerouslySetInnerHTML={{ __html: post.bodyHtml }}
-				/>
+				{isMulti ? (
+					<Suspense fallback={null}>
+						<MultiVersionBody post={post} />
+					</Suspense>
+				) : (
+					<article
+						className="article-content"
+						// biome-ignore lint/security/noDangerouslySetInnerHtml: post body from trusted content/posts HTML files
+						dangerouslySetInnerHTML={{ __html: post.bodyHtml }}
+					/>
+				)}
 
 				<PostReadTracker slug={slug} title={post.title} />
 				<NavRow />
