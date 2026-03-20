@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { getAllPosts, getPost } from "./posts";
 
-const SLUG = "how-prompt-engineering-landed-me-in-a-mental-hospital";
+const SLUG = "how-agentic-engineering-landed-me-in-a-mental-hospital";
 const DIR = join(process.cwd(), "content", "posts", SLUG);
 
 describe("mental health post — discovery & parsing", () => {
@@ -39,7 +39,7 @@ describe("mental health post — discovery & parsing", () => {
 	test("title is parsed correctly", () => {
 		const post = getPost(SLUG);
 		expect(post?.title).toBe(
-			"How Prompt Engineering Landed Me in a Mental Hospital",
+			"How Agentic Engineering Landed Me in a Mental Hospital",
 		);
 	});
 

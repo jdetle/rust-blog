@@ -24,7 +24,7 @@ if (bypassSecret) {
 	headers["x-vercel-protection-bypass"] = bypassSecret;
 }
 
-const POST_SLUG = "how-prompt-engineering-landed-me-in-a-mental-hospital";
+const POST_SLUG = "how-agentic-engineering-landed-me-in-a-mental-hospital";
 let failed = 0;
 let passed = 0;
 

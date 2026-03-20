@@ -6,7 +6,7 @@ const AI_FILE = join(
 	process.cwd(),
 	"content",
 	"posts",
-	"how-prompt-engineering-landed-me-in-a-mental-hospital",
+	"how-agentic-engineering-landed-me-in-a-mental-hospital",
 	"versions",
 	"ai.html",
 );
