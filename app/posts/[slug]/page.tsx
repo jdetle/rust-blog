@@ -5,6 +5,7 @@ import { AnimatedFrame } from "@/components/animated-frame";
 import { MultiVersionBody } from "@/components/multi-version-body";
 import { NavRow } from "@/components/nav-row";
 import { PostReadTracker } from "@/components/post-read-tracker";
+import { ReadingProgress } from "@/components/reading-progress";
 import { ShareBar } from "@/components/share-bar";
 import { getAllPosts, getPost } from "@/lib/posts";
 
@@ -54,6 +55,8 @@ export default async function PostPage({ params }: Props) {
 	const isMulti = post.kind === "multi";
 
 	return (
+		<>
+		<ReadingProgress />
 		<main className="site-shell">
 			<AnimatedFrame className={isMulti ? "" : "article"}>
 				<header className="list-header">
@@ -85,5 +88,6 @@ export default async function PostPage({ params }: Props) {
 				<NavRow />
 			</AnimatedFrame>
 		</main>
+		</>
 	);
 }

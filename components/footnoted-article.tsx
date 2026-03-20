@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { PostNote } from "@/lib/posts";
 
 interface FootnotedArticleProps {
@@ -8,8 +8,14 @@ interface FootnotedArticleProps {
 	notes: PostNote[];
 }
 
+/**
+ * Tufte-style sidenotes: on desktop, each note is positioned at the same
+ * vertical offset as its anchor in the text. A greedy push-down algorithm
+ * prevents overlap. On mobile, notes expand inline.
+ */
 export function FootnotedArticle({ bodyHtml, notes }: FootnotedArticleProps) {
 	const articleRef = useRef<HTMLDivElement>(null);
+	const sideRef = useRef<HTMLDivElement>(null);
 	const [expandedNote, setExpandedNote] = useState<number | null>(null);
 
 	const toggleNote = useCallback(
@@ -44,6 +50,35 @@ export function FootnotedArticle({ bodyHtml, notes }: FootnotedArticleProps) {
 			span.appendChild(sup);
 		}
 	}, [bodyHtml, notesMap]);
+
+	// Position sidenotes aligned to their anchors (desktop)
+	useLayoutEffect(() => {
+		const article = articleRef.current;
+		const sidebar = sideRef.current;
+		if (!article || !sidebar) return;
+
+		const sideChildren = sidebar.querySelectorAll<HTMLElement>(".sidenote");
+		if (sideChildren.length === 0) return;
+
+		const articleRect = article.getBoundingClientRect();
+		let lastBottom = 0;
+		const minGap = 8;
+
+		for (const child of sideChildren) {
+			const noteId = Number(child.dataset.forNote);
+			const anchor = article.querySelector<HTMLElement>(`[data-note="${noteId}"]`);
+			if (!anchor) continue;
+
+			const anchorRect = anchor.getBoundingClientRect();
+			const desiredTop = anchorRect.top - articleRect.top;
+			const top = Math.max(desiredTop, lastBottom);
+
+			child.style.position = "absolute";
+			child.style.top = `${top}px`;
+
+			lastBottom = top + child.offsetHeight + minGap;
+		}
+	}, [bodyHtml, notes]);
 
 	useEffect(() => {
 		const el = articleRef.current;
@@ -98,12 +133,16 @@ export function FootnotedArticle({ bodyHtml, notes }: FootnotedArticleProps) {
 				dangerouslySetInnerHTML={{ __html: bodyHtml }}
 			/>
 
-			<aside className="sidenote-column" aria-label="Author notes">
-				{notes.map((note) => (
+			<aside ref={sideRef} className="sidenote-column" aria-label="Author notes">
+				{notes.map((note, i) => (
 					<div
 						key={note.id}
 						className={`sidenote${expandedNote === note.id ? " sidenote-active" : ""}`}
 						data-for-note={note.id}
+						style={{
+							opacity: 0,
+							animation: `sidenoteFadeIn 0.3s ease-out ${i * 0.08}s forwards`,
+						}}
 					>
 						<span className="sidenote-number">{note.id}</span>
 						<p className="sidenote-text">{note.note}</p>
