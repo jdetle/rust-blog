@@ -1,6 +1,7 @@
 "use client";
 
 import { parseAsStringLiteral, useQueryState } from "nuqs";
+import { AuthorshipBadge } from "@/components/authorship-badge";
 import { FootnotedArticle } from "@/components/footnoted-article";
 import { VersionTabs } from "@/components/version-tabs";
 import type { MultiVersionPost } from "@/lib/posts";
@@ -34,6 +35,10 @@ export function MultiVersionBody({ post }: MultiVersionBodyProps) {
 				versions={post.versions}
 				defaultVersion={post.defaultVersion}
 			/>
+
+			<div style={{ margin: "0.6rem 0 0.8rem" }}>
+				<AuthorshipBadge authorship={current.authorship} />
+			</div>
 
 			{showPrompt && <div className="prompt-block">{post.prompt}</div>}
 

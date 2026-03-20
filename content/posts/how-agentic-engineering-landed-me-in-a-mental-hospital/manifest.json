@@ -1,0 +1,16 @@
+{
+	"title": "How Agentic Engineering Landed Me in a Mental Hospital",
+	"author": "John Detlefs",
+	"date": "March 20, 2026",
+	"defaultVersion": "human",
+	"versions": ["human", "ai"],
+	"authorship": {
+		"human": "human",
+		"ai": "ai"
+	},
+	"heroImage": {
+		"url": "https://images.unsplash.com/photo-1527137342181-19aab11a8ee8?w=1400&q=80&auto=format&fit=crop",
+		"alt": "Window light in dark room",
+		"credit": "Photo by Sasha Freemind on Unsplash"
+	}
+}

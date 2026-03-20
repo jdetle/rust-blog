@@ -1,0 +1,16 @@
+{
+	"title": "Second post",
+	"author": "John Detlefs",
+	"date": "",
+	"defaultVersion": "human",
+	"versions": ["human", "ai"],
+	"authorship": {
+		"human": "human",
+		"ai": "ai"
+	},
+	"heroImage": {
+		"url": "https://images.unsplash.com/photo-1471107340929-a87cd0f5b5f3?w=1400&q=80&auto=format&fit=crop",
+		"alt": "Notebook and coffee on a wooden desk",
+		"credit": "Photo by Aaron Burden on Unsplash"
+	}
+}
