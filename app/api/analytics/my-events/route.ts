@@ -8,6 +8,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { fetchEventsByDistinctId, fetchEventsByQuery } from "@/lib/posthog-api";
+import { safeDecodeUriComponent } from "@/lib/url-display";
 
 export interface UnifiedEvent {
 	event_id: string;
@@ -76,7 +77,7 @@ export async function GET(request: NextRequest) {
 							event_id: e.event_id,
 							event_type: e.event_type,
 							source: "warehouse",
-							page_url: e.page_url ?? "",
+							page_url: safeDecodeUriComponent(e.page_url ?? ""),
 							event_date: e.event_date ?? "",
 							event_time: e.event_time,
 						};
@@ -116,7 +117,8 @@ export async function GET(request: NextRequest) {
 				const date =
 					e.timestamp?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
 				const rawUrl = (e.properties as Record<string, unknown>)?.$current_url;
-				const pageUrl = typeof rawUrl === "string" ? rawUrl : "";
+				const pageUrl =
+					typeof rawUrl === "string" ? safeDecodeUriComponent(rawUrl) : "";
 				const ev: UnifiedEvent = {
 					event_id: e.id ?? `ph-${e.timestamp}-${e.event}`,
 					event_type: e.event ?? "unknown",

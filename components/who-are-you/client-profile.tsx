@@ -9,6 +9,7 @@ import type {
 	VpnSignal,
 } from "@/lib/vpn-detect";
 import { analyzeClientServerMismatch, computeVerdict } from "@/lib/vpn-detect";
+import { EventHistoryViz } from "./event-history-viz";
 import { ProfileTicker } from "./profile-ticker";
 
 interface ServerGeo {
@@ -328,6 +329,7 @@ export function ClientProfile({
 			source: string;
 			page_url: string;
 			event_date: string;
+			event_time?: number;
 		}[]
 	>([]);
 	const [userEventsLoading, setUserEventsLoading] = useState(false);
@@ -1130,19 +1132,7 @@ export function ClientProfile({
 					</p>
 				)}
 				{!userEventsLoading && !userEventsError && userEvents.length > 0 && (
-					<ul className="post-list" style={{ marginTop: "0.5rem" }}>
-						{userEvents.map((e) => (
-							<li key={e.event_id}>
-								<div>
-									<span className="post-title">{e.event_type}</span>
-									<span className="post-kicker">
-										{e.source} &middot; {e.event_date}
-										{e.page_url ? ` &middot; ${e.page_url}` : ""}
-									</span>
-								</div>
-							</li>
-						))}
-					</ul>
+					<EventHistoryViz events={userEvents} />
 				)}
 			</section>
 
