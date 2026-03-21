@@ -7,6 +7,7 @@ import { HeroImage } from "@/components/hero-image";
 import { MultiVersionBody } from "@/components/multi-version-body";
 import { NavRow } from "@/components/nav-row";
 import { PostReadTracker } from "@/components/post-read-tracker";
+import { ReadingProgress } from "@/components/reading-progress";
 import { ShareBar } from "@/components/share-bar";
 import { getAllPosts, getPost, estimateReadingTime } from "@/lib/posts";
 
@@ -62,6 +63,8 @@ export default async function PostPage({ params }: Props) {
 	const readTime = estimateReadingTime(bodyHtml);
 
 	return (
+		<>
+		<ReadingProgress />
 		<main className="site-shell">
 			<AnimatedFrame className={isMulti ? "" : "article"}>
 				{heroImage && <HeroImage hero={heroImage} />}
@@ -100,5 +103,6 @@ export default async function PostPage({ params }: Props) {
 				<NavRow />
 			</AnimatedFrame>
 		</main>
+		</>
 	);
 }
