@@ -1,0 +1,103 @@
+---
+description: Tests must not hardcode content directory paths — use the content API or a shared resolver
+alwaysApply: true
+---
+
+# Test Content Indirection — Learned from CI breakage after directory restructuring
+
+Three test files hardcoded filesystem paths like `join(process.cwd(), "content", "posts", SLUG, "versions", "ai.html")` to read post content directly. When the directory structure was reorganized (`content/posts/` → `posts/YYYY-qN/`), the content API (`getPost`, `getAllPosts`) was updated but every test that bypassed the API and constructed its own path broke with `ENOENT`. Additionally, six CSS assertion tests checked for class definitions that were never added to `blog.css` — they were aspirational assertions that shipped broken and stayed broken on `main` for days without anyone noticing because the test step failure was treated as "known flaky."
+
+## The Rules
+
+### 1. Never hardcode content directory structure in tests
+
+Tests that need to read raw file content (HTML, JSON, CSS) must resolve the path through a shared helper or the content API — never by manually constructing a path with knowledge of the directory layout.
+
+```typescript
+// WRONG — hardcodes directory structure, breaks on reorganization
+const AI_FILE = join(process.cwd(), "content", "posts", SLUG, "versions", "ai.html");
+const body = readFileSync(AI_FILE, "utf-8");
+
+// WRONG — still hardcodes, just a different structure
+const AI_FILE = join(process.cwd(), "posts", "2026-q1", SLUG, "versions", "ai.html");
+
+// RIGHT — use the content API, which knows the current structure
+import { getPost } from "@/lib/posts";
+const post = getPost(SLUG);
+const body = post?.kind === "multi"
+  ? post.versions.find(v => v.key === "ai")?.bodyHtml ?? ""
+  : "";
+
+// RIGHT (when you genuinely need the raw file) — use a resolver
+import { resolvePostPath } from "@/lib/posts";
+const aiPath = resolvePostPath(SLUG, "versions/ai.html");
+const body = readFileSync(aiPath, "utf-8");
+```
+
+When a test genuinely needs raw file access (e.g., checking HTML structure, not just content), the content module should export a path resolver that encapsulates the directory structure. The test calls the resolver; only the resolver knows where files live.
+
+### 2. Never ship tests that assert things that don't exist yet
+
+Every test assertion must verify **existing behavior**, not **intended future behavior**. If CSS classes haven't been written yet, the test should not exist yet. Tests are verification, not specification.
+
+```typescript
+// WRONG — asserts CSS that was never written; ships broken, stays broken
+test("defines accountability-table styling", () => {
+  expect(css).toContain(".accountability-table {");
+});
+
+// RIGHT — only add this test after the CSS exists and is verified working
+// Or, if writing test-first: the test must be in the same commit/PR as the implementation
+```
+
+If you genuinely want test-driven development (write test first, then implement), both the test and the implementation must land in the same PR. A test that ships without its implementation is a broken test, not TDD.
+
+### 3. CI failures on main must be fixed immediately
+
+A failing CI on `main` is not "known flaky" — it's a broken build. When CI fails on `main`:
+
+1. Stop all feature work
+2. Fix the failure on `main` directly (or revert the breaking commit)
+3. Only resume feature work after `main` is green
+
+Letting `main` stay red normalizes failure. Every subsequent PR's CI failure becomes ambiguous: "is this my fault or the pre-existing thing?" This ambiguity is exactly how the CSS test failures survived for days.
+
+### 4. One content structure, one source of truth
+
+The directory structure for content must be defined in exactly one place — the content module (`lib/posts.ts`). Everything else (tests, scripts, CI, smoke tests) must go through that module or its exports. If three files independently construct `content/posts/...` paths, that's three places that break when the structure changes instead of one.
+
+| Accessor | Allowed? | Why |
+|---|---|---|
+| `getPost(slug)` | Yes | API returns parsed content |
+| `getAllPosts()` / `getAllQuarters()` | Yes | API returns all content |
+| `resolvePostPath(slug, subpath)` | Yes (if exported) | Centralizes path knowledge |
+| `join(process.cwd(), "posts", quarter, slug, ...)` | No | Duplicates structural knowledge |
+| `readFileSync("content/posts/...")` | No | Hardcodes a structure that may change |
+
+## Quick Test: Is My Test Fragile?
+
+Before writing a test that reads from the filesystem, ask:
+
+1. Does this test construct a path using more than one directory segment beyond `process.cwd()`? → Use the content API instead
+2. If the content directory were renamed tomorrow, would this test break? → It's fragile; use a resolver
+3. Does this test assert something that doesn't exist in the codebase yet? → Ship the implementation first
+
+## Origin
+
+- **Failure 1**: Three test files (`mental-health-voice.test.ts`, `mental-health-content.test.ts`, `posts-mental-health.test.ts`) hardcoded `content/posts/` paths that broke when content moved to `posts/YYYY-qN/`
+- **Failure 2**: Six CSS tests in `mental-health-content.test.ts` asserted class definitions (`.accountability-table`, `.video-embed`, `.timeline-marker`, `.authorship-badge`, `details`, `::-webkit-details-marker`) that were never added to `blog.css` — tests were aspirational and shipped broken
+- **Date**: 2026-03-21
+- **Root cause**: Tests duplicated knowledge of the content directory structure instead of using the content API; CSS tests asserted intended-but-unimplemented styles
+- **PR**: feat/quarter-timeline-posts (#37)
+
+## Detection Acceleration
+
+- **Level**: CI
+  **What was added**: The CSS and path fixes landed in PR #37. Once merged, `main` CI will be green for the first time since `5a49610`.
+  **Diagnosis time before**: 6 CSS tests failed silently on `main` for days; path failures appeared only after restructuring
+  **Diagnosis time after**: This rule prevents both patterns at authoring time
+
+- **Level**: Editor (this rule)
+  **What was added**: Always-applied Cursor rule that instructs agents to use the content API for test file access and never ship assertions without implementations.
+  **Diagnosis time before**: Agent writes `join(process.cwd(), "content", "posts", ...)` and the failure appears only after the next directory change
+  **Diagnosis time after**: Agent sees this rule and uses `getPost()` or a resolver instead
