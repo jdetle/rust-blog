@@ -359,6 +359,121 @@ h1 {
 	font-size: 1.2rem;
 }
 
+/* ── Quarter timeline ─────────────────────────────── */
+
+.quarter-timeline {
+	position: relative;
+	padding-left: 2rem;
+	margin: 2rem 0 1rem;
+}
+
+.quarter-timeline::before {
+	content: "";
+	position: absolute;
+	left: 0.45rem;
+	top: 0;
+	bottom: 0;
+	width: 2px;
+	background: linear-gradient(to bottom, var(--terracotta) 0%, var(--line) 100%);
+	border-radius: 1px;
+}
+
+.quarter-group {
+	position: relative;
+	margin-bottom: 2.2rem;
+}
+
+.quarter-group:last-child {
+	margin-bottom: 0;
+}
+
+.quarter-marker {
+	position: absolute;
+	left: -2rem;
+	top: 0.1rem;
+	width: 0.9rem;
+	height: 0.9rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.quarter-marker::before {
+	content: "";
+	width: 0.55rem;
+	height: 0.55rem;
+	border-radius: 50%;
+	background: var(--terracotta);
+	border: 2px solid var(--paper);
+	box-shadow: 0 0 0 1px var(--terracotta);
+}
+
+.quarter-group:first-child .quarter-marker::before {
+	width: 0.7rem;
+	height: 0.7rem;
+	background: var(--terracotta);
+	box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px var(--terracotta);
+}
+
+.quarter-label {
+	font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+	font-size: var(--text-sm);
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--terracotta);
+	margin: 0 0 0.6rem;
+	line-height: 1;
+}
+
+.quarter-posts {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.quarter-posts li {
+	margin-bottom: 0.15rem;
+}
+
+.quarter-posts a {
+	display: block;
+	text-decoration: none;
+	padding: 0.55rem 0.65rem;
+	border-radius: 8px;
+	transition: background-color 140ms ease;
+}
+
+.quarter-posts a:hover {
+	background: rgba(184, 148, 58, 0.08);
+}
+
+.quarter-post-title {
+	font-family: "SF Pro Display", "Avenir Next", "Segoe UI", Arial, sans-serif;
+	font-size: var(--text-base);
+	font-weight: 500;
+	color: var(--ink);
+	display: flex;
+	align-items: baseline;
+	gap: 0.4rem;
+	flex-wrap: wrap;
+}
+
+.quarter-post-date {
+	font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+	font-size: var(--text-xs);
+	color: var(--muted-ink);
+	letter-spacing: 0.02em;
+	margin-top: 0.15rem;
+}
+
+.quarter-post-reading-time {
+	font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+	font-size: var(--text-xs);
+	color: var(--olive);
+	opacity: 0.8;
+}
+
 .byline {
 	margin: 0.25rem 0 1.2rem;
 	font-size: 0.9rem;
@@ -1579,6 +1694,18 @@ New post skeleton:
 
 	.post-title {
 		font-size: 1.08rem;
+	}
+
+	.quarter-timeline {
+		padding-left: 1.5rem;
+	}
+
+	.quarter-marker {
+		left: -1.5rem;
+	}
+
+	.quarter-posts a {
+		padding: 0.45rem 0.4rem;
 	}
 
 	.panel {

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { getAllPosts, getPost } from "./posts";
 
 const SLUG = "how-agentic-engineering-landed-me-in-a-mental-hospital";
-const DIR = join(process.cwd(), "content", "posts", SLUG);
+const DIR = join(process.cwd(), "posts", "2026-q1", SLUG);
 
 describe("mental health post — discovery & parsing", () => {
 	test("post directory exists on disk", () => {

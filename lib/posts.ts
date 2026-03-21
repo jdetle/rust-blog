@@ -1,9 +1,4 @@
-import {
-	existsSync,
-	readFileSync,
-	readdirSync,
-	statSync,
-} from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 export type Authorship = "human" | "ai";
@@ -52,6 +47,12 @@ export interface MultiVersionPost {
 
 export type AnyPost = Post | MultiVersionPost;
 
+export interface Quarter {
+	id: string;
+	label: string;
+	posts: AnyPost[];
+}
+
 const VERSION_LABELS: Record<string, string> = {
 	slop: "AI Slop",
 	original: "Original",
@@ -73,44 +74,29 @@ const VERSION_AUTHORSHIP: Record<string, Authorship> = {
 	human: "human",
 };
 
-const CONTENT_DIR = join(process.cwd(), "content", "posts");
+const POSTS_DIR = join(process.cwd(), "posts");
+const QUARTER_RE = /^\d{4}-q[1-4]$/;
 
-function parseHtmlPost(filename: string): Post | null {
-	const slug = filename.replace(/\.html$/, "");
-	const raw = readFileSync(join(CONTENT_DIR, filename), "utf-8");
+const QUARTER_NAMES: Record<string, string> = {
+	q1: "Jan – Mar",
+	q2: "Apr – Jun",
+	q3: "Jul – Sep",
+	q4: "Oct – Dec",
+};
 
-	const titleMatch = raw.match(/<title>(.*?)<\/title>/);
-	const title = titleMatch ? titleMatch[1] : slug;
-
-	const bylineMatch = raw.match(
-		/<p class="byline">\s*(?:By\s+)?(.*?)\s*·\s*(.*?)\s*<\/p>/,
-	);
-	const author = bylineMatch ? bylineMatch[1].trim() : "John Detlefs";
-	const date = bylineMatch ? bylineMatch[2].trim() : "";
-
-	const authorshipMatch = raw.match(
-		/<meta\s+name="authorship"\s+content="(human|ai)"/,
-	);
-	const authorship: Authorship = authorshipMatch?.[1] === "ai" ? "ai" : "human";
-
-	const bodyMatch = raw.match(
-		/<article class="article-content">([\s\S]*?)<\/article>/,
-	);
-	const bodyHtml = bodyMatch ? bodyMatch[1].trim() : "";
-
-	if (!bodyHtml) return null;
-
-	return { kind: "single", slug, title, date, author, authorship, bodyHtml };
+function quarterLabel(id: string): string {
+	const [year, q] = id.split("-");
+	return `${QUARTER_NAMES[q] ?? q} ${year}`;
 }
 
-function parseMultiVersionPost(dirName: string): MultiVersionPost | null {
-	const dirPath = join(CONTENT_DIR, dirName);
+function parseMultiVersionPost(
+	dirPath: string,
+	slug: string,
+): MultiVersionPost | null {
 	const manifestPath = join(dirPath, "manifest.json");
-
 	if (!existsSync(manifestPath)) return null;
 
 	const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
-
 	const versionAuthorship: Record<string, Authorship> =
 		manifest.authorship ?? {};
 
@@ -151,8 +137,8 @@ function parseMultiVersionPost(dirName: string): MultiVersionPost | null {
 
 	return {
 		kind: "multi",
-		slug: dirName,
-		title: manifest.title ?? dirName,
+		slug,
+		title: manifest.title ?? slug,
 		date: manifest.date ?? "",
 		author: manifest.author ?? "John Detlefs",
 		authorship: topAuthorship,
@@ -165,7 +151,10 @@ function parseMultiVersionPost(dirName: string): MultiVersionPost | null {
 }
 
 export function estimateReadingTime(html: string): number {
-	const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+	const text = html
+		.replace(/<[^>]+>/g, " ")
+		.replace(/\s+/g, " ")
+		.trim();
 	const words = text.split(" ").length;
 	return Math.max(1, Math.ceil(words / 230));
 }
@@ -175,40 +164,49 @@ function parseDateString(dateStr: string): number {
 	return Number.isNaN(d.getTime()) ? 0 : d.getTime();
 }
 
-export function getAllPosts(): AnyPost[] {
-	const entries = readdirSync(CONTENT_DIR);
-
+function scanQuarterDir(quarterDir: string): AnyPost[] {
+	if (!existsSync(quarterDir)) return [];
 	const posts: AnyPost[] = [];
-
-	for (const entry of entries) {
-		if (entry === "index.html") continue;
-
-		const fullPath = join(CONTENT_DIR, entry);
-		const stat = statSync(fullPath);
-
-		if (stat.isDirectory()) {
-			const multi = parseMultiVersionPost(entry);
-			if (multi) posts.push(multi);
-		} else if (entry.endsWith(".html")) {
-			const single = parseHtmlPost(entry);
-			if (single && single.bodyHtml.length > 0) posts.push(single);
-		}
+	for (const entry of readdirSync(quarterDir)) {
+		const fullPath = join(quarterDir, entry);
+		if (!statSync(fullPath).isDirectory()) continue;
+		const post = parseMultiVersionPost(fullPath, entry);
+		if (post) posts.push(post);
 	}
-
 	posts.sort((a, b) => parseDateString(b.date) - parseDateString(a.date));
 	return posts;
 }
 
-export function getPost(slug: string): AnyPost | null {
-	const dirPath = join(CONTENT_DIR, slug);
-	if (existsSync(dirPath) && statSync(dirPath).isDirectory()) {
-		return parseMultiVersionPost(slug);
-	}
+export function getAllQuarters(): Quarter[] {
+	const entries = readdirSync(POSTS_DIR).filter(
+		(e) => QUARTER_RE.test(e) && statSync(join(POSTS_DIR, e)).isDirectory(),
+	);
+	entries.sort().reverse();
 
-	const filename = `${slug}.html`;
-	try {
-		return parseHtmlPost(filename);
-	} catch {
-		return null;
+	const quarters: Quarter[] = [];
+	for (const id of entries) {
+		const posts = scanQuarterDir(join(POSTS_DIR, id));
+		if (posts.length > 0) {
+			quarters.push({ id, label: quarterLabel(id), posts });
+		}
 	}
+	return quarters;
+}
+
+export function getAllPosts(): AnyPost[] {
+	return getAllQuarters().flatMap((q) => q.posts);
+}
+
+export function getPost(slug: string): AnyPost | null {
+	const entries = readdirSync(POSTS_DIR).filter(
+		(e) => QUARTER_RE.test(e) && statSync(join(POSTS_DIR, e)).isDirectory(),
+	);
+
+	for (const quarter of entries) {
+		const dirPath = join(POSTS_DIR, quarter, slug);
+		if (existsSync(dirPath) && statSync(dirPath).isDirectory()) {
+			return parseMultiVersionPost(dirPath, slug);
+		}
+	}
+	return null;
 }
