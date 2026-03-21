@@ -2,6 +2,7 @@
 	"title": "Agentic Engineering Explained",
 	"author": "John Detlefs",
 	"date": "March 15, 2026",
+	"draft": true,
 	"defaultVersion": "human",
 	"versions": ["human", "ai"],
 	"authorship": {

@@ -2,6 +2,7 @@
 	"title": "Checking in",
 	"author": "John Detlefs",
 	"date": "February 06, 2024",
+	"draft": true,
 	"defaultVersion": "human",
 	"versions": ["human", "ai"],
 	"authorship": {
