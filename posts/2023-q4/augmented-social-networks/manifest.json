@@ -2,6 +2,7 @@
 	"title": "Augmented Social Networks",
 	"author": "John Detlefs",
 	"date": "December 14, 2023",
+	"draft": true,
 	"defaultVersion": "human",
 	"versions": ["human", "ai"],
 	"authorship": {

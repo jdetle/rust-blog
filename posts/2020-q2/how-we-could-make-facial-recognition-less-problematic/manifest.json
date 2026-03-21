@@ -2,6 +2,7 @@
 	"title": "How We Could Make Facial Recognition Less Problematic",
 	"author": "John Detlefs",
 	"date": "June 18, 2020",
+	"draft": true,
 	"defaultVersion": "human",
 	"versions": ["human", "ai"],
 	"authorship": {

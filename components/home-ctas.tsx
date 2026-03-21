@@ -13,21 +13,27 @@ export function HomeCtas() {
 			>
 				Read the blog
 			</Link>
-			<Link
-				className="btn btn-secondary"
-				href="/who-are-you"
-				onClick={() => posthog.capture("cta_clicked", { label: "who_are_you" })}
-			>
-				Who are you?
-			</Link>
 			<a
 				className="btn btn-secondary"
-				href="mailto:"
+				href="https://www.linkedin.com/in/jdetlefs/"
+				target="_blank"
+				rel="noopener noreferrer"
 				onClick={() =>
-					posthog.capture("cta_clicked", { label: "get_in_touch" })
+					posthog.capture("cta_clicked", { label: "linkedin" })
 				}
 			>
-				Get in touch
+				LinkedIn
+			</a>
+			<a
+				className="btn btn-secondary"
+				href="https://github.com/jdetle"
+				target="_blank"
+				rel="noopener noreferrer"
+				onClick={() =>
+					posthog.capture("cta_clicked", { label: "github" })
+				}
+			>
+				GitHub
 			</a>
 		</div>
 	);

@@ -8,11 +8,11 @@ import "@/posts/blog.css";
 
 export const metadata: Metadata = {
 	title: {
-		default: "John Detlefs - Journal",
+		default: "John Detlefs",
 		template: "%s - John Detlefs",
 	},
 	description:
-		"Essays on reliability and product craft by John Detlefs, Senior Cloud Developer.",
+		"Production systems, debugging war stories, and hard-won lessons from shipping software at GoDaddy and PwC.",
 };
 
 export default function RootLayout({
