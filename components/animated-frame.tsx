@@ -26,32 +26,3 @@ export function AnimatedFrame({
 		</motion.div>
 	);
 }
-
-/** Section-level entrance for use inside article content */
-export function AnimatedSection({
-	children,
-	className = "",
-	delay = 0,
-}: {
-	children: React.ReactNode;
-	className?: string;
-	delay?: number;
-}) {
-	const reduceMotion = useReducedMotion();
-
-	return (
-		<motion.div
-			className={className}
-			initial={reduceMotion ? false : { opacity: 0, y: 6 }}
-			whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-			viewport={{ once: true, amount: 0.15 }}
-			transition={{
-				duration: reduceMotion ? 0 : 0.4,
-				delay: reduceMotion ? 0 : delay,
-				ease: "easeOut",
-			}}
-		>
-			{children}
-		</motion.div>
-	);
-}
