@@ -35,8 +35,12 @@ async function main(): Promise<void> {
 			});
 		} catch (err) {
 			console.warn(
-				`PostHog verify attempt ${attempt}/${MAX_ATTEMPTS}: fetch error — ${err instanceof Error ? err.message : err}`,
+				`PostHog verify attempt ${attempt}/${MAX_ATTEMPTS}: fetch error — ${err instanceof Error ? err.message : err}. Retry in ${DELAY_MS}ms…`,
 			);
+			if (attempt < MAX_ATTEMPTS) {
+				await sleep(DELAY_MS);
+			}
+			continue;
 		}
 
 		if (count !== null && count >= 1) {
@@ -62,6 +66,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-	console.error("PostHog verify script failed:", err);
+	console.error("PostHog verify unexpected error:", err);
 	process.exit(1);
 });
