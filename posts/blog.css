@@ -2423,3 +2423,24 @@ New post skeleton:
 	background: rgba(176, 112, 80, 0.1);
 	border: 1px solid rgba(176, 112, 80, 0.3);
 }
+
+/* ── Writing Scaffold (visible unfinished post) ──────────────── */
+
+.writing-scaffold {
+	border: 2px dashed var(--terracotta);
+	border-radius: 12px;
+	padding: 1.2rem 1.4rem;
+	background: rgba(176, 112, 80, 0.04);
+}
+
+.writing-scaffold em {
+	display: block;
+	padding: 0.8rem 1rem;
+	margin: 0.4rem 0;
+	background: rgba(184, 148, 58, 0.08);
+	border-left: 3px solid var(--mustard);
+	border-radius: 0 8px 8px 0;
+	color: var(--muted-ink);
+	font-size: 0.92rem;
+	line-height: 1.55;
+}

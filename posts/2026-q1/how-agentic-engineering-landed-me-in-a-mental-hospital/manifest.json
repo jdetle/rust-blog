@@ -2,7 +2,7 @@
 	"title": "How Agentic Engineering Landed Me in a Mental Hospital",
 	"author": "John Detlefs",
 	"date": "March 20, 2026",
-	"draft": true,
+	"draft": false,
 	"defaultVersion": "human",
 	"versions": ["human", "ai"],
 	"authorship": {
