@@ -43,6 +43,7 @@ export interface MultiVersionPost {
 	versions: PostVersion[];
 	notes: Record<string, PostNote[]>;
 	heroImage?: HeroImage;
+	draft?: boolean;
 }
 
 export type AnyPost = Post | MultiVersionPost;
@@ -76,6 +77,21 @@ const VERSION_AUTHORSHIP: Record<string, Authorship> = {
 
 const POSTS_DIR = join(process.cwd(), "posts");
 const QUARTER_RE = /^\d{4}-q[1-4]$/;
+
+const isDev = process.env.NODE_ENV === "development";
+
+function isAiOnly(post: AnyPost): boolean {
+	if (post.kind === "multi") {
+		return post.versions.every((v) => v.authorship === "ai");
+	}
+	return post.authorship === "ai";
+}
+
+function isHiddenInProd(post: AnyPost): boolean {
+	if (isDev) return false;
+	if (post.kind === "multi" && post.draft) return true;
+	return isAiOnly(post);
+}
 
 const QUARTER_NAMES: Record<string, string> = {
 	q1: "Jan – Mar",
@@ -147,6 +163,7 @@ function parseMultiVersionPost(
 		versions,
 		notes,
 		heroImage,
+		draft: manifest.draft === true ? true : undefined,
 	};
 }
 
@@ -171,7 +188,7 @@ function scanQuarterDir(quarterDir: string): AnyPost[] {
 		const fullPath = join(quarterDir, entry);
 		if (!statSync(fullPath).isDirectory()) continue;
 		const post = parseMultiVersionPost(fullPath, entry);
-		if (post) posts.push(post);
+		if (post && !isHiddenInProd(post)) posts.push(post);
 	}
 	posts.sort((a, b) => parseDateString(b.date) - parseDateString(a.date));
 	return posts;
@@ -221,5 +238,7 @@ export function resolvePostPath(slug: string, subpath: string): string | null {
 export function getPost(slug: string): AnyPost | null {
 	const dirPath = resolvePostDir(slug);
 	if (!dirPath) return null;
-	return parseMultiVersionPost(dirPath, slug);
+	const post = parseMultiVersionPost(dirPath, slug);
+	if (post && isHiddenInProd(post)) return null;
+	return post;
 }
