@@ -22,7 +22,7 @@ const endpoints = [
   { path: "/", name: "home" },
   { path: "/posts", name: "posts" },
   { path: "/posts/2020-year-in-review", name: "post detail" },
-  { path: "/posts/how-prompt-engineering-landed-me-in-a-mental-hospital", name: "mental health post" },
+  { path: "/posts/how-agentic-engineering-landed-me-in-a-mental-hospital", name: "mental health post" },
   { path: "/who-are-you", name: "who-are-you" },
 ];
 

@@ -2,18 +2,15 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const FILE = join(
+const AI_FILE = join(
 	process.cwd(),
 	"content",
 	"posts",
-	"how-prompt-engineering-landed-me-in-a-mental-hospital.html",
+	"how-agentic-engineering-landed-me-in-a-mental-hospital",
+	"versions",
+	"ai.html",
 );
-const html = readFileSync(FILE, "utf-8");
-
-const bodyMatch = html.match(
-	/<article class="article-content">([\s\S]*?)<\/article>/,
-);
-const body = bodyMatch ? bodyMatch[1] : "";
+const body = readFileSync(AI_FILE, "utf-8");
 
 describe("mental health post — banned AI phrases (blog-voice.mdc)", () => {
 	const bannedPhrases = [

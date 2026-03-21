@@ -380,4 +380,55 @@ mod tests {
         assert_eq!(ev.session_id, "user-1");
         assert_eq!(ev.source, "posthog");
     }
+
+    /// Seeded random walk: varied `results` lengths and distinct_ids; each cycle must insert N rows.
+    #[tokio::test]
+    async fn posthog_pull_random_walk_inserts_expected_count() {
+        use rand::Rng;
+        use rand::SeedableRng;
+        use rand_chacha::ChaCha8Rng;
+
+        let mut rng = ChaCha8Rng::seed_from_u64(42);
+
+        for _ in 0..20 {
+            let n = rng.gen_range(1..=25_usize);
+            let mut results = Vec::new();
+            for i in 0..n {
+                results.push(json!({
+                    "event": format!("evt_{i}"),
+                    "timestamp": "2024-01-15T10:00:00Z",
+                    "distinct_id": format!("user-{}", rng.gen::<u32>()),
+                    "properties": {"$current_url": "https://example.com/p"}
+                }));
+            }
+
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/events"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "results": results })))
+                .mount(&server)
+                .await;
+
+            let recording = Arc::new(RecordingSink::new());
+            let sink: Arc<dyn EventSink> = recording.clone();
+            let agg = Aggregator::with_endpoints(
+                sink,
+                Client::new(),
+                "http://unused.test/clarity".to_string(),
+                format!("{}/events", server.uri()),
+                "key".into(),
+                None,
+                None,
+                None,
+                None,
+            );
+
+            agg.pull_posthog().await;
+            assert_eq!(
+                recording.len(),
+                n,
+                "pull_posthog should insert one row per PostHog result"
+            );
+        }
+    }
 }

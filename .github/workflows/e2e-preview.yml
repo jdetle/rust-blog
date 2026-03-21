@@ -1,5 +1,8 @@
 # E2E tests against Vercel deploy preview. Non-destructive (GET-only smoke tests).
 # Requires VERCEL_AUTOMATION_BYPASS_SECRET in repo secrets when deployment protection is enabled.
+#
+# Optional PostHog ingestion check (after smoke): set POSTHOG_PERSONAL_API_KEY and
+# POSTHOG_PROJECT_ID as repository secrets so preview traffic is visible in PostHog Query API.
 name: E2E Preview
 
 on:
@@ -34,3 +37,20 @@ jobs:
           PREVIEW_URL: ${{ steps.vercel.outputs.url }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: bun run test:e2e:preview
+
+      # Optional: verify read/list APIs when repo secrets are set (GET-only / HogQL).
+      - name: Verify analytics read APIs
+        if: ${{ (secrets.POSTHOG_PERSONAL_API_KEY != '' && secrets.POSTHOG_PROJECT_ID != '') || secrets.CLARITY_EXPORT_TOKEN != '' || secrets.ANALYTICS_API_URL != '' || (secrets.PLAUSIBLE_API_KEY != '' && (secrets.PLAUSIBLE_SITE_ID != '' || secrets.NEXT_PUBLIC_PLAUSIBLE_DOMAIN != '')) }}
+        env:
+          POSTHOG_PERSONAL_API_KEY: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
+          POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+          CLARITY_EXPORT_TOKEN: ${{ secrets.CLARITY_EXPORT_TOKEN }}
+          CLARITY_EXPORT_URL: ${{ secrets.CLARITY_EXPORT_URL }}
+          PLAUSIBLE_API_KEY: ${{ secrets.PLAUSIBLE_API_KEY }}
+          PLAUSIBLE_SITE_ID: ${{ secrets.PLAUSIBLE_SITE_ID }}
+          NEXT_PUBLIC_PLAUSIBLE_DOMAIN: ${{ secrets.NEXT_PUBLIC_PLAUSIBLE_DOMAIN }}
+          ANALYTICS_API_URL: ${{ secrets.ANALYTICS_API_URL }}
+          POSTHOG_VERIFY_HOURS: ${{ vars.POSTHOG_VERIFY_HOURS }}
+          POSTHOG_VERIFY_ATTEMPTS: ${{ vars.POSTHOG_VERIFY_ATTEMPTS }}
+          POSTHOG_VERIFY_DELAY_MS: ${{ vars.POSTHOG_VERIFY_DELAY_MS }}
+        run: bun run verify:analytics-read-apis

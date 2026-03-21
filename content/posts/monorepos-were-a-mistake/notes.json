@@ -1,22 +1,58 @@
 {
-  "grug": [
-    { "id": 1, "note": "The grug voice is fun but I never actually feel violent about this stuff. The frustration is more of a slow burn — you watch the same anti-pattern play out at company after company and start to wonder if anyone reads postmortems." },
-    { "id": 2, "note": "This is actually the core of what I was trying to say, but grug-ifying it strips out the organizational nuance. It's not just about trust — it's about incentive structures that reward team-level metrics over company-level outcomes." },
-    { "id": 3, "note": "OK this one is genuinely true. I've watched a VP kill a monorepo proposal because of the word 'mono.' Branding matters more than technical merit in enterprise decisions, which is depressing but useful to know." }
-  ],
-  "product": [
-    { "id": 1, "note": "The PM framing immediately jumps to 'delivery velocity' which is fine but misses the human cost. Developers aren't just slower — they're demoralized by spending their days as code plumbers. That's a retention risk, not just a velocity metric." },
-    { "id": 2, "note": "This is correct but sanitized. 'Invisible friction' is PM-speak for 'your developers want to quit because they spend 40% of their time on yak-shaving that shouldn't exist.'" },
-    { "id": 3, "note": "Reframing is the one thing the AI nailed across every version. I wish I'd been this explicit about it in my original post." }
-  ],
-  "business": [
-    { "id": 1, "note": "The business version immediately reaches for 'superlinear scaling' language that no exec I've worked with would actually use. They'd say 'it gets worse fast' and leave it at that." },
-    { "id": 2, "note": "This is the most AI-brained sentence in the whole set. 'Senior engineers spend a disproportionate amount of time' — yeah, we know. The question is whether leadership sees that as a problem or as the cost of doing business. Most choose the latter." },
-    { "id": 3, "note": "Invoking Google and Meta is the classic consultant move and it drives me nuts. Your 200-person company is not Google. The reasons Google uses a monorepo have almost nothing to do with why your team should." }
-  ],
-  "engineering": [
-    { "id": 1, "note": "Conway's Law is the right framing but the AI treats it as settled wisdom. In practice, I've seen plenty of teams where the repo structure doesn't mirror org structure at all — it mirrors whoever set up the repo three years ago and left the company." },
-    { "id": 2, "note": "This is the strongest paragraph across all versions and it's the one I wish I'd written. The build graph argument is genuinely compelling and I completely undersold it in my original." },
-    { "id": 3, "note": "CODEOWNERS as a governance mechanism sounds great in theory. In practice it becomes a bottleneck because the people listed as owners are always the busiest people on the team and reviews pile up." }
-  ]
+	"grug": [
+		{
+			"id": 1,
+			"note": "The grug voice is fun but I never actually feel violent about this stuff. The frustration is more of a slow burn — you watch the same anti-pattern play out at company after company and start to wonder if anyone reads postmortems."
+		},
+		{
+			"id": 2,
+			"note": "This is actually the core of what I was trying to say, but grug-ifying it strips out the organizational nuance. It's not just about trust — it's about incentive structures that reward team-level metrics over company-level outcomes."
+		},
+		{
+			"id": 3,
+			"note": "OK this one is genuinely true. I've watched a VP kill a monorepo proposal because of the word 'mono.' Branding matters more than technical merit in enterprise decisions, which is depressing but useful to know."
+		}
+	],
+	"product": [
+		{
+			"id": 1,
+			"note": "The PM framing immediately jumps to 'delivery velocity' which is fine but misses the human cost. Developers aren't just slower — they're demoralized by spending their days as code plumbers. That's a retention risk, not just a velocity metric."
+		},
+		{
+			"id": 2,
+			"note": "This is correct but sanitized. 'Invisible friction' is PM-speak for 'your developers want to quit because they spend 40% of their time on yak-shaving that shouldn't exist.'"
+		},
+		{
+			"id": 3,
+			"note": "Reframing is the one thing the AI nailed across every version. I wish I'd been this explicit about it in my original post."
+		}
+	],
+	"business": [
+		{
+			"id": 1,
+			"note": "The business version immediately reaches for 'superlinear scaling' language that no exec I've worked with would actually use. They'd say 'it gets worse fast' and leave it at that."
+		},
+		{
+			"id": 2,
+			"note": "This is the most AI-brained sentence in the whole set. 'Senior engineers spend a disproportionate amount of time' — yeah, we know. The question is whether leadership sees that as a problem or as the cost of doing business. Most choose the latter."
+		},
+		{
+			"id": 3,
+			"note": "Invoking Google and Meta is the classic consultant move and it drives me nuts. Your 200-person company is not Google. The reasons Google uses a monorepo have almost nothing to do with why your team should."
+		}
+	],
+	"engineering": [
+		{
+			"id": 1,
+			"note": "Conway's Law is the right framing but the AI treats it as settled wisdom. In practice, I've seen plenty of teams where the repo structure doesn't mirror org structure at all — it mirrors whoever set up the repo three years ago and left the company."
+		},
+		{
+			"id": 2,
+			"note": "This is the strongest paragraph across all versions and it's the one I wish I'd written. The build graph argument is genuinely compelling and I completely undersold it in my original."
+		},
+		{
+			"id": 3,
+			"note": "CODEOWNERS as a governance mechanism sounds great in theory. In practice it becomes a bottleneck because the people listed as owners are always the busiest people on the team and reviews pile up."
+		}
+	]
 }
