@@ -9,6 +9,7 @@
 		"start": "bun run --bun next start",
 		"lint": "bun run --bun next lint",
 		"test": "bun test lib",
+		"test:ci": "bash scripts/test-ci.sh",
 		"test:e2e": "playwright test",
 		"test:e2e:install": "playwright install chromium",
 		"test:e2e:posthog": "playwright test e2e/posthog.spec.ts",

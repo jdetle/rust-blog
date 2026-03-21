@@ -9,7 +9,23 @@ Two distinct Bun test runner bugs caused the CI `lint-build-test` job to hang in
 
 ## The Rules
 
-### 1. Never run `bun test --coverage` against tests that spawn background processes
+### 1. Always use `scripts/test-ci.sh` to run tests
+
+Never invoke `bun test` with a bare directory glob in CI or pre-push hooks. Use `scripts/test-ci.sh`, which handles platform detection, core-aware parallelism, batching, and timeouts automatically.
+
+```yaml
+# ci.yml
+- name: Unit tests (lib)
+  run: bash scripts/test-ci.sh
+  timeout-minutes: 2
+```
+
+```json
+// package.json
+"test:ci": "bash scripts/test-ci.sh"
+```
+
+### 2. Never run `bun test --coverage` against tests that spawn background processes
 
 Tests that call `Bun.spawn()`, `child_process.exec()`, or launch background shell scripts prevent the coverage instrumentation from completing. The LCOV reporter waits for all spawned processes to exit, but orphaned background processes (e.g., PR pollers, watchers) never do.
 
@@ -32,53 +48,51 @@ coveragePathIgnorePatterns = [
 ]
 ```
 
-### 2. Always set step-level timeouts on CI test steps
+### 3. Always set step-level timeouts on CI test steps
 
 ```yaml
-- name: Run unit tests with coverage
-  run: bun run test:ci
-  timeout-minutes: 5
+- name: Run unit tests
+  run: bash scripts/test-ci.sh
+  timeout-minutes: 2
 ```
 
-If `bun test` hangs, the step is killed after 5 minutes instead of consuming the full job timeout (default 360 minutes on GitHub Actions).
+If `bun test` hangs, the step is killed after 2 minutes instead of consuming the full job timeout (default 360 minutes on GitHub Actions).
 
-### 3. On macOS, batch test files in groups of <= 5
+### 4. On macOS, batch test files in groups of <= 5
 
 `bun test` on macOS (as of v1.3.x) deadlocks when invoked with 7+ test files. All tests pass and results are printed, but the process never exits. This does **not** happen on Linux.
 
-**In `test-ci.sh`**, detect the platform and batch accordingly:
+`scripts/test-ci.sh` handles this automatically: it detects macOS (no `timeout` command available) and batches files in groups of 5.
+
+### 5. On Linux, split files across parallel processes by core count
+
+`bun test` runs all files in a single process sequentially. To use multiple cores, `test-ci.sh` splits files round-robin across `$(nproc)` parallel `bun test` processes, each wrapped in `timeout`.
 
 ```bash
-HAS_TIMEOUT=false
-command -v timeout &>/dev/null && HAS_TIMEOUT=true
-
-if $HAS_TIMEOUT; then
-  # Linux: single invocation with safety timeout
-  timeout 90 bun test "${paths[@]}"
-else
-  # macOS: batch in groups of 5
-  while [ "$i" -lt "${#paths[@]}" ]; do
-    batch=("${paths[@]:i:5}")
-    bun test "${batch[@]}"
-    i=$(( i + 5 ))
-  done
-fi
+# What test-ci.sh does on Linux with 4 cores and 7 test files:
+timeout 60 bun test --bail=1 file1.test.ts file5.test.ts &   # core 0
+timeout 60 bun test --bail=1 file2.test.ts file6.test.ts &   # core 1
+timeout 60 bun test --bail=1 file3.test.ts file7.test.ts &   # core 2
+timeout 60 bun test --bail=1 file4.test.ts &                 # core 3
+wait  # collect exit codes
 ```
 
-### 4. Skip local coverage on macOS
+### 6. Timeout at every level (defense in depth)
+
+| Level | Mechanism | Default |
+|---|---|---|
+| Per-test | `timeout = 10000` in `bunfig.toml` | 10s |
+| Per-process | `timeout 60 bun test ...` in `test-ci.sh` | 60s |
+| Per-CI-step | `timeout-minutes: 2` in workflow YAML | 2min |
+| Per-CI-job | `timeout-minutes: 10` on the job | 10min |
+
+If any level times out, the next level up catches it. A deadlocked `bun test` process is killed by the 60s `timeout` wrapper; if the wrapper itself hangs, the 2-minute step timeout kills it; if the step somehow survives, the 10-minute job timeout is the final safety net.
+
+### 7. Skip local coverage on macOS
 
 Coverage + many files + macOS = guaranteed hang. Generate coverage only in CI (Linux) where neither bug manifests.
 
-```bash
-if [[ "$FAIL" -eq 0 && "$NO_COVERAGE" == false ]]; then
-  if $HAS_TIMEOUT; then
-    timeout 120 bun test --coverage "${paths[@]}" || true
-  fi
-  # macOS: no coverage, CI generates it
-fi
-```
-
-### 5. Tests that spawn processes must clean up in afterEach
+### 8. Tests that spawn processes must clean up in afterEach
 
 Any test that calls `Bun.spawn()` or creates child processes must kill them in `afterEach`:
 
@@ -97,6 +111,17 @@ const proc = Bun.spawn(["bash", "script.sh"]);
 spawned.push(proc);
 ```
 
+## Bun Concurrency Model
+
+Bun's `--concurrent` flag runs async tests concurrently **within a single process** (event loop interleaving). It does NOT spawn worker threads or processes. For true multi-core parallelism, you must launch multiple `bun test` processes externally — which is what `test-ci.sh` does.
+
+| Mechanism | Scope | Multi-core? | When to use |
+|---|---|---|---|
+| `--concurrent` | Intra-file async interleaving | No | I/O-bound async tests |
+| `--max-concurrency N` | Caps concurrent tests (default 20) | No | Prevent resource exhaustion |
+| `test-ci.sh` multi-process | File-level parallelism | Yes | CI with 4+ cores |
+| `test.serial()` | Force sequential under `--concurrent` | N/A | Tests with shared mutable state |
+
 ## Examples
 
 ### Wrong (caused the CI hang)
@@ -110,16 +135,18 @@ bun test --coverage src
 
 ### Right (prevents recurrence)
 
-```bash
-# Scoped paths, no notification tests, batched on macOS, timeouts everywhere
-UNIT_PATHS=(src/__tests__/*.test.ts)
+```yaml
+# ci.yml — uses the parallel runner with timeout at every level
+- name: Unit tests (lib)
+  run: bash scripts/test-ci.sh
+  timeout-minutes: 2
+```
 
-if $HAS_TIMEOUT; then
-  timeout 90 bun test --grep-invert 'LocalStack' "${ALL_PATHS[@]}" &
-else
-  # macOS: batch in groups of 5 to avoid deadlock
-  run_batched "${UNIT_PATHS[@]}" &
-fi
+```bash
+# test-ci.sh — core-aware, platform-aware, timeout-wrapped
+CORES=$(nproc 2>/dev/null || sysctl -n hw.logicalcpu 2>/dev/null || echo 2)
+# Linux: split round-robin across $CORES processes
+# macOS: batch in groups of 5
 ```
 
 ## Origin
@@ -133,11 +160,16 @@ fi
 ## Detection Acceleration
 
 - **Level**: CI
-  **What was added**: `timeout-minutes: 5` on the test step in `ci.yml`. Previously the step ran until the job's default timeout (360 min), wasting CI minutes and blocking the PR.
+  **What was added**: `timeout-minutes: 2` on the test step in `ci.yml`, plus `timeout-minutes: 10` on the job. Previously the step ran until the job's default timeout (360 min), wasting CI minutes and blocking the PR.
   **Diagnosis time before**: 9+ minutes of CI runtime before manual cancellation
-  **Diagnosis time after**: 5 minutes max, with clear "timeout" signal in CI logs
+  **Diagnosis time after**: 2 minutes max, with clear "timeout" signal in CI logs
 
 - **Level**: Pre-commit / Pre-push
-  **What was added**: Platform-aware batching in `test-ci.sh`. macOS batches files in groups of 5; Linux uses `timeout 90`.
+  **What was added**: Platform-aware batching and multi-process parallelism in `scripts/test-ci.sh`. macOS batches files in groups of 5; Linux splits across cores with `timeout 60` per process.
   **Diagnosis time before**: Pre-push hook hung indefinitely, requiring manual `kill -9`
-  **Diagnosis time after**: Completes in ~5.5s on macOS, 90s max on Linux
+  **Diagnosis time after**: Completes in ~1s on Linux (parallel), ~5.5s on macOS (batched), 60s max per process
+
+- **Level**: Config
+  **What was added**: `bunfig.toml` with `timeout = 10000` (10s per-test timeout). Previously tests had no per-test timeout, so a single hung test would block forever.
+  **Diagnosis time before**: Single hung test blocks the entire suite indefinitely
+  **Diagnosis time after**: Hung test fails after 10s with a clear timeout error
