@@ -4,8 +4,8 @@ import { join } from "node:path";
 
 const AI_FILE = join(
 	process.cwd(),
-	"content",
 	"posts",
+	"2026-q1",
 	"how-agentic-engineering-landed-me-in-a-mental-hospital",
 	"versions",
 	"ai.html",
@@ -89,7 +89,15 @@ describe("mental health post — interactive overlays (details elements)", () =>
 describe("mental health post — named people (from DAG)", () => {
 	const namedPeople = {
 		patients: ["Kelly", "Steven", "Nick", "Roger"],
-		positiveTechs: ["Pum", "Justin", "Doug", "Jebelong", "Maria", "Flora", "Peyton"],
+		positiveTechs: [
+			"Pum",
+			"Justin",
+			"Doug",
+			"Jebelong",
+			"Maria",
+			"Flora",
+			"Peyton",
+		],
 		accountable: ["Farruggi", "Bennett", "Cunningham", "David"],
 		acknowledged: ["Zebulon", "Eber"],
 	};
@@ -280,7 +288,9 @@ describe("mental health post — key narrative beats", () => {
 	});
 
 	test("discusses SMART goals", () => {
-		expect(html).toContain("Specific, Measurable, Achievable, Relevant, Time-bound");
+		expect(html).toContain(
+			"Specific, Measurable, Achievable, Relevant, Time-bound",
+		);
 	});
 
 	test("mentions prompt engineering in the backstory", () => {
@@ -304,9 +314,7 @@ describe("mental health post — key narrative beats", () => {
 	});
 
 	test("not framed as hero story", () => {
-		expect(html).toContain(
-			"This is not a story where I'm the hero",
-		);
+		expect(html).toContain("This is not a story where I'm the hero");
 	});
 
 	test("Justin's 'thug it out' quote preserved", () => {
