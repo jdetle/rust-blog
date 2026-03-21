@@ -35,7 +35,7 @@ async function main(): Promise<void> {
 			});
 		} catch (err) {
 			console.warn(
-				`PostHog verify attempt ${attempt}/${MAX_ATTEMPTS}: fetch error — ${err}. Retry in ${DELAY_MS}ms…`,
+				`PostHog verify attempt ${attempt}/${MAX_ATTEMPTS}: fetch error — ${err instanceof Error ? err.message : err}. Retry in ${DELAY_MS}ms…`,
 			);
 			if (attempt < MAX_ATTEMPTS) {
 				await sleep(DELAY_MS);

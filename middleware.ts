@@ -6,18 +6,12 @@ const MAX_COOKIE_LENGTH = 2000;
 
 function withForwardedFor(request: NextRequest): Headers {
 	const headers = new Headers(request.headers);
-	// Next.js sets `x-forwarded-for ??= socket.remoteAddress` (base-server). Under Bun,
-	// `remoteAddress` can be undefined, which later becomes an invalid outbound header.
 	const existing = headers.get("x-forwarded-for");
 	if (!existing?.trim()) {
-		// Prefer a real client IP if the runtime exposes one (e.g. Bun/Edge runtimes)
-		const reqIp = "ip" in request && typeof (request as Record<string, unknown>).ip === "string"
-			? (request as Record<string, unknown>).ip as string
-			: undefined;
+		const reqIp = (request as unknown as { ip?: string })?.ip;
 		if (typeof reqIp === "string" && reqIp.trim().length > 0) {
 			headers.set("x-forwarded-for", reqIp.trim());
 		} else if (process.env.NODE_ENV === "development") {
-			// Fallback to localhost only in development to preserve Bun dev behavior
 			headers.set("x-forwarded-for", "127.0.0.1");
 		}
 	}

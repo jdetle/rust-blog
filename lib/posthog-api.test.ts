@@ -113,4 +113,12 @@ describe("posthog-api", () => {
 
 		expect(c).toBe(7);
 	});
+
+	test("fetchEventCountRecentHours returns null when missing credentials", async () => {
+		const c = await fetchEventCountRecentHours(2, {
+			personalApiKey: "",
+			projectId: "1",
+		});
+		expect(c).toBeNull();
+	});
 });
