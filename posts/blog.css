@@ -1894,99 +1894,122 @@ New post skeleton:
 	pointer-events: none;
 }
 
-/* ── Timeline Visualization ────────────────────────────────────── */
+/* ── Expandable Details / Overlays ─────────────────────────────── */
 
-.timeline-container {
+.article-content details {
+	margin: 1rem 0;
+	padding: 0.6rem 0.9rem;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	background: rgba(255, 255, 255, 0.3);
+}
+
+.article-content details summary {
+	cursor: pointer;
+	font-weight: 600;
+	font-size: 0.95rem;
+	color: var(--ink);
+	list-style: none;
+}
+
+.article-content details summary::-webkit-details-marker {
+	display: none;
+}
+
+.article-content details[open] summary {
+	margin-bottom: 0.5rem;
+	padding-bottom: 0.5rem;
+	border-bottom: 1px solid var(--line);
+}
+
+/* ── Accountability Table ──────────────────────────────────────── */
+
+.accountability-table {
 	width: 100%;
-	overflow: visible;
+	border-collapse: collapse;
+	margin: 1rem 0;
+	font-size: 0.9rem;
 }
 
-.timeline-container svg {
-	display: block;
+.accountability-table th,
+.accountability-table td {
+	padding: 0.5rem 0.65rem;
+	border-bottom: 1px solid var(--line);
+	text-align: left;
+	vertical-align: top;
 }
 
-.timeline-node-label {
+.accountability-table th {
 	font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
-	font-size: 10px;
-	font-weight: 500;
-	letter-spacing: 0.01em;
-}
-
-.timeline-tick-label {
-	font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
-	font-size: 9px;
-	letter-spacing: 0.04em;
+	font-size: 0.75rem;
 	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--muted-ink);
+	background: rgba(107, 125, 94, 0.06);
 }
 
-.timeline-tooltip {
-	background: rgba(242, 236, 224, 0.96);
-	border: 1px solid var(--line-strong);
-	border-radius: 10px;
-	padding: 0.45rem 0.6rem;
-	box-shadow: 0 4px 12px rgba(42, 35, 28, 0.1);
-	backdrop-filter: blur(4px);
+/* ── Responsive Video Embed ────────────────────────────────────── */
+
+.video-embed {
+	position: relative;
+	width: 100%;
+	padding-bottom: 56.25%;
+	height: 0;
+	overflow: hidden;
+	margin: 1rem 0;
+	border-radius: 12px;
+	border: 1px solid var(--line);
 }
 
-.timeline-tooltip-title {
-	margin: 0;
+.video-embed iframe {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	border: 0;
+}
+
+/* ── In-Content Timeline Markers ───────────────────────────────── */
+
+.timeline-marker {
+	display: inline-block;
 	font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
 	font-size: 0.82rem;
 	font-weight: 600;
-	color: var(--ink);
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--olive);
+	padding: 0.15rem 0.55rem;
+	background: rgba(122, 128, 88, 0.1);
+	border: 1px solid rgba(122, 128, 88, 0.25);
+	border-radius: 6px;
 }
 
-.timeline-tooltip-date {
-	margin: 0.15rem 0 0;
+/* ── Authorship Badges ─────────────────────────────────────────── */
+
+.authorship-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	padding: 0.2rem 0.6rem;
+	font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
 	font-size: 0.72rem;
-	color: var(--muted-ink);
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	border-radius: 999px;
+	white-space: nowrap;
 }
 
-.timeline-tooltip-desc {
-	margin: 0.3rem 0 0;
-	font-size: 0.76rem;
-	color: #433d36;
-	line-height: 1.4;
+.authorship-badge--human {
+	color: var(--olive);
+	background: rgba(122, 128, 88, 0.12);
+	border: 1px solid rgba(122, 128, 88, 0.3);
 }
 
-/* ── Scrollytelling Timeline ───────────────────────────────────── */
-
-.scrolly-timeline {
-	position: relative;
-}
-
-.scrolly-timeline-sticky {
-	position: sticky;
-	top: 2rem;
-	z-index: 5;
-	padding: 0.75rem 0;
-	background: rgba(242, 236, 224, 0.92);
-	border: 1px solid var(--line);
-	border-radius: 14px;
-	backdrop-filter: blur(2px);
-	box-shadow:
-		0 2px 8px rgba(42, 35, 28, 0.05),
-		0 1px 0 rgba(255, 255, 255, 0.3) inset;
-}
-
-.scrolly-timeline-steps {
-	position: relative;
-	padding-top: 1rem;
-}
-
-.scrolly-step {
-	min-height: 50vh;
-	padding: 2rem 0;
-	opacity: 0.35;
-	transition: opacity 0.4s ease;
-}
-
-.scrolly-step-active {
-	opacity: 1;
-}
-
-.scrolly-step p {
-	max-width: var(--max-text);
-	font-size: var(--text-base);
-	line-height: 1.7;
+.authorship-badge--ai {
+	color: var(--terracotta);
+	background: rgba(176, 112, 80, 0.1);
+	border: 1px solid rgba(176, 112, 80, 0.3);
 }

@@ -4,7 +4,7 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { AnalyticsProvider } from "@/components/analytics-provider";
 import { VercelAnalyticsWithFingerprint } from "@/components/vercel-analytics-with-fingerprint";
 
-import "@/public/blog.css";
+import "@/posts/blog.css";
 
 export const metadata: Metadata = {
 	title: {
