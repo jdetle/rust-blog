@@ -1,15 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { resolvePostPath } from "./posts";
 
-const AI_FILE = join(
-	process.cwd(),
-	"posts",
-	"2026-q1",
-	"how-agentic-engineering-landed-me-in-a-mental-hospital",
-	"versions",
-	"ai.html",
-);
+const SLUG = "how-agentic-engineering-landed-me-in-a-mental-hospital";
+const AI_FILE = resolvePostPath(SLUG, "versions/ai.html");
+if (!AI_FILE)
+	throw new Error(
+		`Post "${SLUG}" version ai.html not found — run resolvePostPath to debug`,
+	);
 const html = readFileSync(AI_FILE, "utf-8");
 
 describe("mental health post — body content structure", () => {

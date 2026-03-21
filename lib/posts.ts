@@ -197,7 +197,7 @@ export function getAllPosts(): AnyPost[] {
 	return getAllQuarters().flatMap((q) => q.posts);
 }
 
-export function getPost(slug: string): AnyPost | null {
+export function resolvePostDir(slug: string): string | null {
 	const entries = readdirSync(POSTS_DIR).filter(
 		(e) => QUARTER_RE.test(e) && statSync(join(POSTS_DIR, e)).isDirectory(),
 	);
@@ -205,8 +205,21 @@ export function getPost(slug: string): AnyPost | null {
 	for (const quarter of entries) {
 		const dirPath = join(POSTS_DIR, quarter, slug);
 		if (existsSync(dirPath) && statSync(dirPath).isDirectory()) {
-			return parseMultiVersionPost(dirPath, slug);
+			return dirPath;
 		}
 	}
 	return null;
+}
+
+export function resolvePostPath(slug: string, subpath: string): string | null {
+	const dir = resolvePostDir(slug);
+	if (!dir) return null;
+	const full = join(dir, subpath);
+	return existsSync(full) ? full : null;
+}
+
+export function getPost(slug: string): AnyPost | null {
+	const dirPath = resolvePostDir(slug);
+	if (!dirPath) return null;
+	return parseMultiVersionPost(dirPath, slug);
 }

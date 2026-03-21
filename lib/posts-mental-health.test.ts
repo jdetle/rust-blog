@@ -1,10 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { getAllPosts, getPost } from "./posts";
+import { getAllPosts, getPost, resolvePostDir } from "./posts";
 
 const SLUG = "how-agentic-engineering-landed-me-in-a-mental-hospital";
-const DIR = join(process.cwd(), "posts", "2026-q1", SLUG);
+const DIR = resolvePostDir(SLUG);
+if (!DIR)
+	throw new Error(
+		`Post "${SLUG}" directory not found — check posts/ quarter structure`,
+	);
 
 describe("mental health post — discovery & parsing", () => {
 	test("post directory exists on disk", () => {
