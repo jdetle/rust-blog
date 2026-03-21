@@ -1,15 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { resolvePostPath } from "./posts";
 
-const AI_FILE = join(
-	process.cwd(),
-	"content",
-	"posts",
-	"how-agentic-engineering-landed-me-in-a-mental-hospital",
-	"versions",
-	"ai.html",
-);
+const SLUG = "how-agentic-engineering-landed-me-in-a-mental-hospital";
+const AI_FILE = resolvePostPath(SLUG, "versions/ai.html");
+if (!AI_FILE)
+	throw new Error(
+		`Post "${SLUG}" version ai.html not found — run resolvePostPath to debug`,
+	);
 const html = readFileSync(AI_FILE, "utf-8");
 
 describe("mental health post — body content structure", () => {
@@ -89,7 +88,15 @@ describe("mental health post — interactive overlays (details elements)", () =>
 describe("mental health post — named people (from DAG)", () => {
 	const namedPeople = {
 		patients: ["Kelly", "Steven", "Nick", "Roger"],
-		positiveTechs: ["Pum", "Justin", "Doug", "Jebelong", "Maria", "Flora", "Peyton"],
+		positiveTechs: [
+			"Pum",
+			"Justin",
+			"Doug",
+			"Jebelong",
+			"Maria",
+			"Flora",
+			"Peyton",
+		],
 		accountable: ["Farruggi", "Bennett", "Cunningham", "David"],
 		acknowledged: ["Zebulon", "Eber"],
 	};
@@ -280,7 +287,9 @@ describe("mental health post — key narrative beats", () => {
 	});
 
 	test("discusses SMART goals", () => {
-		expect(html).toContain("Specific, Measurable, Achievable, Relevant, Time-bound");
+		expect(html).toContain(
+			"Specific, Measurable, Achievable, Relevant, Time-bound",
+		);
 	});
 
 	test("mentions prompt engineering in the backstory", () => {
@@ -304,9 +313,7 @@ describe("mental health post — key narrative beats", () => {
 	});
 
 	test("not framed as hero story", () => {
-		expect(html).toContain(
-			"This is not a story where I'm the hero",
-		);
+		expect(html).toContain("This is not a story where I'm the hero");
 	});
 
 	test("Justin's 'thug it out' quote preserved", () => {

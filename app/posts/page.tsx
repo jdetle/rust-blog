@@ -3,7 +3,7 @@ import Link from "next/link";
 import { AnimatedFrame } from "@/components/animated-frame";
 import { AuthorshipBadge } from "@/components/authorship-badge";
 import { NavRow } from "@/components/nav-row";
-import { getAllPosts } from "@/lib/posts";
+import { estimateReadingTime, getAllQuarters } from "@/lib/posts";
 
 export const metadata: Metadata = {
 	title: "Posts",
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default function PostsPage() {
-	const posts = getAllPosts();
+	const quarters = getAllQuarters();
 
 	return (
 		<main className="site-shell">
@@ -19,24 +19,44 @@ export default function PostsPage() {
 				<header className="list-header">
 					<p className="eyebrow">Archive</p>
 					<h1 className="page-title">Notes and essays</h1>
-					<p className="subhead">
-						Imported from Notion with a wabi-sabi editorial presentation.
-					</p>
 				</header>
 
-				<ul className="post-list">
-					{posts.map((post) => (
-						<li key={post.slug}>
-							<Link href={`/posts/${post.slug}`}>
-								<span className="post-title">
-									{post.title}
-									<AuthorshipBadge authorship={post.authorship} />
-								</span>
-								<span className="post-kicker">{post.date}</span>
-							</Link>
-						</li>
+				<div className="quarter-timeline">
+					{quarters.map((q) => (
+						<div key={q.id} className="quarter-group">
+							<span className="quarter-marker" />
+							<p className="quarter-label">{q.label}</p>
+							<ul className="quarter-posts">
+								{q.posts.map((post) => {
+									const bodyHtml =
+										post.kind === "multi"
+											? (post.versions.find(
+													(v) => v.key === post.defaultVersion,
+												)?.bodyHtml ?? "")
+											: post.bodyHtml;
+									const readTime = estimateReadingTime(bodyHtml);
+									return (
+										<li key={post.slug}>
+											<Link href={`/posts/${post.slug}`}>
+												<span className="quarter-post-title">
+													{post.title}
+													<AuthorshipBadge authorship={post.authorship} />
+												</span>
+												<span className="quarter-post-date">
+													{post.date}
+													{post.date && " · "}
+													<span className="quarter-post-reading-time">
+														{readTime} min read
+													</span>
+												</span>
+											</Link>
+										</li>
+									);
+								})}
+							</ul>
+						</div>
 					))}
-				</ul>
+				</div>
 
 				<NavRow
 					links={[
