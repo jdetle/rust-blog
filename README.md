@@ -8,9 +8,9 @@ Personal blog and journal by John Detlefs. Next.js App Router frontend deployed 
 app/                   Next.js App Router pages (SSG + dynamic)
 components/            React components (analytics, nav, profiling)
 content/posts/         Raw HTML blog posts (source of truth)
-lib/                   Server-side utilities (post parser, referral logic)
+lib/                   Server-side utilities (post parser, analytics)
 middleware.ts          Edge Middleware for UTM/referrer tracking
-public/blog.css        Shared wabi-sabi stylesheet
+posts/blog.css         Shared wabi-sabi stylesheet
 src/                   Rust analytics ingestion (Cosmos, Clarity, PostHog)
 ```
 
@@ -71,7 +71,7 @@ Five analytics platforms are wired in `components/analytics-provider.tsx`:
 
 Copy `.env.example` to `.env.local` and fill in your IDs. Placeholder values (containing `XXXXX`) are automatically skipped — no scripts fire until you add real IDs.
 
-**Setup guide:** See [Analytics Integration](/docs/analytics-integration.html) for step-by-step setup (GA4, Clarity, PostHog, Plausible, Vercel, Meta Pixel), or [Analytics Setup](/docs/analytics-setup.html) for the quick reference. Use the ingest scripts to add secrets: <code>bun run ingest:ga4</code>, <code>bun run ingest:clarity</code>, <code>bun run ingest:posthog</code>, <code>bun run ingest:plausible</code>, <code>bun run ingest:vercel-sync</code>.
+Use the ingest scripts to add secrets: <code>bun run ingest:ga4</code>, <code>bun run ingest:clarity</code>, <code>bun run ingest:posthog</code>, <code>bun run ingest:plausible</code>, <code>bun run ingest:vercel-sync</code>.
 
 For production, add these as Vercel Environment Variables in the project settings. They'll be injected at build time.
 
