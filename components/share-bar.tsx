@@ -41,6 +41,10 @@ function getScrollDepth(): number {
 	return Math.round((scrollTop / scrollHeight) * 100);
 }
 
+function hostMatch(hostname: string, domain: string): boolean {
+	return hostname === domain || hostname.endsWith(`.${domain}`);
+}
+
 function getReferrerType(): string {
 	const stored = sessionStorage.getItem("_referrer");
 	const ref = document.referrer || stored || "";
@@ -48,22 +52,22 @@ function getReferrerType(): string {
 	try {
 		const host = new URL(ref).hostname.toLowerCase();
 		if (
-			host.includes("google.") ||
-			host.includes("bing.com") ||
-			host.includes("duckduckgo.com")
+			hostMatch(host, "google.com") ||
+			hostMatch(host, "bing.com") ||
+			hostMatch(host, "duckduckgo.com")
 		)
 			return "search";
 		if (
-			host.includes("twitter.com") ||
-			host.includes("x.com") ||
-			host.includes("t.co")
+			hostMatch(host, "twitter.com") ||
+			hostMatch(host, "x.com") ||
+			host === "t.co"
 		)
 			return "social:twitter";
-		if (host.includes("linkedin.com")) return "social:linkedin";
-		if (host.includes("reddit.com")) return "social:reddit";
-		if (host.includes("news.ycombinator.com")) return "social:hackernews";
-		if (host.includes("github.com")) return "social:github";
-		if (host.includes("facebook.com")) return "social:facebook";
+		if (hostMatch(host, "linkedin.com")) return "social:linkedin";
+		if (hostMatch(host, "reddit.com")) return "social:reddit";
+		if (host === "news.ycombinator.com") return "social:hackernews";
+		if (hostMatch(host, "github.com")) return "social:github";
+		if (hostMatch(host, "facebook.com")) return "social:facebook";
 		return `other:${host}`;
 	} catch {
 		return "other";
