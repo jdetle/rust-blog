@@ -1,15 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { resolvePostPath } from "./posts";
 
-const AI_FILE = join(
-	process.cwd(),
-	"content",
-	"posts",
-	"how-agentic-engineering-landed-me-in-a-mental-hospital",
-	"versions",
-	"ai.html",
-);
+const SLUG = "how-agentic-engineering-landed-me-in-a-mental-hospital";
+const AI_FILE = resolvePostPath(SLUG, "versions/ai.html");
+if (!AI_FILE)
+	throw new Error(
+		`Post "${SLUG}" version ai.html not found — run resolvePostPath to debug`,
+	);
 const body = readFileSync(AI_FILE, "utf-8");
 
 describe("mental health post — banned AI phrases (blog-voice.mdc)", () => {
@@ -41,9 +39,7 @@ describe("mental health post — banned AI phrases (blog-voice.mdc)", () => {
 
 describe("mental health post — banned structural patterns", () => {
 	test("does not use 'It's not X — it's Y' pattern", () => {
-		expect(body).not.toMatch(
-			/It['']s not .{3,40}\s*[—–-]\s*it['']s/i,
-		);
+		expect(body).not.toMatch(/It['']s not .{3,40}\s*[—–-]\s*it['']s/i);
 	});
 
 	test("does not use 'The problem isn't X. The problem is Y.' pattern", () => {
@@ -57,8 +53,7 @@ describe("mental health post — banned structural patterns", () => {
 	});
 
 	test("does not use bold-keyword formatted lists", () => {
-		const boldDescriptionPattern =
-			/<p>\s*<strong>[^<]+<\/strong>\.\s+[A-Z]/g;
+		const boldDescriptionPattern = /<p>\s*<strong>[^<]+<\/strong>\.\s+[A-Z]/g;
 		const matches = body.match(boldDescriptionPattern) || [];
 		expect(matches.length).toBeLessThan(3);
 	});
@@ -82,7 +77,15 @@ describe("mental health post — tone markers (humility & contrition)", () => {
 	});
 
 	test("uses contractions (casual voice)", () => {
-		const contractions = ["I'm", "didn't", "couldn't", "wasn't", "don't", "isn't", "I'd"];
+		const contractions = [
+			"I'm",
+			"didn't",
+			"couldn't",
+			"wasn't",
+			"don't",
+			"isn't",
+			"I'd",
+		];
 		const found = contractions.filter((c) => body.includes(c));
 		expect(found.length).toBeGreaterThanOrEqual(5);
 	});

@@ -8,17 +8,17 @@
  * Requires: playwright (with chromium), @anthropic-ai/sdk
  */
 
-import { readFileSync, mkdirSync, readdirSync, existsSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { chromium, type Page } from "playwright";
 import Anthropic from "@anthropic-ai/sdk";
+import { chromium, type Page } from "playwright";
 
 const BASE_URL = process.argv.includes("--base-url")
 	? process.argv[process.argv.indexOf("--base-url") + 1]
 	: "http://localhost:3004";
 
 const SCREENSHOT_DIR = join(process.cwd(), "screenshots");
-const CONTENT_DIR = join(process.cwd(), "content", "posts");
+const POSTS_DIR = join(process.cwd(), "posts");
 
 const VIEWPORTS = [
 	{ name: "desktop", width: 1280, height: 900 },
@@ -43,11 +43,17 @@ VERDICT: PASS|WARN|FAIL
 ISSUES: (bullet list of any problems, or "None" if PASS)`;
 
 function discoverPostSlugs(): string[] {
-	if (!existsSync(CONTENT_DIR)) return [];
-	return readdirSync(CONTENT_DIR, { withFileTypes: true })
-		.filter((d) => d.isDirectory())
-		.map((d) => d.name)
-		.sort();
+	if (!existsSync(POSTS_DIR)) return [];
+	const slugs: string[] = [];
+	for (const quarter of readdirSync(POSTS_DIR, { withFileTypes: true })) {
+		if (!quarter.isDirectory() || !/^\d{4}-q[1-4]$/.test(quarter.name))
+			continue;
+		const qPath = join(POSTS_DIR, quarter.name);
+		for (const post of readdirSync(qPath, { withFileTypes: true })) {
+			if (post.isDirectory()) slugs.push(post.name);
+		}
+	}
+	return slugs.sort();
 }
 
 async function captureScreenshots(
@@ -65,16 +71,18 @@ async function captureScreenshots(
 		const page = await context.newPage();
 
 		// Capture listing page
-		const listingPath = join(
-			SCREENSHOT_DIR,
-			`listing-${viewport.name}.png`,
-		);
+		const listingPath = join(SCREENSHOT_DIR, `listing-${viewport.name}.png`);
 		await page.goto(`${BASE_URL}/posts`, { waitUntil: "networkidle" });
 		await page.waitForTimeout(800);
 		await page.screenshot({
 			path: listingPath,
 			fullPage: false,
-			clip: { x: 0, y: 0, width: viewport.width, height: Math.min(viewport.height * 4, 7000) },
+			clip: {
+				x: 0,
+				y: 0,
+				width: viewport.width,
+				height: Math.min(viewport.height * 4, 7000),
+			},
 		});
 
 		if (!results.has("__listing__")) results.set("__listing__", []);
@@ -82,10 +90,7 @@ async function captureScreenshots(
 
 		// Capture each post
 		for (const slug of slugs) {
-			const filePath = join(
-				SCREENSHOT_DIR,
-				`${slug}-${viewport.name}.png`,
-			);
+			const filePath = join(SCREENSHOT_DIR, `${slug}-${viewport.name}.png`);
 			try {
 				await page.goto(`${BASE_URL}/posts/${slug}`, {
 					waitUntil: "networkidle",
@@ -96,13 +101,20 @@ async function captureScreenshots(
 				await page.screenshot({
 					path: filePath,
 					fullPage: false,
-					clip: { x: 0, y: 0, width: viewport.width, height: Math.min(viewport.height * 5, 7000) },
+					clip: {
+						x: 0,
+						y: 0,
+						width: viewport.width,
+						height: Math.min(viewport.height * 5, 7000),
+					},
 				});
 
 				if (!results.has(slug)) results.set(slug, []);
 				results.get(slug)?.push(filePath);
 			} catch (err) {
-				console.error(`  ✗ Failed to capture ${slug} @ ${viewport.name}: ${err}`);
+				console.error(
+					`  ✗ Failed to capture ${slug} @ ${viewport.name}: ${err}`,
+				);
 			}
 		}
 
@@ -174,7 +186,9 @@ async function main() {
 	}
 
 	const slugs = discoverPostSlugs();
-	console.log(`\n📸 Capturing ${slugs.length} posts + listing page at 3 viewports...\n`);
+	console.log(
+		`\n📸 Capturing ${slugs.length} posts + listing page at 3 viewports...\n`,
+	);
 
 	const screenshots = await captureScreenshots(slugs);
 	const totalShots = Array.from(screenshots.values()).reduce(
@@ -217,7 +231,8 @@ async function main() {
 
 	for (const [slug, paths] of allEntries) {
 		const isFullReview =
-			slug === "__listing__" || shuffled.slice(0, sampleSize).some(([s]) => s === slug);
+			slug === "__listing__" ||
+			shuffled.slice(0, sampleSize).some(([s]) => s === slug);
 
 		const reviewPaths = isFullReview
 			? paths
