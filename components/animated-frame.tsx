@@ -14,9 +14,11 @@ export function AnimatedFrame({
 	return (
 		<motion.div
 			className={`frame ${className}`.trim()}
-			initial={reduceMotion ? false : { opacity: 0, y: 12, scale: 0.995 }}
-			whileInView={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
-			viewport={{ once: true, amount: 0.05 }}
+			// Do not animate `opacity`: Framer SSR emits `style="opacity:0;…"` for the
+			// initial keyframe, so slow mobile networks show a blank page until JS loads.
+			// Keep only transform — text stays readable in HTML and first paint.
+			initial={reduceMotion ? false : { y: 12, scale: 0.995 }}
+			animate={reduceMotion ? undefined : { y: 0, scale: 1 }}
 			transition={{
 				duration: reduceMotion ? 0 : 0.45,
 				ease: [0.25, 0.1, 0.25, 1],
