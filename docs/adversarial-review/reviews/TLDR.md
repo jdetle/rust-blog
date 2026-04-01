@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-04-01 animated-frame mobile first paint](./2026-04-01-animated-frame-mobile-first-paint.md)
+  - decision: proceed with push; transform-only motion, no SSR `opacity:0`
+  - unresolved risk: slightly different entrance (no fade); reduced-motion unchanged
+  - follow-up: optional visual regression on home if users report motion differences
+
 - [2026-03-20 posthog-ci-verify](./2026-03-20-posthog-ci-verify.md)
   - decision: proceed with merge; PostHog verify + tests + Bun XFF middleware
   - unresolved risk: verify step false-negative if preview lacks `NEXT_PUBLIC_POSTHOG_KEY` or HogQL lags past retries; 2h count is project-wide
