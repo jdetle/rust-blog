@@ -43,6 +43,8 @@ export interface MultiVersionPost {
 	versions: PostVersion[];
 	notes: Record<string, PostNote[]>;
 	heroImage?: HeroImage;
+	/** When true, excluded from listings and getPost in all environments (permanent unlisted). */
+	hidden?: boolean;
 	draft?: boolean;
 }
 
@@ -91,6 +93,12 @@ function isHiddenInProd(post: AnyPost): boolean {
 	if (isDev) return false;
 	if (post.kind === "multi" && post.draft) return true;
 	return isAiOnly(post);
+}
+
+/** Listing and direct URL resolution — hidden posts are omitted everywhere. */
+function shouldExcludePost(post: AnyPost): boolean {
+	if (post.kind === "multi" && post.hidden) return true;
+	return isHiddenInProd(post);
 }
 
 const QUARTER_NAMES: Record<string, string> = {
@@ -163,6 +171,7 @@ function parseMultiVersionPost(
 		versions,
 		notes,
 		heroImage,
+		hidden: manifest.hidden === true ? true : undefined,
 		draft: manifest.draft === true ? true : undefined,
 	};
 }
@@ -188,7 +197,7 @@ function scanQuarterDir(quarterDir: string): AnyPost[] {
 		const fullPath = join(quarterDir, entry);
 		if (!statSync(fullPath).isDirectory()) continue;
 		const post = parseMultiVersionPost(fullPath, entry);
-		if (post && !isHiddenInProd(post)) posts.push(post);
+		if (post && !shouldExcludePost(post)) posts.push(post);
 	}
 	posts.sort((a, b) => parseDateString(b.date) - parseDateString(a.date));
 	return posts;
@@ -239,6 +248,6 @@ export function getPost(slug: string): AnyPost | null {
 	const dirPath = resolvePostDir(slug);
 	if (!dirPath) return null;
 	const post = parseMultiVersionPost(dirPath, slug);
-	if (post && isHiddenInProd(post)) return null;
+	if (post && shouldExcludePost(post)) return null;
 	return post;
 }

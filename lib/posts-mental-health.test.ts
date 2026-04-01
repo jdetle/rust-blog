@@ -10,10 +10,7 @@ if (!DIR)
 		`Post "${SLUG}" directory not found — check posts/ quarter structure`,
 	);
 
-const manifest = JSON.parse(
-	readFileSync(join(DIR, "manifest.json"), "utf-8"),
-);
-const isDev = process.env.NODE_ENV === "development";
+const manifest = JSON.parse(readFileSync(join(DIR, "manifest.json"), "utf-8"));
 
 describe("mental health post — file structure", () => {
 	test("post directory exists on disk", () => {
@@ -70,28 +67,19 @@ describe("mental health post — manifest", () => {
 		expect(manifest.authorship.ai).toBe("ai");
 	});
 
-	test("marked as draft", () => {
-		expect(manifest.draft).toBe(true);
+	test("marked as hidden (unlisted in all environments)", () => {
+		expect(manifest.hidden).toBe(true);
 	});
 });
 
-describe("mental health post — draft filtering", () => {
-	test("excluded from getAllPosts() in production", () => {
+describe("mental health post — hidden filtering", () => {
+	test("excluded from getAllPosts()", () => {
 		const all = getAllPosts();
 		const found = all.find((p) => p.slug === SLUG);
-		if (isDev) {
-			expect(found).toBeDefined();
-		} else {
-			expect(found).toBeUndefined();
-		}
+		expect(found).toBeUndefined();
 	});
 
-	test("getPost() returns null in production", () => {
-		const post = getPost(SLUG);
-		if (isDev) {
-			expect(post).not.toBeNull();
-		} else {
-			expect(post).toBeNull();
-		}
+	test("getPost() returns null", () => {
+		expect(getPost(SLUG)).toBeNull();
 	});
 });
