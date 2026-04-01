@@ -42,6 +42,7 @@ export interface MultiVersionPost {
 	defaultVersion: string;
 	versions: PostVersion[];
 	notes: Record<string, PostNote[]>;
+	/** Present only when manifest sets showHeroImage: true and provides heroImage. */
 	heroImage?: HeroImage;
 	/** When true, excluded from listings and getPost in all environments (permanent unlisted). */
 	hidden?: boolean;
@@ -151,13 +152,14 @@ function parseMultiVersionPost(
 	const topAuthorship: Authorship =
 		versionAuthorship[defaultKey] ?? VERSION_AUTHORSHIP[defaultKey] ?? "human";
 
-	const heroImage: HeroImage | undefined = manifest.heroImage
-		? {
-				url: manifest.heroImage.url,
-				alt: manifest.heroImage.alt ?? manifest.title ?? "",
-				credit: manifest.heroImage.credit,
-			}
-		: undefined;
+	const heroImage: HeroImage | undefined =
+		manifest.showHeroImage === true && manifest.heroImage?.url
+			? {
+					url: manifest.heroImage.url,
+					alt: manifest.heroImage.alt ?? manifest.title ?? "",
+					credit: manifest.heroImage.credit,
+				}
+			: undefined;
 
 	return {
 		kind: "multi",

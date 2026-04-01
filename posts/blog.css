@@ -519,6 +519,30 @@ h1 {
 	color: var(--muted-ink);
 }
 
+/* Post hero — constrain wide remote images to the frame / viewport width */
+.hero-image {
+	width: 100%;
+	max-width: 100%;
+	margin: 0 0 1rem;
+	border-radius: 14px;
+	overflow: hidden;
+}
+
+.hero-image img {
+	display: block;
+	width: 100%;
+	max-width: 100%;
+	height: auto;
+}
+
+.hero-credit {
+	display: block;
+	margin-top: 0.45rem;
+	font-size: var(--text-xs);
+	color: var(--muted-ink);
+	line-height: 1.4;
+}
+
 /* Full-bleed article grid — children constrained to text column;
    .wide and .breakout classes let elements burst out. */
 .article-content {
@@ -528,6 +552,18 @@ h1 {
 
 .article-content > * {
 	grid-column: 2;
+	min-width: 0;
+}
+
+.article-content img,
+.article-content picture {
+	display: block;
+	max-width: 100%;
+	height: auto;
+}
+
+.article-content picture img {
+	width: 100%;
 }
 
 .article-content > .wide {
