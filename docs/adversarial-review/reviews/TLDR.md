@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-04-14 guardian post ai draft](./2026-04-14-guardian-post-ai-draft.md)
+  - decision: proceed with push; multi-version post, default AI, human placeholder for visibility
+  - unresolved risk: upstream Guardian README/features may drift; re-check links on human pass
+  - follow-up: replace human version content when reviewed; trim draft footer if redundant
+
 - [2026-04-01 animated-frame mobile first paint](./2026-04-01-animated-frame-mobile-first-paint.md)
   - decision: proceed with push; transform-only motion, no SSR `opacity:0`
   - unresolved risk: slightly different entrance (no fade); reduced-motion unchanged
