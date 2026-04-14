@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { AnimatedFrame } from "@/components/animated-frame";
 import { HomeCtas } from "@/components/home-ctas";
@@ -92,22 +93,60 @@ export default function HomePage() {
 									Senior Cloud Developer &middot; Advisory Technology
 								</p>
 								<p className="work-copy">
-									Building internal platforms and cloud tooling for
-									PwC&apos;s advisory practice. Infrastructure-as-code,
-									observability pipelines, and developer experience for
-									consulting teams that ship under tight client timelines.
+									Building internal platforms and cloud tooling for PwC&apos;s
+									advisory practice. Infrastructure-as-code, observability
+									pipelines, and developer experience for consulting teams that
+									ship under tight client timelines.
 								</p>
 							</article>
 
 							<article className="work-item">
 								<h3>Meshify &amp; Earlier</h3>
-								<p className="work-meta">
-									Full-stack &middot; IoT &amp; Data
-								</p>
+								<p className="work-meta">Full-stack &middot; IoT &amp; Data</p>
 								<p className="work-copy">
 									Legacy-to-React migrations, Go proxy services, and production
 									workflow reliability for IoT sensor platforms. End-to-end
 									ownership from database to dashboard.
+								</p>
+							</article>
+						</section>
+
+						<section className="panel github-panel">
+							<h2 className="panel-title">GitHub</h2>
+							<a
+								className="contrib-chart-link"
+								href="https://github.com/jdetle"
+								target="_blank"
+								rel="noopener noreferrer"
+							>
+								<Image
+									className="contrib-chart-img"
+									src="https://ghchart.rshah.io/b07050/jdetle"
+									alt="GitHub contribution activity for the last year"
+									width={800}
+									height={128}
+									sizes="(max-width: 1100px) min(100vw - 3rem, 720px), 720px"
+								/>
+							</a>
+							<p className="work-copy contrib-chart-caption">
+								Contribution graph (last year).{" "}
+								<a href="https://github.com/jdetle">github.com/jdetle</a>
+							</p>
+
+							<article className="work-item">
+								<h3>Guardian</h3>
+								<p className="work-meta">Rust &middot; Open source</p>
+								<p className="work-copy">
+									System resource monitor daemon for Cursor agent
+									sessions—tracks CPU, memory, and disk so long-running agents
+									stay within bounds.{" "}
+									<a
+										href="https://github.com/jdetle/guardian"
+										target="_blank"
+										rel="noopener noreferrer"
+									>
+										github.com/jdetle/guardian
+									</a>
 								</p>
 							</article>
 						</section>
