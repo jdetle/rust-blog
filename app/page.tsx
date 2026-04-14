@@ -2,33 +2,17 @@ import Image from "next/image";
 import Link from "next/link";
 import { AnimatedFrame } from "@/components/animated-frame";
 import { HomeCtas } from "@/components/home-ctas";
+import { getRecentPosts } from "@/lib/posts";
 
 /** ghchart.rshah.io no longer resolves (dead domain). Embed via github-readme-activity-graph (SVG). */
 const GITHUB_ACTIVITY_GRAPH_SRC =
 	"https://github-readme-activity-graph.vercel.app/graph?username=jdetle&hide_border=true";
 
-const FEATURED_POSTS = [
-	{
-		slug: "rules-that-make-quality-sites-easy",
-		title: "Rules That Make Quality Sites Easy",
-		blurb:
-			"90+ failure-driven rules, four enforcement layers, and the workflow that catches most of the dumb stuff before it ships.",
-	},
-	{
-		slug: "memory-leaks-in-node",
-		title: "Memory Leaks in Node",
-		blurb:
-			"Debugging a production memory leak with no local repro, a profiling tool that OOMs itself, and the unsatisfying fix that actually worked.",
-	},
-	{
-		slug: "when-and-when-not-to-rage-against-your-corporate-machine-and-other-advice-for-working-inside-your-bigcorp",
-		title: "Working Inside Your BigCorp",
-		blurb:
-			"Tickets, scope creep, code chameleons, and knowing when to shut up and fix the thing.",
-	},
-];
+const RECENT_POSTS_COUNT = 6;
 
 export default function HomePage() {
+	const recentPosts = getRecentPosts(RECENT_POSTS_COUNT);
+
 	return (
 		<main className="site-shell">
 			<AnimatedFrame>
@@ -38,6 +22,46 @@ export default function HomePage() {
 						Production systems and debugging war stories
 					</p>
 				</header>
+
+				<section
+					className="home-priority"
+					aria-labelledby="home-priority-heading"
+				>
+					<h2 id="home-priority-heading" className="visually-hidden">
+						Recent writing and interactive demo
+					</h2>
+					<div className="home-priority-grid">
+						<section className="panel home-recent-panel">
+							<h2 className="panel-title">Latest from the blog</h2>
+							<ul className="recent-posts-list">
+								{recentPosts.map((post) => (
+									<li key={post.slug} className="recent-posts-item">
+										<Link href={`/posts/${post.slug}`}>{post.title}</Link>
+										<p className="recent-posts-meta">{post.date}</p>
+									</li>
+								))}
+							</ul>
+							<p className="recent-posts-footer">
+								<Link className="recent-posts-all" href="/posts">
+									All posts →
+								</Link>
+							</p>
+						</section>
+
+						<section className="panel home-who-spotlight home-who-spotlight--hero">
+							<h2 className="panel-title">Who are you?</h2>
+							<p className="work-copy home-who-lede">
+								Live demo: what this site can infer from your browser, the edge,
+								and common analytics scripts — in one scrollable page.
+							</p>
+							<p className="home-who-spotlight-cta">
+								<Link className="btn btn-primary" href="/who-are-you">
+									Open the demo
+								</Link>
+							</p>
+						</section>
+					</div>
+				</section>
 
 				<section className="home-grid">
 					<article className="article">
@@ -153,18 +177,6 @@ export default function HomePage() {
 									ownership from database to dashboard.
 								</p>
 							</article>
-						</section>
-
-						<section className="panel">
-							<h2 className="panel-title">Featured writing</h2>
-							<ul className="featured-list">
-								{FEATURED_POSTS.map((post) => (
-									<li key={post.slug} className="featured-item">
-										<Link href={`/posts/${post.slug}`}>{post.title}</Link>
-										<p className="featured-blurb">{post.blurb}</p>
-									</li>
-								))}
-							</ul>
 						</section>
 					</aside>
 				</section>
