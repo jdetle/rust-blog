@@ -82,9 +82,9 @@ export default function HomePage() {
 								<h3>Guardian</h3>
 								<p className="work-meta">Rust &middot; Open source</p>
 								<p className="work-copy">
-									System resource monitor daemon for Cursor agent
-									sessions—tracks CPU, memory, and disk so long-running agents
-									stay within bounds.{" "}
+									Framework-agnostic monitor for agentic resource consumption:
+									tracks CPU, memory, and disk so long-running coding agents
+									stay within bounds, independent of editor or agent stack.{" "}
 									<a
 										href="https://github.com/jdetle/guardian"
 										target="_blank"
