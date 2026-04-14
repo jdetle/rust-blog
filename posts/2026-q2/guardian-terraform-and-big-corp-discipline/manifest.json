@@ -1,0 +1,17 @@
+{
+	"title": "Guardian, Terraform, and why big orgs should standardize on it",
+	"author": "John Detlefs",
+	"date": "April 14, 2026",
+	"defaultVersion": "ai",
+	"showHeroImage": true,
+	"versions": ["ai", "human"],
+	"authorship": {
+		"ai": "ai",
+		"human": "human"
+	},
+	"heroImage": {
+		"url": "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1400&q=80&auto=format&fit=crop",
+		"alt": "Earth at night from space with city lights and connectivity",
+		"credit": "Photo by NASA on Unsplash"
+	}
+}

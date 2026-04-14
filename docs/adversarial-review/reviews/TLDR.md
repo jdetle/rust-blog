@@ -1,9 +1,9 @@
 # Adversarial Review TLDR
 
 - [2026-04-14 guardian post ai draft](./2026-04-14-guardian-post-ai-draft.md)
-  - **corrected:** initial post targeted wrong repo (Terraform); replaced by `posts/2026-q2/jdetle-guardian` for `github.com/jdetle/guardian`
-  - follow-up: human review AI draft; verify claims against current README
-
+  - **corrected:** first essay targeted wrong repo (Terraform); live post is `jdetle-guardian` → `https://github.com/jdetle/guardian`
+  - decision: proceed; AI draft default + human stub for visibility
+  - follow-up: human review; verify claims against current README
 
 - [2026-04-01 animated-frame mobile first paint](./2026-04-01-animated-frame-mobile-first-paint.md)
   - decision: proceed with push; transform-only motion, no SSR `opacity:0`
