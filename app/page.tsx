@@ -60,13 +60,14 @@ export default function HomePage() {
 								target="_blank"
 								rel="noopener noreferrer"
 							>
+								{/* ghchart PNG breaks when proxied/resized by next/image — load origin directly */}
 								<Image
+									unoptimized
 									className="contrib-chart-img"
 									src="https://ghchart.rshah.io/b07050/jdetle"
 									alt="GitHub contribution activity for the last year"
 									width={800}
 									height={128}
-									sizes="(max-width: 1100px) min(100vw - 3rem, 720px), 720px"
 								/>
 							</a>
 							<p className="work-copy contrib-chart-caption">
