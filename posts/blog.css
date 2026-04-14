@@ -150,6 +150,82 @@ a:hover {
 	color: var(--muted-ink);
 }
 
+/* Lead journal entry (newest post) — above “more posts” + Who are you */
+.home-lead-post {
+	margin-bottom: clamp(1.25rem, 2.2vw, 1.75rem);
+	padding: clamp(1rem, 2.2vw, 1.4rem) clamp(1rem, 2.6vw, 1.5rem);
+	border-radius: 18px;
+	border: 1px solid var(--line-strong);
+	background: linear-gradient(
+		145deg,
+		rgba(255, 255, 255, 0.72) 0%,
+		rgba(249, 245, 240, 0.95) 55%,
+		rgba(255, 252, 248, 1) 100%
+	);
+	box-shadow:
+		0 2px 10px rgba(42, 35, 28, 0.06),
+		0 1px 0 rgba(255, 255, 255, 0.55) inset;
+}
+
+.home-lead-eyebrow {
+	margin-bottom: 0.45rem;
+}
+
+.home-lead-title {
+	font-size: clamp(1.35rem, 3.2vw, 2.05rem);
+	line-height: 1.12;
+	max-width: 30ch;
+	text-wrap: balance;
+	font-weight: 650;
+}
+
+.home-lead-title a {
+	color: inherit;
+	text-decoration: none;
+	transition: color 150ms ease;
+}
+
+.home-lead-title a:hover {
+	color: var(--terracotta);
+}
+
+.home-lead-meta {
+	margin: 0.5rem 0 0;
+	font-size: 0.88rem;
+	color: var(--muted-ink);
+}
+
+.home-lead-meta-sep {
+	opacity: 0.7;
+}
+
+.home-lead-excerpt {
+	margin: 0.8rem 0 0;
+	font-size: 0.98rem;
+	line-height: 1.55;
+	color: #433d36;
+	max-width: 62ch;
+}
+
+.home-lead-cta-wrap {
+	margin: 1rem 0 0;
+}
+
+.home-lead-cta {
+	font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+	font-size: 0.85rem;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	text-decoration: none;
+	color: var(--terracotta);
+	transition: color 150ms ease;
+}
+
+.home-lead-cta:hover {
+	color: #8b4510;
+}
+
 .home-grid {
 	display: grid;
 	grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
@@ -237,26 +313,177 @@ a:hover {
 	color: var(--terracotta);
 }
 
-.home-who-spotlight {
-	border-color: rgba(176, 112, 80, 0.35);
-	background: rgba(176, 112, 80, 0.06);
+.recent-posts-empty {
+	margin: 0;
+	font-size: 0.92rem;
+	color: var(--muted-ink);
 }
 
-.home-who-spotlight .panel-title {
-	color: var(--terracotta);
+/* Rich “Who are you?” snapshot (client: fingerprint + interaction count) */
+.home-who-rich {
+	border-radius: 18px;
+	border: 1px solid rgba(176, 112, 80, 0.42);
+	background:
+		radial-gradient(
+			ellipse 130% 90% at 100% 0%,
+			rgba(176, 112, 80, 0.16) 0%,
+			transparent 52%
+		),
+		radial-gradient(
+			ellipse 100% 70% at 0% 100%,
+			rgba(107, 125, 94, 0.12) 0%,
+			transparent 48%
+		),
+		linear-gradient(
+			168deg,
+			rgba(255, 252, 248, 0.98) 0%,
+			rgba(255, 255, 255, 0.78) 100%
+		);
+	box-shadow:
+		0 3px 14px rgba(42, 35, 28, 0.08),
+		inset 0 1px 0 rgba(255, 255, 255, 0.55);
+	position: relative;
+	overflow: hidden;
+	min-height: 100%;
 }
 
-.home-who-spotlight-cta {
-	margin: 0.65rem 0 0;
+.home-who-rich::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background-image: linear-gradient(rgba(42, 35, 28, 0.035) 1px, transparent 1px);
+	background-size: 100% 9px;
+	opacity: 0.45;
+	pointer-events: none;
 }
 
-.home-who-spotlight--hero {
-	padding: 1rem 1.1rem 1.1rem;
+.home-who-rich-inner {
+	position: relative;
+	z-index: 1;
+	padding: 1.05rem 1.15rem 1.2rem;
 }
 
-.home-who-lede {
-	font-size: 0.98rem;
+.home-who-rich-header {
+	margin-bottom: 0.85rem;
+}
+
+.home-who-rich-badge {
+	display: inline-block;
+	font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+	font-size: 0.65rem;
+	font-weight: 600;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	padding: 0.2rem 0.5rem;
+	border-radius: 999px;
+	background: rgba(176, 112, 80, 0.2);
+	color: #6b3d24;
+	border: 1px solid rgba(176, 112, 80, 0.35);
+	margin-bottom: 0.45rem;
+}
+
+.home-who-rich-title {
+	font-family: "SF Pro Display", "Avenir Next", "Segoe UI", Arial, sans-serif;
+	font-size: 1.25rem;
+	font-weight: 650;
+	letter-spacing: -0.02em;
+	color: #2a1810;
+	margin: 0 0 0.35rem;
+}
+
+.home-who-rich-sub {
+	margin: 0;
+	font-size: 0.9rem;
 	line-height: 1.45;
+	color: #4d453c;
+	max-width: 38ch;
+}
+
+.home-who-rich-metrics {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 0.75rem 1rem;
+	margin-top: 0.85rem;
+}
+
+@media (max-width: 520px) {
+	.home-who-rich-metrics {
+		grid-template-columns: 1fr;
+	}
+}
+
+.home-who-metric {
+	padding: 0.65rem 0.75rem;
+	border-radius: 12px;
+	border: 1px solid rgba(42, 35, 28, 0.08);
+	background: rgba(255, 255, 255, 0.42);
+}
+
+.home-who-metric--primary {
+	background: rgba(255, 255, 255, 0.55);
+	border-color: rgba(176, 112, 80, 0.22);
+}
+
+.home-who-metric-value {
+	font-family: "SF Pro Display", "Avenir Next", "Segoe UI", Arial, sans-serif;
+	font-size: clamp(2rem, 5vw, 2.75rem);
+	font-weight: 700;
+	line-height: 1;
+	letter-spacing: -0.03em;
+	color: #221c16;
+	font-variant-numeric: tabular-nums;
+	margin: 0 0 0.25rem;
+}
+
+.home-who-metric-label {
+	margin: 0;
+	font-size: 0.78rem;
+	line-height: 1.35;
+	color: var(--muted-ink);
+}
+
+.home-who-metric-hint {
+	display: block;
+	font-size: 0.68rem;
+	opacity: 0.85;
+	margin-top: 0.2rem;
+}
+
+.home-who-metric--secondary .home-who-metric-label {
+	margin-bottom: 0.35rem;
+}
+
+.home-who-fp-chip {
+	margin: 0;
+}
+
+.home-who-fp-chip code {
+	font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+	font-size: 0.78rem;
+	padding: 0.25rem 0.45rem;
+	border-radius: 8px;
+	background: rgba(42, 35, 28, 0.06);
+	border: 1px solid rgba(42, 35, 28, 0.08);
+	color: #2a241c;
+	word-break: break-all;
+}
+
+.home-who-rich-footnote {
+	margin: 0.75rem 0 0;
+	font-size: 0.78rem;
+	color: var(--muted-ink);
+	line-height: 1.4;
+}
+
+.home-who-rich-cta {
+	margin: 1rem 0 0;
+}
+
+@media (max-width: 520px) {
+	.home-who-rich-cta .btn-primary {
+		width: 100%;
+		justify-content: center;
+	}
 }
 
 .article {
