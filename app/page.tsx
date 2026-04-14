@@ -3,6 +3,10 @@ import Link from "next/link";
 import { AnimatedFrame } from "@/components/animated-frame";
 import { HomeCtas } from "@/components/home-ctas";
 
+/** ghchart.rshah.io no longer resolves (dead domain). Embed via github-readme-activity-graph (SVG). */
+const GITHUB_ACTIVITY_GRAPH_SRC =
+	"https://github-readme-activity-graph.vercel.app/graph?username=jdetle&hide_border=true";
+
 const FEATURED_POSTS = [
 	{
 		slug: "rules-that-make-quality-sites-easy",
@@ -60,18 +64,17 @@ export default function HomePage() {
 								target="_blank"
 								rel="noopener noreferrer"
 							>
-								{/* ghchart PNG breaks when proxied/resized by next/image — load origin directly */}
 								<Image
 									unoptimized
 									className="contrib-chart-img"
-									src="https://ghchart.rshah.io/b07050/jdetle"
-									alt="GitHub contribution activity for the last year"
-									width={800}
-									height={128}
+									src={GITHUB_ACTIVITY_GRAPH_SRC}
+									alt="GitHub commit activity over the last year"
+									width={1200}
+									height={420}
 								/>
 							</a>
 							<p className="work-copy contrib-chart-caption">
-								Contribution graph (last year).{" "}
+								Recent public commit activity.{" "}
 								<a href="https://github.com/jdetle">github.com/jdetle</a>
 							</p>
 
