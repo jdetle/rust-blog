@@ -225,6 +225,13 @@ export function getAllPosts(): AnyPost[] {
 	return getAllQuarters().flatMap((q) => q.posts);
 }
 
+/** Newest first, same ordering as quarter listings. */
+export function getRecentPosts(limit: number): AnyPost[] {
+	const all = getAllPosts();
+	if (limit <= 0) return [];
+	return all.slice(0, limit);
+}
+
 export function resolvePostDir(slug: string): string | null {
 	const entries = readdirSync(POSTS_DIR).filter(
 		(e) => QUARTER_RE.test(e) && statSync(join(POSTS_DIR, e)).isDirectory(),
