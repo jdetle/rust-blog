@@ -150,6 +150,13 @@ a:hover {
 	color: var(--muted-ink);
 }
 
+.home-hero {
+	max-width: var(--max-text);
+	margin-bottom: clamp(1.1rem, 2vw, 1.65rem);
+	padding-bottom: clamp(0.85rem, 1.5vw, 1.25rem);
+	border-bottom: 1px solid var(--line);
+}
+
 /* Lead journal entry (newest post) — above “more posts” + Who are you */
 .home-lead-post {
 	margin-bottom: clamp(1.25rem, 2.2vw, 1.75rem);
@@ -351,7 +358,10 @@ a:hover {
 	content: "";
 	position: absolute;
 	inset: 0;
-	background-image: linear-gradient(rgba(42, 35, 28, 0.035) 1px, transparent 1px);
+	background-image: linear-gradient(
+		rgba(42, 35, 28, 0.035) 1px,
+		transparent 1px
+	);
 	background-size: 100% 9px;
 	opacity: 0.45;
 	pointer-events: none;
@@ -479,13 +489,6 @@ a:hover {
 	margin: 1rem 0 0;
 }
 
-@media (max-width: 520px) {
-	.home-who-rich-cta .btn-primary {
-		width: 100%;
-		justify-content: center;
-	}
-}
-
 .article {
 	max-width: var(--max-text);
 }
@@ -562,6 +565,13 @@ h1 {
 
 .btn-secondary {
 	background: rgba(122, 128, 88, 0.08);
+}
+
+@media (max-width: 520px) {
+	.home-who-rich-cta .btn-primary {
+		width: 100%;
+		justify-content: center;
+	}
 }
 
 .btn:hover {

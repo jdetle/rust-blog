@@ -37,6 +37,25 @@ export default function HomePage() {
 					</p>
 				</header>
 
+				<section className="home-hero" aria-labelledby="home-hero-heading">
+					<p className="eyebrow">
+						Senior Software Engineer &middot; Reliability &amp; Growth
+					</p>
+					<h1 id="home-hero-heading">
+						I build the systems behind the buy button.
+					</h1>
+					<p className="lede">
+						Seven years of shipping customer-facing software where downtime
+						costs real money. At GoDaddy I helped evolve the dashboard and
+						account surfaces behind $200M+ in annual revenue, cutting p95
+						latency and improving experiment quality across millions of
+						sessions. At PwC (via Kunai) I build cloud infrastructure for
+						nine-figure consulting engagements.
+					</p>
+
+					<HomeCtas />
+				</section>
+
 				{leadPost ? (
 					<section
 						className="home-lead-post"
@@ -100,21 +119,6 @@ export default function HomePage() {
 
 				<section className="home-grid">
 					<article className="article">
-						<p className="eyebrow">
-							Senior Software Engineer &middot; Reliability &amp; Growth
-						</p>
-						<h1>I build the systems behind the buy button.</h1>
-						<p className="lede">
-							Seven years of shipping customer-facing software where downtime
-							costs real money. At GoDaddy I helped evolve the dashboard and
-							account surfaces behind $200M+ in annual revenue, cutting p95
-							latency and improving experiment quality across millions of
-							sessions. At PwC (via Kunai) I build cloud infrastructure for
-							nine-figure consulting engagements.
-						</p>
-
-						<HomeCtas />
-
 						<section className="panel github-panel github-panel--lead">
 							<h2 className="panel-title">GitHub</h2>
 							<a

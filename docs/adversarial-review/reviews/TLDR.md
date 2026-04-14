@@ -1,7 +1,12 @@
 # Adversarial Review TLDR
 
+- [2026-04-14 home recent who push](./2026-04-14-home-recent-who-push.md)
+  - decision: proceed with push; hero first after masthead; Guardian AI copy without errata framing; CSS specificity fix for Biome
+  - unresolved risk: Guardian claims vs evolving README until human pass
+  - follow-up: optional mobile visual pass on home
+
 - [2026-04-14 guardian post ai draft](./2026-04-14-guardian-post-ai-draft.md)
-  - **corrected:** first essay targeted wrong repo (Terraform); live post is `jdetle-guardian` → `https://github.com/jdetle/guardian`
+  - **scope:** live post is `jdetle-guardian` → `https://github.com/jdetle/guardian` (macOS agent resource monitor for Cursor/Codex)
   - decision: proceed; AI draft default + human stub for visibility
   - follow-up: human review; verify claims against current README
 
