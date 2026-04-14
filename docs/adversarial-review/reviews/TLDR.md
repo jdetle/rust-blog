@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-04-14 who avatar anthropic push](./2026-04-14-who-avatar-push.md)
+  - decision: proceed with push; migrate `003_user_profiles_avatar.cql` before/with analytics-ingestion deploy
+  - unresolved risk: Anthropic availability for on-demand generation
+  - follow-up: verify `cqlsh` ALTER on production keyspace
+
 - [2026-04-14 guardian post ai draft](./2026-04-14-guardian-post-ai-draft.md)
   - **corrected:** first essay targeted wrong repo (Terraform); live post is `jdetle-guardian` → `https://github.com/jdetle/guardian`
   - decision: proceed; AI draft default + human stub for visibility
