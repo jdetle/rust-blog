@@ -1,9 +1,9 @@
 # Adversarial Review TLDR
 
 - [2026-04-14 guardian post ai draft](./2026-04-14-guardian-post-ai-draft.md)
-  - decision: proceed with push; multi-version post, default AI, human placeholder for visibility
-  - unresolved risk: upstream Guardian README/features may drift; re-check links on human pass
-  - follow-up: replace human version content when reviewed; trim draft footer if redundant
+  - **corrected:** initial post targeted wrong repo (Terraform); replaced by `posts/2026-q2/jdetle-guardian` for `github.com/jdetle/guardian`
+  - follow-up: human review AI draft; verify claims against current README
+
 
 - [2026-04-01 animated-frame mobile first paint](./2026-04-01-animated-frame-mobile-first-paint.md)
   - decision: proceed with push; transform-only motion, no SSR `opacity:0`

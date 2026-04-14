@@ -1,5 +1,11 @@
 # Adversarial Review: Guardian post (AI draft, visible)
 
+> **Update (2026-04-14):** The shipped blog essay pointed at the wrong GitHub project (Terraform tooling). It was removed and replaced with `jdetle-guardian` covering `https://github.com/jdetle/guardian` (macOS agent resource monitor). This review file remains as history for the mistaken scope.
+
+---
+
+# Adversarial Review: Guardian post (AI draft, visible)
+
 ## TL;DR
 - decision: proceed with push; content-only post + manifest
 - key reason: uses existing multi-version visibility pattern (not AI-only) so prod listing works

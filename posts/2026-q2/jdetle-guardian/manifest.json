@@ -1,0 +1,17 @@
+{
+	"title": "jdetle/guardian — agent resource monitoring for Cursor and Codex on macOS",
+	"author": "John Detlefs",
+	"date": "April 14, 2026",
+	"defaultVersion": "ai",
+	"showHeroImage": true,
+	"versions": ["ai", "human"],
+	"authorship": {
+		"ai": "ai",
+		"human": "human"
+	},
+	"heroImage": {
+		"url": "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=1400&q=80&auto=format&fit=crop",
+		"alt": "Laptop on a desk in warm light",
+		"credit": "Photo by Nikita Kachanovsky on Unsplash"
+	}
+}
