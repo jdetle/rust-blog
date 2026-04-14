@@ -52,11 +52,51 @@ export default function HomePage() {
 
 						<HomeCtas />
 
+						<section className="panel github-panel github-panel--lead">
+							<h2 className="panel-title">GitHub</h2>
+							<a
+								className="contrib-chart-link"
+								href="https://github.com/jdetle"
+								target="_blank"
+								rel="noopener noreferrer"
+							>
+								<Image
+									className="contrib-chart-img"
+									src="https://ghchart.rshah.io/b07050/jdetle"
+									alt="GitHub contribution activity for the last year"
+									width={800}
+									height={128}
+									sizes="(max-width: 1100px) min(100vw - 3rem, 720px), 720px"
+								/>
+							</a>
+							<p className="work-copy contrib-chart-caption">
+								Contribution graph (last year).{" "}
+								<a href="https://github.com/jdetle">github.com/jdetle</a>
+							</p>
+
+							<article className="work-item">
+								<h3>Guardian</h3>
+								<p className="work-meta">Rust &middot; Open source</p>
+								<p className="work-copy">
+									System resource monitor daemon for Cursor agent
+									sessions—tracks CPU, memory, and disk so long-running agents
+									stay within bounds.{" "}
+									<a
+										href="https://github.com/jdetle/guardian"
+										target="_blank"
+										rel="noopener noreferrer"
+									>
+										github.com/jdetle/guardian
+									</a>
+								</p>
+							</article>
+						</section>
+
 						<p className="meta">
 							Currently at <strong>Kunai (PwC Network)</strong> as a Senior
-							Cloud Developer. Previously Senior SDE at{" "}
-							<strong>GoDaddy</strong>. Before that: full-stack across IoT
-							(Meshify), crypto, and data tooling.
+							Cloud Developer. Previously Senior SDE at <strong>GoDaddy</strong>
+							. Before that: full-stack across IoT (Meshify), crypto, and data
+							tooling.
 						</p>
 
 						<ul className="chip-row">
@@ -107,46 +147,6 @@ export default function HomePage() {
 									Legacy-to-React migrations, Go proxy services, and production
 									workflow reliability for IoT sensor platforms. End-to-end
 									ownership from database to dashboard.
-								</p>
-							</article>
-						</section>
-
-						<section className="panel github-panel">
-							<h2 className="panel-title">GitHub</h2>
-							<a
-								className="contrib-chart-link"
-								href="https://github.com/jdetle"
-								target="_blank"
-								rel="noopener noreferrer"
-							>
-								<Image
-									className="contrib-chart-img"
-									src="https://ghchart.rshah.io/b07050/jdetle"
-									alt="GitHub contribution activity for the last year"
-									width={800}
-									height={128}
-									sizes="(max-width: 1100px) min(100vw - 3rem, 720px), 720px"
-								/>
-							</a>
-							<p className="work-copy contrib-chart-caption">
-								Contribution graph (last year).{" "}
-								<a href="https://github.com/jdetle">github.com/jdetle</a>
-							</p>
-
-							<article className="work-item">
-								<h3>Guardian</h3>
-								<p className="work-meta">Rust &middot; Open source</p>
-								<p className="work-copy">
-									System resource monitor daemon for Cursor agent
-									sessions—tracks CPU, memory, and disk so long-running agents
-									stay within bounds.{" "}
-									<a
-										href="https://github.com/jdetle/guardian"
-										target="_blank"
-										rel="noopener noreferrer"
-									>
-										github.com/jdetle/guardian
-									</a>
 								</p>
 							</article>
 						</section>
