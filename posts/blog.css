@@ -336,6 +336,35 @@ h1 {
 	line-height: 1.45;
 }
 
+.github-panel .contrib-chart-link {
+	display: block;
+	margin: 0.35rem 0 0;
+	border-radius: 10px;
+	overflow: hidden;
+	border: 1px solid var(--line);
+	background: rgba(255, 255, 255, 0.4);
+	transition:
+		box-shadow 200ms ease,
+		border-color 200ms ease;
+}
+
+.github-panel .contrib-chart-link:hover {
+	border-color: rgba(176, 112, 80, 0.35);
+	box-shadow: 0 4px 14px rgba(42, 35, 28, 0.06);
+}
+
+.contrib-chart-img {
+	display: block;
+	width: 100%;
+	height: auto;
+	vertical-align: middle;
+}
+
+.contrib-chart-caption {
+	margin-top: 0.5rem;
+	font-size: 0.88rem;
+}
+
 .page-title {
 	margin-bottom: 0.45rem;
 	font-size: clamp(1.6rem, 3.7vw, 2.9rem);

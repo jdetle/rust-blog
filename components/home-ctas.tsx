@@ -15,12 +15,10 @@ export function HomeCtas() {
 			</Link>
 			<a
 				className="btn btn-secondary"
-				href="https://www.linkedin.com/in/jdetlefs/"
+				href="https://www.linkedin.com/in/jdetle/"
 				target="_blank"
 				rel="noopener noreferrer"
-				onClick={() =>
-					posthog.capture("cta_clicked", { label: "linkedin" })
-				}
+				onClick={() => posthog.capture("cta_clicked", { label: "linkedin" })}
 			>
 				LinkedIn
 			</a>
@@ -29,9 +27,7 @@ export function HomeCtas() {
 				href="https://github.com/jdetle"
 				target="_blank"
 				rel="noopener noreferrer"
-				onClick={() =>
-					posthog.capture("cta_clicked", { label: "github" })
-				}
+				onClick={() => posthog.capture("cta_clicked", { label: "github" })}
 			>
 				GitHub
 			</a>
