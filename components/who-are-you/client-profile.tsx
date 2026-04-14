@@ -1,7 +1,7 @@
 "use client";
 
 import posthog from "posthog-js";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	aggregateThirdPartyResources,
 	computeExposureScore,
@@ -344,6 +344,9 @@ export function ClientProfile({
 	const [userEventsLoading, setUserEventsLoading] = useState(false);
 	const [userEventsError, setUserEventsError] = useState<string | null>(null);
 	const [llmSummary, setLlmSummary] = useState<string | null>(null);
+	const [personaGuess, setPersonaGuess] = useState<string | null>(null);
+	const [avatarSvg, setAvatarSvg] = useState<string | null>(null);
+	const avatarRequestedRef = useRef(false);
 	const [thirdPartyHostCount, setThirdPartyHostCount] = useState(0);
 	const [gtmPresent, setGtmPresent] = useState(false);
 	const [distinctIdDisplay, setDistinctIdDisplay] = useState<string | null>(
@@ -810,24 +813,65 @@ export function ClientProfile({
 		});
 	}, [vpnAssessment, analyticsTools, userEvents.length, thirdPartyHostCount]);
 
-	// Fetch LLM-generated profile summary (from Rust aggregator)
+	// Fetch LLM summary + stored avatar; if none, request generation (Anthropic → SVG stored in DB)
 	useEffect(() => {
 		if (!loaded) return;
 		const distinctId = posthog.get_distinct_id?.();
 		const fp = fingerprint;
 		if (!distinctId && !fp) return;
 
-		const url = new URL("/api/analytics/user-profile", window.location.origin);
-		if (fp) url.searchParams.set("fingerprint", fp);
-		if (distinctId) url.searchParams.set("distinct_id", distinctId);
-		if (distinctId) url.searchParams.set("user_id", distinctId);
+		let cancelled = false;
 
-		fetch(url.href)
-			.then((r) => (r.ok ? r.json() : { summary: null }))
-			.then((data: { summary?: string | null }) => {
+		void (async () => {
+			const url = new URL(
+				"/api/analytics/user-profile",
+				window.location.origin,
+			);
+			if (fp) url.searchParams.set("fingerprint", fp);
+			if (distinctId) url.searchParams.set("distinct_id", distinctId);
+			if (distinctId) url.searchParams.set("user_id", distinctId);
+
+			try {
+				const r = await fetch(url.href);
+				const data = (await r.json()) as {
+					summary?: string | null;
+					persona_guess?: string | null;
+					avatar_svg?: string | null;
+				};
+				if (cancelled) return;
 				if (data.summary) setLlmSummary(data.summary);
-			})
-			.catch(() => {});
+				if (data.persona_guess) setPersonaGuess(data.persona_guess);
+				if (data.avatar_svg) setAvatarSvg(data.avatar_svg);
+
+				if (data.avatar_svg || avatarRequestedRef.current || !fp) return;
+				avatarRequestedRef.current = true;
+
+				const gr = await fetch("/api/analytics/generate-avatar", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						fingerprint: fp,
+						distinct_id: distinctId ?? undefined,
+						user_id: distinctId ?? undefined,
+					}),
+				});
+				const gen = (await gr.json()) as {
+					persona_guess?: string;
+					avatar_svg?: string;
+				};
+				if (cancelled) return;
+				if (gen.avatar_svg) {
+					setAvatarSvg(gen.avatar_svg);
+					setPersonaGuess(gen.persona_guess ?? null);
+				}
+			} catch {
+				/* analytics optional */
+			}
+		})();
+
+		return () => {
+			cancelled = true;
+		};
 	}, [loaded, fingerprint]);
 
 	return (
@@ -1245,6 +1289,24 @@ export function ClientProfile({
 				<h2>The Composite Picture</h2>
 				{summary ? (
 					<>
+						{(avatarSvg || personaGuess) && (
+							<div className="fingerprint-avatar-block">
+								{avatarSvg ? (
+									<div
+										className="fingerprint-avatar-svg"
+										// biome-ignore lint/security/noDangerouslySetInnerHtml: SVG from server-side Anthropic path + Rust sanitizer only
+										dangerouslySetInnerHTML={{ __html: avatarSvg }}
+										role="img"
+										aria-label="Speculative fictional avatar derived from your fingerprint hash (not a real photo)"
+									/>
+								) : null}
+								{personaGuess ? (
+									<p className="summary-paragraph fingerprint-avatar-guess">
+										<strong>Wild guess:</strong> {personaGuess}
+									</p>
+								) : null}
+							</div>
+						)}
 						<p
 							className="summary-paragraph"
 							// biome-ignore lint/security/noDangerouslySetInnerHtml: summary built from esc()escaped profile fields only

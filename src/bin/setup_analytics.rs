@@ -241,6 +241,8 @@ async fn setup_cosmos_db(resource_group: &str) -> CosmosCredentials {
             {"name": "session_id", "type": "text"},
             {"name": "llm_summary", "type": "text"},
             {"name": "updated_at", "type": "timestamp"},
+            {"name": "persona_guess", "type": "text"},
+            {"name": "avatar_svg", "type": "text"},
         ],
         "partitionKeys": [
             {"name": "session_id"},
