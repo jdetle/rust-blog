@@ -6,10 +6,10 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
-
-const ANALYTICS_API_URL = process.env.NEXT_PUBLIC_ANALYTICS_API_URL ?? "";
+import { getAnalyticsIngestionBaseUrl } from "@/lib/analytics-ingestion-url";
 
 export async function POST(request: NextRequest) {
+	const ANALYTICS_API_URL = getAnalyticsIngestionBaseUrl();
 	if (!ANALYTICS_API_URL) {
 		return NextResponse.json(
 			{ error: "Analytics service not configured" },

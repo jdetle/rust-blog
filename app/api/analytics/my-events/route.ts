@@ -7,6 +7,7 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
+import { getAnalyticsIngestionBaseUrl } from "@/lib/analytics-ingestion-url";
 import { fetchEventsByDistinctId, fetchEventsByQuery } from "@/lib/posthog-api";
 import { safeDecodeUriComponent } from "@/lib/url-display";
 
@@ -19,7 +20,6 @@ export interface UnifiedEvent {
 	event_time?: number;
 }
 
-const ANALYTICS_API_URL = process.env.NEXT_PUBLIC_ANALYTICS_API_URL ?? "";
 const POSTHOG_PERSONAL_API_KEY = process.env.POSTHOG_PERSONAL_API_KEY ?? "";
 const POSTHOG_PROJECT_ID = process.env.POSTHOG_PROJECT_ID ?? "";
 
@@ -47,6 +47,8 @@ export async function GET(request: NextRequest) {
 
 	const allEvents: UnifiedEvent[] = [];
 	const seenKeys = new Set<string>();
+
+	const ANALYTICS_API_URL = getAnalyticsIngestionBaseUrl();
 
 	// 1. Warehouse (ScyllaDB) — query by each identifier
 	if (ANALYTICS_API_URL) {

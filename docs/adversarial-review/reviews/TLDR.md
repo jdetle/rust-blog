@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-04-14 analytics ingestion URL env](./2026-04-14-analytics-ingestion-url-env.md)
+  - decision: proceed with push; `ANALYTICS_API_URL` preferred over `NEXT_PUBLIC_*` for Next proxies
+  - unresolved risk: two env names could diverge if both set to different values
+  - follow-up: drop legacy `NEXT_PUBLIC_ANALYTICS_API_URL` in Vercel when safe
+
 - [2026-04-14 home hero fingerprint avatar](./2026-04-14-home-hero-fingerprint-avatar.md)
   - decision: proceed with push; hero grid + `HomeFingerprintAvatar`; PostHog init gated on key
   - unresolved risk: SVG trust boundary same as `/who-are-you` avatar path; analytics env required for visible avatar
