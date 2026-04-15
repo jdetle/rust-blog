@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-04-14 home hero fingerprint avatar](./2026-04-14-home-hero-fingerprint-avatar.md)
+  - decision: proceed with push; hero grid + `HomeFingerprintAvatar`; PostHog init gated on key
+  - unresolved risk: SVG trust boundary same as `/who-are-you` avatar path; analytics env required for visible avatar
+  - follow-up: optional e2e when analytics env absent
+
 - [2026-04-14 who avatar anthropic push](./2026-04-14-who-avatar-push.md)
   - decision: proceed with push; migrate `003_user_profiles_avatar.cql` before/with analytics-ingestion deploy
   - unresolved risk: Anthropic availability for on-demand generation

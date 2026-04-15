@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { AnimatedFrame } from "@/components/animated-frame";
 import { HomeCtas } from "@/components/home-ctas";
+import { HomeFingerprintAvatar } from "@/components/home-fingerprint-avatar";
 import { HomeWhoSnapshot } from "@/components/home-who-snapshot";
 import {
 	estimateReadingTime,
@@ -41,9 +42,12 @@ export default function HomePage() {
 					<p className="eyebrow">
 						Senior Software Engineer &middot; Reliability &amp; Growth
 					</p>
-					<h1 id="home-hero-heading">
-						I build the systems behind the buy button.
-					</h1>
+					<div className="home-hero-headline">
+						<h1 id="home-hero-heading">
+							I build the systems behind the buy button.
+						</h1>
+						<HomeFingerprintAvatar />
+					</div>
 					<p className="lede">
 						Seven years of shipping customer-facing software where downtime
 						costs real money. At GoDaddy I helped evolve the dashboard and

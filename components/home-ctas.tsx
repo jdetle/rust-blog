@@ -13,6 +13,13 @@ export function HomeCtas() {
 			>
 				Read the blog
 			</Link>
+			<Link
+				className="btn btn-secondary"
+				href="/who-are-you"
+				onClick={() => posthog.capture("cta_clicked", { label: "who_are_you" })}
+			>
+				Who are you?
+			</Link>
 			<a
 				className="btn btn-secondary"
 				href="https://www.linkedin.com/in/jdetle/"

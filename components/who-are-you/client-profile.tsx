@@ -96,6 +96,44 @@ function ConfidenceMeter({
 	);
 }
 
+function PosthogSnapshotDd({
+	loaded,
+	analyticsTools,
+	distinctIdDisplay,
+	userEventsLength,
+}: {
+	loaded: boolean;
+	analyticsTools: { name: string; active: boolean }[];
+	distinctIdDisplay: string | null;
+	userEventsLength: number;
+}) {
+	if (!loaded) return "\u2026";
+	const phActive =
+		analyticsTools.some((t) => t.name === "PostHog" && t.active) ||
+		isPostHogSdkReady();
+	if (phActive) {
+		return (
+			<>
+				Distinct id{" "}
+				<code className="persona-code">
+					{maskDistinctId(distinctIdDisplay) ?? "pending"}
+				</code>
+				. <strong>{userEventsLength}</strong> event
+				{userEventsLength === 1 ? "" : "s"} this demo can tie to this browser
+				when the warehouse / API keys are configured &mdash; otherwise the count
+				stays local to this page view.
+			</>
+		);
+	}
+	return (
+		<>
+			PostHog isn&apos;t active here (set{" "}
+			<code className="persona-code">NEXT_PUBLIC_POSTHOG_KEY</code>). Event
+			history below may be empty without keys.
+		</>
+	);
+}
+
 function VerdictBadge({ verdict }: { verdict: string }) {
 	const labels: Record<string, string> = {
 		residential: "Residential IP",
@@ -256,6 +294,24 @@ function classifyReferrer(url: string): string {
 		return `other:${host}`;
 	} catch {
 		return "other";
+	}
+}
+
+function maskDistinctId(id: string | null): string | null {
+	if (!id) return null;
+	if (id.length <= 12) return `${id.slice(0, 2)}\u2026`;
+	return `${id.slice(0, 4)}\u2026${id.slice(-4)}`;
+}
+
+/** True when posthog-js is configured and returned a distinct id (bundled SDK, not window.posthog). */
+function isPostHogSdkReady(): boolean {
+	try {
+		const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+		if (typeof key !== "string" || key.length === 0) return false;
+		const id = posthog.get_distinct_id?.();
+		return typeof id === "string" && id.length > 0;
+	} catch {
+		return false;
 	}
 }
 
@@ -588,17 +644,14 @@ export function ClientProfile({
 				},
 				{
 					name: "PostHog",
-					active:
-						!!(window as { posthog?: { capture?: unknown } }).posthog &&
-						typeof (window as { posthog?: { capture?: unknown } }).posthog
-							?.capture === "function",
+					active: isPostHogSdkReady(),
 				},
 				{
 					name: "Vercel Analytics",
 					active: !!document.querySelector('script[src*="_vercel/insights"]'),
 				},
 			]);
-		}, 1500);
+		}, 1600);
 
 		setSignalCount(signals);
 
@@ -785,6 +838,31 @@ export function ClientProfile({
 		});
 	}, [vpnAssessment, analyticsTools, userEvents.length, thirdPartyHostCount]);
 
+	const agreementSignals = useMemo(() => {
+		if (!vpnAssessment) return [];
+		const wanted = new Set([
+			"Timezone–country mismatch",
+			"Timezone region mismatch",
+			"Language–country mismatch",
+			"WebRTC IP leak",
+		]);
+		return vpnAssessment.signals.filter((s) => wanted.has(s.name));
+	}, [vpnAssessment]);
+
+	const likelyLocation = useMemo(() => {
+		const parts = [network.city, network.region, network.country].filter(
+			Boolean,
+		) as string[];
+		return parts.length ? parts.join(", ") : null;
+	}, [network.city, network.region, network.country]);
+
+	const deviceContextLine = useMemo(() => {
+		const parts = [device.browser, device.os, device.deviceType].filter(
+			Boolean,
+		) as string[];
+		return parts.length ? parts.join(" · ") : null;
+	}, [device.browser, device.os, device.deviceType]);
+
 	// Fetch LLM summary + stored avatar; if none, request generation (Anthropic → SVG stored in DB)
 	useEffect(() => {
 		if (!loaded) return;
@@ -855,8 +933,180 @@ export function ClientProfile({
 				Analysis complete. {signalCount} signals detected.
 			</div>
 
+			{loaded ? (
+				<nav className="persona-toc" aria-label="On this page">
+					<span className="persona-toc-label">On this page</span>
+					<a href="#inferred-snapshot">Inferred snapshot</a>
+					<a href="#signal-agreement">Signal agreement</a>
+					<a href="#commercial-tracking">Tracking surface</a>
+					<a href="#origin-intelligence">Origin intelligence</a>
+					<a href="#network-location">Network &amp; location</a>
+					<a href="#device-hardware">Device</a>
+				</nav>
+			) : null}
+
+			{/* ── Inferred snapshot ───────────────────────────────────────── */}
+			<section
+				id="inferred-snapshot"
+				className="detect-section persona-snapshot-section"
+			>
+				<h2>Inferred snapshot</h2>
+				<p className="detect-note">
+					A structured readout from data this page already collected &mdash;
+					pseudonymous, not your name.
+				</p>
+				<dl className="persona-snapshot">
+					<div className="persona-row">
+						<dt>Likely location</dt>
+						<dd>
+							{likelyLocation ?? (network.country ? network.country : "\u2026")}
+						</dd>
+					</div>
+					<div className="persona-row">
+						<dt>Likely device &amp; context</dt>
+						<dd>
+							{deviceContextLine ? (
+								<>
+									{deviceContextLine}
+									{device.screen ? (
+										<>
+											{" "}
+											<span className="persona-row-sub">
+												Screen {device.screen}
+												{device.viewport
+													? ` · viewport ${device.viewport}`
+													: ""}
+											</span>
+										</>
+									) : null}
+								</>
+							) : (
+								"\u2026"
+							)}
+						</dd>
+					</div>
+					<div className="persona-row">
+						<dt>Language &amp; locale</dt>
+						<dd>
+							{capabilities.languages && capabilities.timezone ? (
+								<>
+									{capabilities.languages.split(",")[0]?.trim()}
+									<span className="persona-row-sub">
+										{" "}
+										&middot; {capabilities.timezone}
+									</span>
+								</>
+							) : (
+								"\u2026"
+							)}
+						</dd>
+					</div>
+					<div className="persona-row">
+						<dt>Connection story</dt>
+						<dd>
+							{vpnAssessment ? (
+								<>
+									<VerdictBadge verdict={vpnAssessment.verdict} />
+									{" \u2014 "}
+									{vpnAssessment.summary}
+								</>
+							) : (
+								"\u2026"
+							)}
+						</dd>
+					</div>
+					<div className="persona-row">
+						<dt>Identifier stability</dt>
+						<dd>
+							{fingerprint ? (
+								<>
+									Canvas hash{" "}
+									<code className="persona-code">{fingerprint}</code> &mdash; a
+									pseudonymous device sketch, not an ID document.
+								</>
+							) : (
+								"\u2026"
+							)}
+						</dd>
+					</div>
+					<div className="persona-row">
+						<dt>How you arrived</dt>
+						<dd>
+							{referral.referrerType ? (
+								<>
+									{referral.referrerType}
+									{referral.utm && referral.utm !== "None" ? (
+										<span className="persona-row-sub">
+											{" "}
+											&middot; {referral.utm}
+										</span>
+									) : null}
+								</>
+							) : (
+								"\u2026"
+							)}
+						</dd>
+					</div>
+					<div className="persona-row">
+						<dt>PostHog / events</dt>
+						<dd>
+							<PosthogSnapshotDd
+								loaded={loaded}
+								analyticsTools={analyticsTools}
+								distinctIdDisplay={distinctIdDisplay}
+								userEventsLength={userEvents.length}
+							/>
+						</dd>
+					</div>
+				</dl>
+			</section>
+
+			{/* ── Signal agreement ─────────────────────────────────────── */}
+			<section id="signal-agreement" className="detect-section">
+				<h2>Signal agreement</h2>
+				<p className="detect-note">
+					Cross-checks between browser hints and network-visible signals.
+					Triggered rows are not proof of malice &mdash; they flag mismatch.
+				</p>
+				{agreementSignals.length > 0 ? (
+					<div className="signal-agreement-strip">
+						{agreementSignals.map((s) => (
+							<div
+								key={s.name}
+								className={`signal-agreement-item ${s.detected ? "signal-mismatch" : "signal-match"}`}
+							>
+								<span className="signal-agreement-icon" aria-hidden="true">
+									{s.detected ? "\u26a0" : "\u2713"}
+								</span>
+								<div className="signal-agreement-body">
+									<span className="signal-agreement-name">{s.name}</span>
+									<span className="signal-agreement-detail">{s.detail}</span>
+								</div>
+							</div>
+						))}
+					</div>
+				) : loaded ? (
+					<p className="detect-note">
+						No timezone/language/WebRTC agreement rows for this session (often
+						needs edge country plus browser timezone/languages).
+					</p>
+				) : null}
+			</section>
+
+			{/* ── Commercial tracking surface (exposure) ───────────────── */}
+			{vpnAssessment && exposureScore !== null ? (
+				<section id="commercial-tracking" className="detect-section">
+					<h2>Commercial tracking surface</h2>
+					<p className="detect-note">
+						Composite score from trackers, third-party hosts, stored events, and
+						VPN signals.
+					</p>
+					<ExposureMeter value={exposureScore} />
+				</section>
+			) : null}
+
 			{/* ── Origin Intelligence ────────────────────────────────────── */}
-			<section className="detect-section origin-intel">
+			<section id="origin-intelligence" className="detect-section origin-intel">
 				<h2>Origin Intelligence</h2>
 				<p className="detect-note">
 					Server-side analysis from the edge node closest to you
@@ -936,19 +1186,10 @@ export function ClientProfile({
 						))}
 					</div>
 				)}
-
-				{vpnAssessment && exposureScore !== null && (
-					<div className="exposure-inline">
-						<h3 className="exposure-inline-title">
-							Commercial tracking surface
-						</h3>
-						<ExposureMeter value={exposureScore} />
-					</div>
-				)}
 			</section>
 
 			{/* ── Network & Location ────────────────────────────────────── */}
-			<section className="detect-section">
+			<section id="network-location" className="detect-section">
 				<h2>Network &amp; Location</h2>
 				<p className="detect-note">
 					{serverGeo.city
@@ -978,7 +1219,7 @@ export function ClientProfile({
 			</section>
 
 			{/* ── Device & Hardware ─────────────────────────────────────── */}
-			<section className="detect-section">
+			<section id="device-hardware" className="detect-section">
 				<h2>Device &amp; Hardware</h2>
 				<p className="detect-note">From Navigator and Screen APIs</p>
 				<dl className="detect-grid">
