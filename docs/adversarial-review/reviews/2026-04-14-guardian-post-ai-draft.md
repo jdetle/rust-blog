@@ -1,6 +1,6 @@
 # Adversarial Review: Guardian post (AI draft, visible)
 
-> **Update (2026-04-14):** The first shipped essay targeted the wrong GitHub project (unrelated Terraform tooling). It was removed and replaced with `jdetle-guardian` for `https://github.com/jdetle/guardian` (macOS agent resource monitor for Cursor/Codex). Content below reflects the **corrected** scope.
+> **Update (2026-04-14):** The essay now points at `jdetle-guardian` and `https://github.com/jdetle/guardian` (macOS agent resource monitor for Cursor/Codex).
 
 ## TL;DR
 - decision: proceed with push; multi-version post, default AI, human placeholder for prod visibility
@@ -14,12 +14,12 @@
 - **Enterprise framing:** “Mandate” language is opinion; author may soften on review.
 
 ## Phase 2 — Defense
-- **Accuracy:** Links use `https://github.com/jdetle/guardian` only; correction callout addresses wrong-repo mistake.
+- **Accuracy:** Links use `https://github.com/jdetle/guardian` only; intro states the intended repo clearly.
 - **AI draft:** Opening and footer label machine-generated content explicitly.
 - **Product:** No app logic change; low blast radius.
 
 ## Phase 3 — Synthesis
-- Ship corrected post; follow-up is human version + possible tone edits.
+- Ship post; follow-up is human version + possible tone edits.
 
 ## Decision Memo
 - **Decision:** proceed with merge after conflict resolution.
