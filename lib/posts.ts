@@ -187,6 +187,23 @@ export function estimateReadingTime(html: string): number {
 	return Math.max(1, Math.ceil(words / 230));
 }
 
+export function getDefaultVersionHtml(post: AnyPost): string {
+	if (post.kind === "single") return post.bodyHtml;
+	const v = post.versions.find((x) => x.key === post.defaultVersion);
+	return v?.bodyHtml ?? post.versions[0]?.bodyHtml ?? "";
+}
+
+/** Plain-text excerpt from the default post body (for cards and listings). */
+export function getPlainTextExcerpt(post: AnyPost, maxLen: number): string {
+	const html = getDefaultVersionHtml(post);
+	const text = html
+		.replace(/<[^>]+>/g, " ")
+		.replace(/\s+/g, " ")
+		.trim();
+	if (text.length <= maxLen) return text;
+	return `${text.slice(0, maxLen).trim()}…`;
+}
+
 function parseDateString(dateStr: string): number {
 	const d = new Date(dateStr);
 	return Number.isNaN(d.getTime()) ? 0 : d.getTime();
@@ -223,6 +240,13 @@ export function getAllQuarters(): Quarter[] {
 
 export function getAllPosts(): AnyPost[] {
 	return getAllQuarters().flatMap((q) => q.posts);
+}
+
+/** Newest first, same ordering as quarter listings. */
+export function getRecentPosts(limit: number): AnyPost[] {
+	const all = getAllPosts();
+	if (limit <= 0) return [];
+	return all.slice(0, limit);
 }
 
 export function resolvePostDir(slug: string): string | null {

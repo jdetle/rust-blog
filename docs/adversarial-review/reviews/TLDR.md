@@ -1,5 +1,25 @@
 # Adversarial Review TLDR
 
+- [2026-04-14 who avatar anthropic push](./2026-04-14-who-avatar-push.md)
+  - decision: proceed with push; migrate `003_user_profiles_avatar.cql` before/with analytics-ingestion deploy
+  - unresolved risk: Anthropic availability for on-demand generation
+  - follow-up: verify `cqlsh` ALTER on production keyspace
+
+- [2026-04-14 home recent who push](./2026-04-14-home-recent-who-push.md)
+  - decision: proceed with push; hero first after masthead; Guardian AI copy without errata framing; CSS specificity fix for Biome
+  - unresolved risk: Guardian claims vs evolving README until human pass
+  - follow-up: optional mobile visual pass on home
+
+- [2026-04-14 guardian post ai draft](./2026-04-14-guardian-post-ai-draft.md)
+  - **scope:** live post is `jdetle-guardian` → `https://github.com/jdetle/guardian` (macOS agent resource monitor for Cursor/Codex)
+  - decision: proceed; AI draft default + human stub for visibility
+  - follow-up: human review; verify claims against current README
+
+- [2026-04-01 animated-frame mobile first paint](./2026-04-01-animated-frame-mobile-first-paint.md)
+  - decision: proceed with push; transform-only motion, no SSR `opacity:0`
+  - unresolved risk: slightly different entrance (no fade); reduced-motion unchanged
+  - follow-up: optional visual regression on home if users report motion differences
+
 - [2026-03-20 posthog-ci-verify](./2026-03-20-posthog-ci-verify.md)
   - decision: proceed with merge; PostHog verify + tests + Bun XFF middleware
   - unresolved risk: verify step false-negative if preview lacks `NEXT_PUBLIC_POSTHOG_KEY` or HogQL lags past retries; 2h count is project-wide

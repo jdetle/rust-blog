@@ -9,8 +9,9 @@ use axum::{
     Json,
 };
 use crate::analytics::{AnalyticsDb, AnalyticsEvent, IncomingEvent};
-use crate::vercel_drain::VercelDrainPayload;
+use crate::avatar;
 use crate::forward::PostHogForwarder;
+use crate::vercel_drain::VercelDrainPayload;
 use serde::Serialize;
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 
@@ -18,6 +19,8 @@ use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 pub struct AppState {
     pub db: Arc<AnalyticsDb>,
     pub posthog: Option<Arc<PostHogForwarder>>,
+    /// Used for LLM summary (background) and on-demand SVG avatar generation.
+    pub anthropic_api_key: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -35,7 +38,19 @@ pub struct UserProfileQuery {
     #[serde(default)]
     pub user_id: String,
     #[serde(default)]
+    pub distinct_id: String,
+    #[serde(default)]
     pub fingerprint: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct GenerateAvatarBody {
+    #[serde(default)]
+    pub fingerprint: String,
+    #[serde(default)]
+    pub user_id: String,
+    #[serde(default)]
+    pub distinct_id: String,
 }
 
 fn default_limit() -> u32 {
@@ -133,12 +148,14 @@ pub async fn user_profile(
 ) -> impl IntoResponse {
     let lookup_id = if !params.user_id.is_empty() {
         params.user_id.clone()
+    } else if !params.distinct_id.is_empty() {
+        params.distinct_id.clone()
     } else if !params.fingerprint.is_empty() {
         params.fingerprint.clone()
     } else {
         return (
             StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({"error": "Provide user_id or fingerprint"})),
+            Json(serde_json::json!({"error": "Provide user_id, distinct_id, or fingerprint"})),
         )
             .into_response();
     };
@@ -148,13 +165,20 @@ pub async fn user_profile(
             StatusCode::OK,
             Json(serde_json::json!({
                 "summary": profile.llm_summary,
-                "updated_at": profile.updated_at
+                "updated_at": profile.updated_at,
+                "persona_guess": profile.persona_guess,
+                "avatar_svg": profile.avatar_svg,
             })),
         )
             .into_response(),
         Ok(None) => (
             StatusCode::OK,
-            Json(serde_json::json!({ "summary": null, "updated_at": null })),
+            Json(serde_json::json!({
+                "summary": null,
+                "updated_at": null,
+                "persona_guess": null,
+                "avatar_svg": null
+            })),
         )
             .into_response(),
         Err(e) => {
@@ -162,6 +186,90 @@ pub async fn user_profile(
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"error": "Failed to query profile"})),
+            )
+                .into_response()
+        }
+    }
+}
+
+/// POST body: fingerprint and/or distinct_id / user_id. Generates a fictional SVG avatar via Anthropic
+/// and stores `persona_guess` + `avatar_svg` in `user_profiles`. Idempotent if avatar already set.
+pub async fn user_profile_generate_avatar(
+    State(state): State<AppState>,
+    Json(body): Json<GenerateAvatarBody>,
+) -> impl IntoResponse {
+    let lookup_id = if !body.user_id.is_empty() {
+        body.user_id.clone()
+    } else if !body.distinct_id.is_empty() {
+        body.distinct_id.clone()
+    } else if !body.fingerprint.is_empty() {
+        body.fingerprint.clone()
+    } else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Provide user_id, distinct_id, or fingerprint"})),
+        )
+            .into_response();
+    };
+
+    let Some(ref api_key) = state.anthropic_api_key else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"error": "Avatar generation not configured"})),
+        )
+            .into_response();
+    };
+
+    let prior = state.db.get_user_profile(&lookup_id).await;
+    let summary_hint: Option<String> = match &prior {
+        Ok(Some(p)) if !p.llm_summary.is_empty() => Some(p.llm_summary.clone()),
+        _ => None,
+    };
+
+    if let Ok(Some(existing)) = &prior {
+        if !existing.avatar_svg.is_empty() {
+            return (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "persona_guess": existing.persona_guess,
+                    "avatar_svg": existing.avatar_svg,
+                    "cached": true
+                })),
+            )
+                .into_response();
+        }
+    }
+
+    let client = reqwest::Client::new();
+    match avatar::generate_fake_avatar(api_key, &lookup_id, summary_hint.as_deref(), &client).await {
+        Ok((persona, svg)) => {
+            if let Err(e) = state
+                .db
+                .upsert_persona_avatar(&lookup_id, &persona, &svg)
+                .await
+            {
+                tracing::error!(error = %e, "upsert persona avatar failed");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": "Failed to store avatar"})),
+                )
+                    .into_response();
+            }
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "persona_guess": persona,
+                    "avatar_svg": svg,
+                    "cached": false
+                })),
+            )
+                .into_response()
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "avatar generation failed");
+            (
+                StatusCode::BAD_GATEWAY,
+                Json(serde_json::json!({"error": "Avatar generation failed"})),
             )
                 .into_response()
         }

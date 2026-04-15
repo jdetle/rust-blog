@@ -46,9 +46,13 @@ async fn main() -> anyhow::Result<()> {
     let db = Arc::new(db);
 
     let posthog = Some(Arc::new(PostHogForwarder::new(posthog_api_key.clone())));
+    let anthropic_api_key = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.is_empty());
+    let anthropic_for_summarize = anthropic_api_key.clone();
+
     let state = api::AppState {
         db: db.clone(),
         posthog,
+        anthropic_api_key,
     };
     let aggregator = Arc::new(Aggregator::new(
         db.clone(),
@@ -65,6 +69,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/drain/vercel", post(api::vercel_drain))
         .route("/user-events", get(api::user_events))
         .route("/user-profile", get(api::user_profile))
+        .route(
+            "/user-profile/generate-avatar",
+            post(api::user_profile_generate_avatar),
+        )
         .with_state(state)
         .layer(cors_layer());
 
@@ -79,7 +87,7 @@ async fn main() -> anyhow::Result<()> {
     spawn_aggregation_loop(aggregator);
 
     let summarize_enabled = std::env::var("SUMMARIZE_ENABLED").unwrap_or_else(|_| "true".into()) != "false";
-    if let Some(anthropic_key) = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.is_empty()) {
+    if let Some(anthropic_key) = anthropic_for_summarize {
         if summarize_enabled {
             tracing::info!("summarization enabled, spawning loop");
             summarize::spawn_summarization_loop(db.clone(), anthropic_key, "jdetle-blog".to_string());
