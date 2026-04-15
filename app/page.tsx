@@ -2,16 +2,30 @@ import Image from "next/image";
 import Link from "next/link";
 import { AnimatedFrame } from "@/components/animated-frame";
 import { HomeCtas } from "@/components/home-ctas";
-import { getRecentPosts } from "@/lib/posts";
+import { HomeWhoSnapshot } from "@/components/home-who-snapshot";
+import {
+	estimateReadingTime,
+	getDefaultVersionHtml,
+	getPlainTextExcerpt,
+	getRecentPosts,
+} from "@/lib/posts";
 
 /** ghchart.rshah.io no longer resolves (dead domain). Embed via github-readme-activity-graph (SVG). */
 const GITHUB_ACTIVITY_GRAPH_SRC =
 	"https://github-readme-activity-graph.vercel.app/graph?username=jdetle&hide_border=true";
 
-const RECENT_POSTS_COUNT = 6;
+const RECENT_WINDOW = 6;
 
 export default function HomePage() {
-	const recentPosts = getRecentPosts(RECENT_POSTS_COUNT);
+	const recent = getRecentPosts(RECENT_WINDOW);
+	const leadPost = recent[0];
+	const morePosts = recent.slice(1);
+
+	const leadMinutes = leadPost
+		? estimateReadingTime(getDefaultVersionHtml(leadPost))
+		: 1;
+
+	const leadExcerpt = leadPost ? getPlainTextExcerpt(leadPost, 240) : "";
 
 	return (
 		<main className="site-shell">
@@ -23,24 +37,75 @@ export default function HomePage() {
 					</p>
 				</header>
 
+				<section className="home-hero" aria-labelledby="home-hero-heading">
+					<p className="eyebrow">
+						Senior Software Engineer &middot; Reliability &amp; Growth
+					</p>
+					<h1 id="home-hero-heading">
+						I build the systems behind the buy button.
+					</h1>
+					<p className="lede">
+						Seven years of shipping customer-facing software where downtime
+						costs real money. At GoDaddy I helped evolve the dashboard and
+						account surfaces behind $200M+ in annual revenue, cutting p95
+						latency and improving experiment quality across millions of
+						sessions. At PwC (via Kunai) I build cloud infrastructure for
+						nine-figure consulting engagements.
+					</p>
+
+					<HomeCtas />
+				</section>
+
+				{leadPost ? (
+					<section
+						className="home-lead-post"
+						aria-labelledby="home-lead-heading"
+					>
+						<p className="eyebrow home-lead-eyebrow">Latest on the journal</p>
+						<h2 id="home-lead-heading" className="home-lead-title">
+							<Link href={`/posts/${leadPost.slug}`}>{leadPost.title}</Link>
+						</h2>
+						<p className="home-lead-meta">
+							{leadPost.date}
+							<span className="home-lead-meta-sep" aria-hidden="true">
+								{" "}
+								·{" "}
+							</span>
+							{leadMinutes} min read
+						</p>
+						<p className="home-lead-excerpt">{leadExcerpt}</p>
+						<p className="home-lead-cta-wrap">
+							<Link className="home-lead-cta" href={`/posts/${leadPost.slug}`}>
+								Read the full essay →
+							</Link>
+						</p>
+					</section>
+				) : null}
+
 				<section
 					className="home-priority"
 					aria-labelledby="home-priority-heading"
 				>
 					<h2 id="home-priority-heading" className="visually-hidden">
-						Recent writing and interactive demo
+						More posts and interactive demo
 					</h2>
 					<div className="home-priority-grid">
 						<section className="panel home-recent-panel">
-							<h2 className="panel-title">Latest from the blog</h2>
-							<ul className="recent-posts-list">
-								{recentPosts.map((post) => (
-									<li key={post.slug} className="recent-posts-item">
-										<Link href={`/posts/${post.slug}`}>{post.title}</Link>
-										<p className="recent-posts-meta">{post.date}</p>
-									</li>
-								))}
-							</ul>
+							<h2 className="panel-title">More from the blog</h2>
+							{morePosts.length > 0 ? (
+								<ul className="recent-posts-list">
+									{morePosts.map((post) => (
+										<li key={post.slug} className="recent-posts-item">
+											<Link href={`/posts/${post.slug}`}>{post.title}</Link>
+											<p className="recent-posts-meta">{post.date}</p>
+										</li>
+									))}
+								</ul>
+							) : (
+								<p className="recent-posts-empty">
+									No additional posts yet — check back soon.
+								</p>
+							)}
 							<p className="recent-posts-footer">
 								<Link className="recent-posts-all" href="/posts">
 									All posts →
@@ -48,38 +113,12 @@ export default function HomePage() {
 							</p>
 						</section>
 
-						<section className="panel home-who-spotlight home-who-spotlight--hero">
-							<h2 className="panel-title">Who are you?</h2>
-							<p className="work-copy home-who-lede">
-								Live demo: what this site can infer from your browser, the edge,
-								and common analytics scripts — in one scrollable page.
-							</p>
-							<p className="home-who-spotlight-cta">
-								<Link className="btn btn-primary" href="/who-are-you">
-									Open the demo
-								</Link>
-							</p>
-						</section>
+						<HomeWhoSnapshot />
 					</div>
 				</section>
 
 				<section className="home-grid">
 					<article className="article">
-						<p className="eyebrow">
-							Senior Software Engineer &middot; Reliability &amp; Growth
-						</p>
-						<h1>I build the systems behind the buy button.</h1>
-						<p className="lede">
-							Seven years of shipping customer-facing software where downtime
-							costs real money. At GoDaddy I helped evolve the dashboard and
-							account surfaces behind $200M+ in annual revenue, cutting p95
-							latency and improving experiment quality across millions of
-							sessions. At PwC (via Kunai) I build cloud infrastructure for
-							nine-figure consulting engagements.
-						</p>
-
-						<HomeCtas />
-
 						<section className="panel github-panel github-panel--lead">
 							<h2 className="panel-title">GitHub</h2>
 							<a
