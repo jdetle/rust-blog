@@ -57,12 +57,17 @@ pub struct UserProfile {
     pub session_id: String,
     pub llm_summary: String,
     pub updated_at: i64,
+    /// Playful fictional guess line (Anthropic-generated).
+    pub persona_guess: String,
+    /// Sanitized inline SVG avatar (Anthropic-generated vector markup).
+    pub avatar_svg: String,
 }
 
 pub struct AnalyticsDb {
     session: Arc<Session>,
     insert_stmt: PreparedStatement,
     upsert_profile_stmt: PreparedStatement,
+    upsert_avatar_stmt: PreparedStatement,
     get_profile_stmt: PreparedStatement,
 }
 
@@ -89,14 +94,19 @@ impl AnalyticsDb {
             (session_id, llm_summary, updated_at) VALUES (?, ?, ?)";
         let upsert_profile_stmt = session.prepare(upsert_profile_cql).await?;
 
-        let get_profile_cql =
-            "SELECT session_id, llm_summary, updated_at FROM analytics.user_profiles WHERE session_id = ?";
+        let upsert_avatar_cql = "INSERT INTO analytics.user_profiles \
+            (session_id, persona_guess, avatar_svg, updated_at) VALUES (?, ?, ?, ?)";
+        let upsert_avatar_stmt = session.prepare(upsert_avatar_cql).await?;
+
+        let get_profile_cql = "SELECT session_id, llm_summary, updated_at, persona_guess, avatar_svg \
+             FROM analytics.user_profiles WHERE session_id = ?";
         let get_profile_stmt = session.prepare(get_profile_cql).await?;
 
         Ok(Self {
             session: Arc::new(session),
             insert_stmt,
             upsert_profile_stmt,
+            upsert_avatar_stmt,
             get_profile_stmt,
         })
     }
@@ -276,6 +286,23 @@ impl AnalyticsDb {
         Ok(())
     }
 
+    /// Store fictional persona line + SVG avatar for a session_id (fingerprint / distinct id).
+    pub async fn upsert_persona_avatar(
+        &self,
+        session_id: &str,
+        persona_guess: &str,
+        avatar_svg: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let updated_at = Utc::now().timestamp_millis();
+        self.session
+            .execute_unpaged(
+                &self.upsert_avatar_stmt,
+                (session_id, persona_guess, avatar_svg, updated_at),
+            )
+            .await?;
+        Ok(())
+    }
+
     /// Get user profile by session_id.
     pub async fn get_user_profile(
         &self,
@@ -291,12 +318,23 @@ impl AnalyticsDb {
             .await?;
 
         let rows = result.into_rows_result()?;
-        if let Some(row) = rows.rows::<(String, Option<String>, Option<i64>)>()?.next() {
-            let (sid, summary, updated_at) = row?;
+        if let Some(row) = rows
+            .rows::<(
+                String,
+                Option<String>,
+                Option<i64>,
+                Option<String>,
+                Option<String>,
+            )>()?
+            .next()
+        {
+            let (sid, summary, updated_at, persona, avatar) = row?;
             return Ok(Some(UserProfile {
                 session_id: sid,
                 llm_summary: summary.unwrap_or_default(),
                 updated_at: updated_at.unwrap_or(0),
+                persona_guess: persona.unwrap_or_default(),
+                avatar_svg: avatar.unwrap_or_default(),
             }));
         }
         Ok(None)

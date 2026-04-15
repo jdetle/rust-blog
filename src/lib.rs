@@ -4,6 +4,7 @@ pub mod aggregate;
 pub mod aggregate_mapping;
 pub mod analytics;
 pub mod api;
+pub mod avatar;
 pub mod event_sink;
 pub mod forward;
 pub mod mock;

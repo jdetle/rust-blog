@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-04-14 who avatar anthropic push](./2026-04-14-who-avatar-push.md)
+  - decision: proceed with push; migrate `003_user_profiles_avatar.cql` before/with analytics-ingestion deploy
+  - unresolved risk: Anthropic availability for on-demand generation
+  - follow-up: verify `cqlsh` ALTER on production keyspace
+
 - [2026-04-14 home recent who push](./2026-04-14-home-recent-who-push.md)
   - decision: proceed with push; hero first after masthead; Guardian AI copy without errata framing; CSS specificity fix for Biome
   - unresolved risk: Guardian claims vs evolving README until human pass

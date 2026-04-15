@@ -24,7 +24,12 @@ export async function GET(request: NextRequest) {
 	}
 
 	if (!ANALYTICS_API_URL) {
-		return NextResponse.json({ summary: null, updated_at: null });
+		return NextResponse.json({
+			summary: null,
+			updated_at: null,
+			persona_guess: null,
+			avatar_svg: null,
+		});
 	}
 
 	try {
@@ -39,19 +44,33 @@ export async function GET(request: NextRequest) {
 		});
 
 		if (!res.ok) {
-			return NextResponse.json({ summary: null, updated_at: null });
+			return NextResponse.json({
+				summary: null,
+				updated_at: null,
+				persona_guess: null,
+				avatar_svg: null,
+			});
 		}
 
 		const data = (await res.json()) as {
 			summary?: string | null;
 			updated_at?: number | null;
+			persona_guess?: string | null;
+			avatar_svg?: string | null;
 		};
 		return NextResponse.json({
 			summary: data.summary ?? null,
 			updated_at: data.updated_at ?? null,
+			persona_guess: data.persona_guess ?? null,
+			avatar_svg: data.avatar_svg ?? null,
 		});
 	} catch (err) {
 		console.warn("User profile fetch failed:", err);
-		return NextResponse.json({ summary: null, updated_at: null });
+		return NextResponse.json({
+			summary: null,
+			updated_at: null,
+			persona_guess: null,
+			avatar_svg: null,
+		});
 	}
 }
