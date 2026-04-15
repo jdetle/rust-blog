@@ -55,7 +55,7 @@ The analytics-ingestion service deploys to Azure Container Apps via `.github/wor
 1. Create an Azure Container Registry (ACR), resource group, and Container App with env vars: `COSMOS_CONTACT_POINT`, `COSMOS_USERNAME`, `COSMOS_PASSWORD`, `POSTHOG_API_KEY`
 2. Add GitHub secrets: `AZURE_CREDENTIALS` (service principal JSON)
 3. Add GitHub variables: `ACR_NAME`, `AZURE_RESOURCE_GROUP`, `CONTAINER_APP_NAME`
-4. Set `NEXT_PUBLIC_ANALYTICS_API_URL` in Vercel to your Container App URL (e.g. `https://analytics-ingestion.xxx.azurecontainerapps.io`)
+4. Set `ANALYTICS_API_URL` in Vercel (Production / Preview) to your Container App URL (e.g. `https://analytics-ingestion.xxx.azurecontainerapps.io`). `NEXT_PUBLIC_ANALYTICS_API_URL` with the same value still works as a legacy alias.
 
 ### Analytics
 
@@ -82,7 +82,7 @@ For production, add these as Vercel Environment Variables in the project setting
 | `/` | Homepage — bio, selected work, editorial note |
 | `/posts` | Post archive — reverse chronological listing |
 | `/posts/:slug` | Individual post (SSG at build time) |
-| `/who-are-you` | Live visitor profiling + your event history (when `NEXT_PUBLIC_ANALYTICS_API_URL` is set) |
+| `/who-are-you` | Live visitor profiling + your event history (when `ANALYTICS_API_URL` or legacy `NEXT_PUBLIC_ANALYTICS_API_URL` is set) |
 
 ### Deployment
 
