@@ -1,8 +1,9 @@
 # Builds rust-api via ACR Tasks, deploys ca-rust-api into cae-rust-blog (same RG as rust-blog).
-# Same secrets and runner as deploy-azure.yml; first-run creates CAE if missing (mirrors deploy-azure).
+# Uses ubuntu-latest (OIDC + Azure CLI) so deploys do not depend on org self-hosted runners.
+# Same secrets as deploy-azure.yml; first-run creates CAE if missing (mirrors deploy-azure).
 #
 # Secrets: AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AZURE_CLIENT_ID, AZURE_RESOURCE_GROUP,
-#          PLATFORM_ACR, PRISM_INGEST_URL, PRISM_API_KEY
+#          PLATFORM_ACR, PLATFORM_SUB_ID, PRISM_INGEST_URL, PRISM_API_KEY
 
 name: deploy-rust-api
 
@@ -35,7 +36,7 @@ permissions:
 
 jobs:
   build-push-deploy:
-    runs-on: [self-hosted, linux, x64, azcaj]
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -63,11 +64,13 @@ jobs:
       - name: Build and push via ACR Tasks
         env:
           PLATFORM_ACR: ${{ secrets.PLATFORM_ACR }}
+          PLATFORM_SUB_ID: ${{ secrets.PLATFORM_SUB_ID }}
           TAG: ${{ steps.meta.outputs.tag }}
         run: |
           ACR_NAME="${PLATFORM_ACR%%.*}"
           az acr build \
             --registry "$ACR_NAME" \
+            --subscription "$PLATFORM_SUB_ID" \
             --image "${APP_NAME}:${TAG}" \
             --file rust-api/Dockerfile \
             .
