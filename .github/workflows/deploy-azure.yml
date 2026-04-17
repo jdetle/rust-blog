@@ -47,6 +47,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Debug tenant
+        run: |
+          TID="${AZURE_TENANT_ID}"
+          echo "Tenant length: ${#TID}"
+          echo "Tenant prefix: ${TID:0:4}****"
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
       - name: Azure login (OIDC)
         uses: azure/login@v2
         with:
