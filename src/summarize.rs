@@ -69,7 +69,7 @@ pub async fn run_summarization_cycle(
     }
 
     for events in by_session.values_mut() {
-        events.sort_by(|a, b| a.event_time.cmp(&b.event_time));
+        events.sort_by_key(|e| e.event_time);
     }
 
     let mut session_ids: Vec<_> = by_session.keys().cloned().collect();
