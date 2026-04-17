@@ -8,6 +8,7 @@
 # Required secrets (set by jdetle/platform scripts/set-github-secrets-from-azure-env.sh):
 #   AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AZURE_CLIENT_ID
 #   AZURE_RESOURCE_GROUP (rg-rust-blog), PLATFORM_ACR, PRISM_INGEST_URL, PRISM_API_KEY
+#   ANTHROPIC_API_KEY
 
 name: deploy-azure
 
@@ -111,6 +112,7 @@ jobs:
           PLATFORM_ACR: ${{ secrets.PLATFORM_ACR }}
           PRISM_INGEST_URL: ${{ secrets.PRISM_INGEST_URL }}
           PRISM_API_KEY: ${{ secrets.PRISM_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           IDENTITY_ID=$(az identity show \
             --name "id-rust-blog" \
@@ -135,8 +137,11 @@ jobs:
                 "RUST_LOG=info" \
                 "PRISM_INGEST_URL=${PRISM_INGEST_URL}" \
                 "PRISM_API_KEY=secretref:prism-api-key" \
+                "ANTHROPIC_API_KEY=secretref:anthropic-api-key" \
                 "OTEL_SERVICE_NAME=rust-blog" \
-              --secrets "prism-api-key=${PRISM_API_KEY}" \
+              --secrets \
+                "prism-api-key=${PRISM_API_KEY}" \
+                "anthropic-api-key=${ANTHROPIC_API_KEY}" \
               --output none
           else
             echo "Reconciling registry auth on: $CONTAINER_APP"
@@ -146,11 +151,25 @@ jobs:
               --server "$PLATFORM_ACR" \
               --identity "$IDENTITY_ID" \
               --output none
-            echo "Updating image: $CONTAINER_APP"
+            echo "Upserting secrets on: $CONTAINER_APP"
+            az containerapp secret set \
+              --name "$CONTAINER_APP" \
+              --resource-group "$RG" \
+              --secrets \
+                "prism-api-key=${PRISM_API_KEY}" \
+                "anthropic-api-key=${ANTHROPIC_API_KEY}" \
+              --output none
+            echo "Updating image and env vars: $CONTAINER_APP"
             az containerapp update \
               --name "$CONTAINER_APP" \
               --resource-group "$RG" \
               --image "$IMAGE" \
+              --set-env-vars \
+                "RUST_LOG=info" \
+                "PRISM_INGEST_URL=${PRISM_INGEST_URL}" \
+                "PRISM_API_KEY=secretref:prism-api-key" \
+                "ANTHROPIC_API_KEY=secretref:anthropic-api-key" \
+                "OTEL_SERVICE_NAME=rust-blog" \
               --output none
           fi
           URL=$(az containerapp show \
