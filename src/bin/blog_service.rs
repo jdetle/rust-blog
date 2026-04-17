@@ -19,6 +19,7 @@ use rust_blog::anthropic::AnthropicClient;
 use rust_blog::api::AppState;
 use rust_blog::forward::PostHogForwarder;
 use rust_blog::summarize;
+use s10_rust::{S10Client, S10Layer};
 use tokio::net::TcpListener;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -129,7 +130,17 @@ async fn main() -> anyhow::Result<()> {
         summarize::spawn_summarization_loop(db_arc, client, "jdetle-blog".to_string());
     }
 
-    axum::serve(listener, app).await?;
+    let s10_url = std::env::var("S10_INGEST_URL").unwrap_or_default();
+    let s10_key = std::env::var("S10_INGEST_KEY").unwrap_or_default();
+    if !s10_url.is_empty() && !s10_key.is_empty() {
+        let s10_client = S10Client::new(s10_url, s10_key);
+        let app_with_s10 = app.layer(S10Layer::new(s10_client.clone()));
+        s10_rust::event!("service_started").send(&s10_client).await;
+        axum::serve(listener, app_with_s10).await?;
+    } else {
+        tracing::warn!("S10_INGEST_URL/S10_INGEST_KEY not set — s10 telemetry disabled");
+        axum::serve(listener, app).await?;
+    }
     Ok(())
 }
 

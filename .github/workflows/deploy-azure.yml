@@ -94,6 +94,7 @@ jobs:
           echo "::add-mask::${POSTHOG_API_KEY}"
           echo "POSTHOG_API_KEY=${POSTHOG_API_KEY}" >> "$GITHUB_ENV"
 
+
       - name: Install containerapp extension
         run: az extension add --name containerapp --upgrade --yes 2>/dev/null || true
 
