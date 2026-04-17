@@ -60,12 +60,7 @@ export default async function WhoAreYouPage() {
 					<ClientProfile serverGeo={serverGeo} edgeInfo={edgeInfo} />
 				</article>
 
-				<NavRow
-					links={[
-						{ href: "/posts", label: "All posts" },
-						{ href: "/", label: "Home" },
-					]}
-				/>
+				<NavRow />
 			</AnimatedFrame>
 		</main>
 	);

@@ -7,6 +7,7 @@ interface NavRowProps {
 const DEFAULT_LINKS = [
 	{ href: "/posts", label: "All posts" },
 	{ href: "/who-are-you", label: "Who are you?" },
+	{ href: "/work-with-me", label: "Work with me" },
 	{ href: "/", label: "Home" },
 ];
 
