@@ -1,18 +1,32 @@
 /**
- * Base URL for the `rust-api` Azure Container App (see `rust-api/README.md`).
- * Server-only — Next.js API routes under `/api/rust/*` proxy here.
+ * Base URL for the `/api/rust/*` proxy routes.
+ *
+ * These routes previously forwarded to the standalone `rust-api` Container App.
+ * After consolidation they still resolve through `RUST_API_URL` (for the existing
+ * Vercel env var), but `BLOG_SERVICE_URL` is preferred when set so the same
+ * `ca-rust-blog` Container App handles both paths.
+ *
+ * Resolution order (first non-empty wins):
+ *   1. `BLOG_SERVICE_URL` — new canonical name for the unified service
+ *   2. `RUST_API_URL`     — legacy name (still set in Vercel prod for rust-api)
  */
 
 const RUST_PATH_SEGMENT = /^[a-zA-Z0-9_.-]+$/;
 
 export function getRustApiBaseUrl(): string {
-	const raw = process.env.RUST_API_URL?.trim();
-	if (!raw) return "";
-	return stripTrailingSlash(raw);
+	const candidates = [
+		process.env.BLOG_SERVICE_URL,
+		process.env.RUST_API_URL,
+	];
+	for (const raw of candidates) {
+		const trimmed = raw?.trim();
+		if (trimmed) return stripTrailingSlash(trimmed);
+	}
+	return "";
 }
 
 /**
- * Builds a path under `rust-api` for proxying. Rejects traversal or odd segments.
+ * Builds a path under the service for proxying. Rejects traversal or odd segments.
  */
 export function rustProxyPathFromSegments(segments: string[]): string | null {
 	for (const s of segments) {
@@ -24,7 +38,7 @@ export function rustProxyPathFromSegments(segments: string[]): string | null {
 }
 
 /**
- * Resolves `path` against `RUST_API_URL` and verifies the origin matches (SSRF guard).
+ * Resolves `path` against the service base URL and verifies the origin matches (SSRF guard).
  */
 export function rustApiUrlForProxyPath(path: string): URL | null {
 	const base = getRustApiBaseUrl();
