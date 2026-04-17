@@ -81,9 +81,17 @@ if [ -n "$KEY_VAULT_NAME" ]; then
       --query "value" -o tsv 2>/dev/null)" || val=""
     [ -n "$val" ] && echo "${key}=${val}"
   done
+
+  # Anthropic key uses hyphenated KV name (Azure KV convention) mapped to env var name
+  val="$(az keyvault secret show \
+    --vault-name "$KEY_VAULT_NAME" \
+    --name "anthropic-api-key" \
+    --query "value" -o tsv 2>/dev/null)" || val=""
+  [ -n "$val" ] && echo "ANTHROPIC_API_KEY=${val}"
 else
   log "KEY_VAULT_NAME not set. Provider keys must be provided via .env or manual setup."
   echo "# Add to .env manually: POSTHOG_API_KEY (required), CLARITY_EXPORT_TOKEN, VERCEL_TOKEN, META_ACCESS_TOKEN (optional)"
+  echo "# Add to .env manually: ANTHROPIC_API_KEY (required for SVG avatar generation)"
   echo "# For GA4 BigQuery: GOOGLE_APPLICATION_CREDENTIALS (path to service account JSON)"
 fi
 

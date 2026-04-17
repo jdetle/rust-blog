@@ -5,6 +5,16 @@ import { defineConfig } from "@playwright/test";
 const port = process.env.PLAYWRIGHT_PORT ?? "3005";
 const baseURL = process.env.BASE_URL ?? `http://127.0.0.1:${port}`;
 
+// blog-service (test-support build) and mock-anthropic sidecar ports.
+const blogServicePort = process.env.BLOG_SERVICE_PORT ?? "8090";
+const mockAnthropicPort = process.env.MOCK_ANTHROPIC_PORT ?? "9090";
+
+// The blog-service binary must be pre-compiled before Playwright starts so that the
+// webServer entry below is just a process-start (< 5s), not a cold Rust compile (45-120s).
+// See ci.yml "Build blog-service (test-support)" step.
+const blogServiceBin =
+	process.env.BLOG_SERVICE_BIN ?? "./target/debug/blog-service";
+
 export default defineConfig({
 	testDir: "e2e",
 	fullyParallel: true,
@@ -32,10 +42,43 @@ export default defineConfig({
 			use: { viewport: { width: 1280, height: 720 } },
 		},
 	],
-	webServer: {
-		command: `PORT=${port} bun run dev`,
-		url: baseURL,
-		reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "1",
-		timeout: 120_000,
-	},
+	// Three servers are started in order. Playwright waits for each `url` to be reachable
+	// before proceeding to the next. The blog-service and mock-anthropic entries have a
+	// short timeout because both are pre-compiled/pre-built executables, not cold builds.
+	webServer: [
+		// 1. mock-anthropic sidecar — must start before blog-service so ANTHROPIC_BASE_URL resolves.
+		{
+			command: `MOCK_ANTHROPIC_PORT=${mockAnthropicPort} bun run scripts/e2e/mock-anthropic.ts`,
+			url: `http://127.0.0.1:${mockAnthropicPort}/__calls`,
+			timeout: 15_000,
+			reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "1",
+		},
+		// 2. blog-service binary (pre-compiled, test-support feature, in-memory profile store).
+		//    ANTHROPIC_BASE_URL points at the mock sidecar above.
+		{
+			command: [
+				`PORT=${blogServicePort}`,
+				`BLOG_SERVICE_DB=memory`,
+				`ANTHROPIC_API_KEY=test-key`,
+				`ANTHROPIC_BASE_URL=http://127.0.0.1:${mockAnthropicPort}`,
+				blogServiceBin,
+			].join(" "),
+			url: `http://127.0.0.1:${blogServicePort}/health`,
+			timeout: 15_000,
+			reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "1",
+			env: {
+				PORT: blogServicePort,
+				BLOG_SERVICE_DB: "memory",
+				ANTHROPIC_API_KEY: "test-key",
+				ANTHROPIC_BASE_URL: `http://127.0.0.1:${mockAnthropicPort}`,
+			},
+		},
+		// 3. Next.js dev server — started last; BLOG_SERVICE_URL points at the binary above.
+		{
+			command: `PORT=${port} BLOG_SERVICE_URL=http://127.0.0.1:${blogServicePort} bun run dev`,
+			url: baseURL,
+			reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "1",
+			timeout: 120_000,
+		},
+	],
 });

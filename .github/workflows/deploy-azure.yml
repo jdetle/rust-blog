@@ -62,15 +62,15 @@ jobs:
         env:
           KEY_VAULT_NAME: ${{ secrets.KEY_VAULT_NAME }}
           ANTHROPIC_API_KEY_SECRET: ${{ secrets.ANTHROPIC_API_KEY }}
-          POSTHOG_API_KEY_SECRET: ${{ secrets.POSTHOG_API_KEY }}
           COSMOS_PASSWORD_SECRET: ${{ secrets.COSMOS_PASSWORD }}
+          POSTHOG_API_KEY_SECRET: ${{ secrets.POSTHOG_API_KEY }}
         run: |
           kv_get() {
-            local name="$1"
+            local secret_name="$1"
             if [ -n "$KEY_VAULT_NAME" ]; then
               az keyvault secret show \
                 --vault-name "$KEY_VAULT_NAME" \
-                --name "$name" \
+                --name "$secret_name" \
                 --query value -o tsv 2>/dev/null || true
             fi
           }
@@ -81,17 +81,18 @@ jobs:
           echo "::add-mask::${ANTHROPIC_API_KEY}"
           echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}" >> "$GITHUB_ENV"
 
-          POSTHOG_API_KEY="${POSTHOG_API_KEY_SECRET}"
-          kv_val="$(kv_get "posthog-api-key")"
-          [ -n "$kv_val" ] && POSTHOG_API_KEY="$kv_val"
-          echo "::add-mask::${POSTHOG_API_KEY}"
-          echo "POSTHOG_API_KEY=${POSTHOG_API_KEY}" >> "$GITHUB_ENV"
-
           COSMOS_PASSWORD="${COSMOS_PASSWORD_SECRET}"
           kv_val="$(kv_get "cosmos-password")"
           [ -n "$kv_val" ] && COSMOS_PASSWORD="$kv_val"
           echo "::add-mask::${COSMOS_PASSWORD}"
           echo "COSMOS_PASSWORD=${COSMOS_PASSWORD}" >> "$GITHUB_ENV"
+
+          POSTHOG_API_KEY="${POSTHOG_API_KEY_SECRET}"
+          kv_val="$(kv_get "POSTHOG-API-KEY")"
+          [ -z "$kv_val" ] && kv_val="$(kv_get "posthog-api-key")"
+          [ -n "$kv_val" ] && POSTHOG_API_KEY="$kv_val"
+          echo "::add-mask::${POSTHOG_API_KEY}"
+          echo "POSTHOG_API_KEY=${POSTHOG_API_KEY}" >> "$GITHUB_ENV"
 
       - name: Install containerapp extension
         run: az extension add --name containerapp --upgrade --yes 2>/dev/null || true
@@ -148,14 +149,15 @@ jobs:
           PLATFORM_ACR: ${{ secrets.PLATFORM_ACR }}
           S10_INGEST_URL: ${{ secrets.S10_INGEST_URL }}
           S10_INGEST_KEY: ${{ secrets.S10_INGEST_KEY }}
-          # ANTHROPIC_API_KEY, POSTHOG_API_KEY, COSMOS_PASSWORD are set in GITHUB_ENV by the fetch step
+          # ANTHROPIC_API_KEY, COSMOS_PASSWORD, POSTHOG_API_KEY set in GITHUB_ENV
+          # by the "Fetch secrets" step above.
         run: |
           IDENTITY_ID=$(az identity show \
             --name "id-rust-blog" \
             --resource-group "$RG" \
             --query id -o tsv)
 
-          # Build secret/env lists dynamically; Azure rejects empty secret values.
+          # Build secret and env-var lists dynamically; Azure rejects empty secret values.
           COMMON_SECRETS=("s10-ingest-key=${S10_INGEST_KEY}")
           COMMON_ENV=(
             "RUST_LOG=info"
@@ -167,13 +169,13 @@ jobs:
             COMMON_SECRETS+=("anthropic-api-key=${ANTHROPIC_API_KEY}")
             COMMON_ENV+=("ANTHROPIC_API_KEY=secretref:anthropic-api-key")
           fi
-          if [ -n "$POSTHOG_API_KEY" ]; then
-            COMMON_SECRETS+=("posthog-api-key=${POSTHOG_API_KEY}")
-            COMMON_ENV+=("POSTHOG_API_KEY=secretref:posthog-api-key")
-          fi
           if [ -n "$COSMOS_PASSWORD" ]; then
             COMMON_SECRETS+=("cosmos-password=${COSMOS_PASSWORD}")
             COMMON_ENV+=("COSMOS_PASSWORD=secretref:cosmos-password")
+          fi
+          if [ -n "$POSTHOG_API_KEY" ]; then
+            COMMON_SECRETS+=("posthog-api-key=${POSTHOG_API_KEY}")
+            COMMON_ENV+=("POSTHOG_API_KEY=secretref:posthog-api-key")
           fi
 
           if ! az containerapp show --name "$CONTAINER_APP" --resource-group "$RG" &>/dev/null; then

@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-04-17 blog-service consolidation + avatar e2e](./2026-04-17-blog-service-consolidation-avatar-e2e.md)
+  - decision: proceed (5-0); rust-api + analytics-ingestion merged into blog-service; two test layers added
+  - unresolved risk: orphaned Azure Container Apps (ca-rust-api, analytics-ingestion in rg-jdetle-blog) need manual teardown — see docs/runbooks/teardown-legacy-container-apps.md
+  - follow-up: update Vercel env to BLOG_SERVICE_URL; rename /v1/info service field from "rust-api" to "blog-service" in follow-up PR
+
 - [2026-04-16 rust-api framework deploy](./2026-04-16-rust-api-framework-deploy.md)
   - decision: proceed; Axum `rust-api`, `deploy-rust-api.yml` + `scripts/deploy-rust-api.sh` mirror `deploy-azure.yml`
   - unresolved risk: Prism secrets empty breaks first create same as rust-blog if misconfigured
