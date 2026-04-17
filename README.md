@@ -57,6 +57,8 @@ The analytics-ingestion service deploys to Azure Container Apps via `.github/wor
 3. Add GitHub variables: `ACR_NAME`, `AZURE_RESOURCE_GROUP`, `CONTAINER_APP_NAME`
 4. Set `ANALYTICS_API_URL` in Vercel (Production / Preview) to your Container App URL (e.g. `https://analytics-ingestion.xxx.azurecontainerapps.io`). `NEXT_PUBLIC_ANALYTICS_API_URL` with the same value still works as a legacy alias.
 
+**rust-api (oakheightsllc/rust-blog on Vercel):** The small Axum service in `rust-api/` deploys to Azure as `ca-rust-api` (see `.github/workflows/deploy-rust-api.yml`). Set **`RUST_API_URL`** in the [Vercel project](https://vercel.com/oakheightsllc/rust-blog/settings/environment-variables) to that Container App’s HTTPS origin (no trailing slash), e.g. `https://ca-rust-api.<random>.eastus2.azurecontainerapps.io`. Production and Development can use `bun run ingest:rust-api` (Vercel CLI). For **Preview**, add the same variable for Preview in the dashboard (CLI preview targets often require choosing a branch). The site exposes **`GET /api/rust/health`**, **`/api/rust/ready`**, **`/api/rust/v1/info`** as server proxies to the Container App.
+
 ### Analytics
 
 Five analytics platforms are wired in `components/analytics-provider.tsx`:
