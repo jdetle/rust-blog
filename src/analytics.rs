@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use chrono::{NaiveDate, Utc};
 use scylla::prepared_statement::PreparedStatement;
 use scylla::{Session, SessionBuilder};
@@ -61,6 +62,99 @@ pub struct UserProfile {
     pub persona_guess: String,
     /// Sanitized inline SVG avatar (Anthropic-generated vector markup).
     pub avatar_svg: String,
+}
+
+/// Minimal storage contract needed by the avatar handler.
+/// Implemented by [`AnalyticsDb`] (Cosmos/Scylla) and, when the `test-support`
+/// feature is enabled, by [`MemoryProfileStore`] (in-memory HashMap for tests).
+#[async_trait]
+pub trait ProfileStore: Send + Sync {
+    async fn get_profile(
+        &self,
+        id: &str,
+    ) -> Result<Option<UserProfile>, Box<dyn std::error::Error + Send + Sync>>;
+
+    async fn upsert_persona_avatar(
+        &self,
+        id: &str,
+        persona: &str,
+        svg: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+}
+
+// ---------------------------------------------------------------------------
+// In-memory test double — compiled only with the `test-support` feature.
+// NEVER included in `default` features; Dockerfile never passes --features
+// so the prod binary is guaranteed not to contain this bypass.
+// ---------------------------------------------------------------------------
+#[cfg(feature = "test-support")]
+pub struct MemoryProfileStore {
+    profiles: tokio::sync::Mutex<std::collections::HashMap<String, UserProfile>>,
+}
+
+#[cfg(feature = "test-support")]
+impl MemoryProfileStore {
+    pub fn new() -> Self {
+        Self {
+            profiles: tokio::sync::Mutex::new(std::collections::HashMap::new()),
+        }
+    }
+
+    pub async fn get_stored(&self, id: &str) -> Option<UserProfile> {
+        let map = self.profiles.lock().await;
+        map.get(id).map(|p| UserProfile {
+            session_id: p.session_id.clone(),
+            llm_summary: p.llm_summary.clone(),
+            updated_at: p.updated_at,
+            persona_guess: p.persona_guess.clone(),
+            avatar_svg: p.avatar_svg.clone(),
+        })
+    }
+}
+
+#[cfg(feature = "test-support")]
+impl Default for MemoryProfileStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(feature = "test-support")]
+#[async_trait]
+impl ProfileStore for MemoryProfileStore {
+    async fn get_profile(
+        &self,
+        id: &str,
+    ) -> Result<Option<UserProfile>, Box<dyn std::error::Error + Send + Sync>> {
+        let map = self.profiles.lock().await;
+        Ok(map.get(id).map(|p| UserProfile {
+            session_id: p.session_id.clone(),
+            llm_summary: p.llm_summary.clone(),
+            updated_at: p.updated_at,
+            persona_guess: p.persona_guess.clone(),
+            avatar_svg: p.avatar_svg.clone(),
+        }))
+    }
+
+    async fn upsert_persona_avatar(
+        &self,
+        id: &str,
+        persona: &str,
+        svg: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let mut map = self.profiles.lock().await;
+        let entry = map.entry(id.to_string()).or_insert_with(|| UserProfile {
+            session_id: id.to_string(),
+            llm_summary: String::new(),
+            updated_at: 0,
+            persona_guess: String::new(),
+            avatar_svg: String::new(),
+        });
+        entry.persona_guess = persona.to_string();
+        entry.avatar_svg = svg.to_string();
+        entry.updated_at = chrono::Utc::now().timestamp_millis();
+        Ok(())
+    }
 }
 
 pub struct AnalyticsDb {
@@ -303,7 +397,7 @@ impl AnalyticsDb {
         Ok(())
     }
 
-    /// Get user profile by session_id.
+    /// Get user profile by session_id. Also used internally by [`ProfileStore`] impl.
     pub async fn get_user_profile(
         &self,
         session_id: &str,
@@ -338,5 +432,25 @@ impl AnalyticsDb {
             }));
         }
         Ok(None)
+    }
+}
+
+#[async_trait]
+impl ProfileStore for AnalyticsDb {
+    async fn get_profile(
+        &self,
+        id: &str,
+    ) -> Result<Option<UserProfile>, Box<dyn std::error::Error + Send + Sync>> {
+        self.get_user_profile(id).await
+    }
+
+    async fn upsert_persona_avatar(
+        &self,
+        id: &str,
+        persona: &str,
+        svg: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // Use explicit inherent-method call to avoid ambiguity with the trait method of the same name.
+        AnalyticsDb::upsert_persona_avatar(self, id, persona, svg).await
     }
 }
