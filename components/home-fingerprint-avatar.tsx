@@ -19,6 +19,9 @@ export function HomeFingerprintAvatar() {
 		let cancelled = false;
 		setPhase("loading");
 
+		const controller = new AbortController();
+		const timeoutId = setTimeout(() => controller.abort(), 8_000);
+
 		void (async () => {
 			const url = new URL(
 				"/api/analytics/user-profile",
@@ -31,7 +34,7 @@ export function HomeFingerprintAvatar() {
 			}
 
 			try {
-				const r = await fetch(url.href);
+				const r = await fetch(url.href, { signal: controller.signal });
 				const data = (await r.json()) as {
 					avatar_svg?: string | null;
 				};
@@ -56,6 +59,7 @@ export function HomeFingerprintAvatar() {
 						distinct_id: distinctId ?? undefined,
 						user_id: distinctId ?? undefined,
 					}),
+					signal: controller.signal,
 				});
 				const gen = (await gr.json()) as { avatar_svg?: string | null };
 				if (cancelled) return;
@@ -67,11 +71,15 @@ export function HomeFingerprintAvatar() {
 				}
 			} catch {
 				if (!cancelled) setPhase("absent");
+			} finally {
+				clearTimeout(timeoutId);
 			}
 		})();
 
 		return () => {
 			cancelled = true;
+			controller.abort();
+			clearTimeout(timeoutId);
 		};
 	}, []);
 
