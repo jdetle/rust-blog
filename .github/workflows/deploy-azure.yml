@@ -47,14 +47,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Debug tenant
-        run: |
-          TID="${AZURE_TENANT_ID}"
-          echo "Tenant length: ${#TID}"
-          echo "Tenant prefix: ${TID:0:4}****"
-        env:
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-
       - name: Azure login (OIDC)
         uses: azure/login@v2
         with:
@@ -95,12 +87,16 @@ jobs:
         env:
           RG: ${{ secrets.AZURE_RESOURCE_GROUP }}
         run: |
+          az provider register -n Microsoft.OperationalInsights --wait &
+          az provider register -n Microsoft.App --wait &
+          wait
           if ! az containerapp env show --name "$CAE_NAME" --resource-group "$RG" &>/dev/null; then
             echo "Creating Container Apps Environment: $CAE_NAME"
             az containerapp env create \
               --name "$CAE_NAME" \
               --resource-group "$RG" \
               --location "$LOCATION" \
+              --logs-destination none \
               --output none
           else
             echo "CAE exists: $CAE_NAME"
