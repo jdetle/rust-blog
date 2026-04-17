@@ -184,8 +184,7 @@ export default function WorkWithMePage() {
 					<section>
 						<h2>Contact</h2>
 						<p>
-							Email:{" "}
-							<a href="mailto:johndetlefs@gmail.com">johndetlefs@gmail.com</a>
+							Email: <a href="mailto:jdetle@gmail.com">jdetle@gmail.com</a>
 						</p>
 						<p>
 							LinkedIn:{" "}
