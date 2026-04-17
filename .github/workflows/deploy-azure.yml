@@ -50,9 +50,9 @@ jobs:
       - name: Azure login (OIDC)
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}}
 
       - name: Install containerapp extension
         run: az extension add --name containerapp --upgrade --yes 2>/dev/null || true
@@ -68,14 +68,14 @@ jobs:
 
       - name: ACR login
         env:
-          PLATFORM_ACR: ${{ secrets.PLATFORM_ACR }}
+          PLATFORM_ACR: ${{ secrets.PLATFORM_ACR }}}
         run: |
           ACR_NAME="${PLATFORM_ACR%%.*}"
           az acr login --name "$ACR_NAME"
 
       - name: Build and push
         env:
-          PLATFORM_ACR: ${{ secrets.PLATFORM_ACR }}
+          PLATFORM_ACR: ${{ secrets.PLATFORM_ACR }}}
           TAG: ${{ steps.meta.outputs.tag }}
         run: |
           IMAGE="${PLATFORM_ACR}/${APP_NAME}:${TAG}"
@@ -85,7 +85,7 @@ jobs:
 
       - name: Ensure Container Apps Environment
         env:
-          RG: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          RG: ${{ secrets.AZURE_RESOURCE_GROUP }}}
         run: |
           az provider register -n Microsoft.OperationalInsights --wait &
           az provider register -n Microsoft.App --wait &
@@ -105,9 +105,15 @@ jobs:
       - name: Deploy Container App
         env:
           RG: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          PLATFORM_ACR: ${{ secrets.PLATFORM_ACR }}
           PRISM_INGEST_URL: ${{ secrets.PRISM_INGEST_URL }}
           PRISM_API_KEY: ${{ secrets.PRISM_API_KEY }}
         run: |
+          IDENTITY_ID=$(az identity show \
+            --name "id-rust-blog" \
+            --resource-group "$RG" \
+            --query id -o tsv)
+
           if ! az containerapp show --name "$CONTAINER_APP" --resource-group "$RG" &>/dev/null; then
             echo "Creating Container App: $CONTAINER_APP"
             az containerapp create \
@@ -119,6 +125,9 @@ jobs:
               --ingress external \
               --min-replicas 0 \
               --max-replicas 3 \
+              --user-assigned "$IDENTITY_ID" \
+              --registry-server "$PLATFORM_ACR" \
+              --registry-identity "$IDENTITY_ID" \
               --env-vars \
                 "RUST_LOG=info" \
                 "PRISM_INGEST_URL=${PRISM_INGEST_URL}" \
