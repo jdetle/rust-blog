@@ -40,10 +40,14 @@ test.beforeEach(async () => {
 test("avatar SVG renders on /who-are-you", async ({ page }) => {
 	await page.goto("/who-are-you");
 
-	// Wait for the avatar container to appear and contain an SVG element.
-	// The component fetches /api/analytics/generate-avatar which proxies to blog-service.
-	const avatarSvg = page.locator("[data-testid='avatar-svg'] svg, .avatar-container svg").first();
-	await expect(avatarSvg).toBeVisible({ timeout: 30_000 });
+	// The component uses class `fingerprint-avatar-svg` with dangerouslySetInnerHTML
+	// to inject the SVG. Wait for the SVG child element to appear inside that container.
+	// Fingerprinting + API round-trip can take several seconds in CI.
+	const avatarContainer = page.locator(".fingerprint-avatar-svg");
+	await expect(avatarContainer).toBeVisible({ timeout: 45_000 });
+
+	const avatarSvg = avatarContainer.locator("svg").first();
+	await expect(avatarSvg).toBeVisible({ timeout: 5_000 });
 
 	const svgHtml = await avatarSvg.evaluate((el) => el.outerHTML);
 	expect(svgHtml).toContain("<svg");
@@ -55,17 +59,22 @@ test("avatar is served from cache on reload without a second Anthropic call", as
 }) => {
 	await page.goto("/who-are-you");
 
-	const avatarSvg = page.locator("[data-testid='avatar-svg'] svg, .avatar-container svg").first();
-	await expect(avatarSvg).toBeVisible({ timeout: 30_000 });
+	const avatarContainer = page.locator(".fingerprint-avatar-svg");
+	await expect(avatarContainer).toBeVisible({ timeout: 45_000 });
+	const avatarSvg = avatarContainer.locator("svg").first();
+	await expect(avatarSvg).toBeVisible({ timeout: 5_000 });
 
 	const svgAfterFirstLoad = await avatarSvg.evaluate((el) => el.outerHTML);
 	const callsAfterFirst = await getMockCallCount();
 
-	// Reload the page — the avatar should come from the in-memory cache.
+	// Reload the page — the in-memory store should serve the cached avatar.
 	await page.reload();
-	await expect(avatarSvg).toBeVisible({ timeout: 15_000 });
+	const avatarContainerReload = page.locator(".fingerprint-avatar-svg");
+	await expect(avatarContainerReload).toBeVisible({ timeout: 30_000 });
+	const avatarSvgReload = avatarContainerReload.locator("svg").first();
+	await expect(avatarSvgReload).toBeVisible({ timeout: 5_000 });
 
-	const svgAfterReload = await avatarSvg.evaluate((el) => el.outerHTML);
+	const svgAfterReload = await avatarSvgReload.evaluate((el) => el.outerHTML);
 	expect(svgAfterReload).toBe(svgAfterFirstLoad);
 
 	const callsAfterReload = await getMockCallCount();
