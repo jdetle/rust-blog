@@ -50,9 +50,9 @@ jobs:
       - name: Azure login (OIDC)
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Install containerapp extension
         run: az extension add --name containerapp --upgrade --yes 2>/dev/null || true
@@ -68,14 +68,14 @@ jobs:
 
       - name: ACR login
         env:
-          PLATFORM_ACR: ${{ secrets.PLATFORM_ACR }}}
+          PLATFORM_ACR: ${{ secrets.PLATFORM_ACR }}
         run: |
           ACR_NAME="${PLATFORM_ACR%%.*}"
           az acr login --name "$ACR_NAME"
 
       - name: Build and push
         env:
-          PLATFORM_ACR: ${{ secrets.PLATFORM_ACR }}}
+          PLATFORM_ACR: ${{ secrets.PLATFORM_ACR }}
           TAG: ${{ steps.meta.outputs.tag }}
         run: |
           IMAGE="${PLATFORM_ACR}/${APP_NAME}:${TAG}"
@@ -85,7 +85,7 @@ jobs:
 
       - name: Ensure Container Apps Environment
         env:
-          RG: ${{ secrets.AZURE_RESOURCE_GROUP }}}
+          RG: ${{ secrets.AZURE_RESOURCE_GROUP }}
         run: |
           az provider register -n Microsoft.OperationalInsights --wait &
           az provider register -n Microsoft.App --wait &
