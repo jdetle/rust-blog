@@ -8,8 +8,8 @@ name = "rust_blog"
 path = "src/lib.rs"
 
 [[bin]]
-name = "analytics-ingestion"
-path = "src/bin/analytics_ingestion.rs"
+name = "blog-service"
+path = "src/bin/blog_service.rs"
 
 [[bin]]
 name = "setup-analytics"
@@ -18,6 +18,13 @@ path = "src/bin/setup_analytics.rs"
 [[bin]]
 name = "seed-mock-analytics"
 path = "src/bin/seed_mock_analytics.rs"
+
+[features]
+# test-support enables MemoryProfileStore and in-memory binary mode for integration tests.
+# NEVER add this to `default` — the prod Dockerfile builds without --features so it is
+# always excluded from production images. CI enforces this with a metadata check.
+default = []
+test-support = []
 
 [dependencies]
 axum = { version = "0.7", features = ["macros", "json"] }
