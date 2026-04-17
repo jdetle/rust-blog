@@ -58,21 +58,41 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Fetch Anthropic API key (Key Vault preferred, secret fallback)
+      - name: Fetch secrets (Key Vault preferred, GitHub secret fallback)
         env:
           KEY_VAULT_NAME: ${{ secrets.KEY_VAULT_NAME }}
           ANTHROPIC_API_KEY_SECRET: ${{ secrets.ANTHROPIC_API_KEY }}
+          COSMOS_PASSWORD_SECRET: ${{ secrets.COSMOS_PASSWORD }}
+          POSTHOG_API_KEY_SECRET: ${{ secrets.POSTHOG_API_KEY }}
         run: |
-          if [ -n "$KEY_VAULT_NAME" ]; then
-            ANTHROPIC_API_KEY="$(az keyvault secret show \
-              --vault-name "$KEY_VAULT_NAME" \
-              --name "anthropic-api-key" \
-              --query value -o tsv)"
-          else
-            ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY_SECRET}"
-          fi
+          kv_get() {
+            local secret_name="$1"
+            if [ -n "$KEY_VAULT_NAME" ]; then
+              az keyvault secret show \
+                --vault-name "$KEY_VAULT_NAME" \
+                --name "$secret_name" \
+                --query value -o tsv 2>/dev/null || true
+            fi
+          }
+
+          ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY_SECRET}"
+          kv_val="$(kv_get "anthropic-api-key")"
+          [ -n "$kv_val" ] && ANTHROPIC_API_KEY="$kv_val"
           echo "::add-mask::${ANTHROPIC_API_KEY}"
           echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}" >> "$GITHUB_ENV"
+
+          COSMOS_PASSWORD="${COSMOS_PASSWORD_SECRET}"
+          kv_val="$(kv_get "cosmos-password")"
+          [ -n "$kv_val" ] && COSMOS_PASSWORD="$kv_val"
+          echo "::add-mask::${COSMOS_PASSWORD}"
+          echo "COSMOS_PASSWORD=${COSMOS_PASSWORD}" >> "$GITHUB_ENV"
+
+          POSTHOG_API_KEY="${POSTHOG_API_KEY_SECRET}"
+          kv_val="$(kv_get "POSTHOG-API-KEY")"
+          [ -z "$kv_val" ] && kv_val="$(kv_get "posthog-api-key")"
+          [ -n "$kv_val" ] && POSTHOG_API_KEY="$kv_val"
+          echo "::add-mask::${POSTHOG_API_KEY}"
+          echo "POSTHOG_API_KEY=${POSTHOG_API_KEY}" >> "$GITHUB_ENV"
 
       - name: Install containerapp extension
         run: az extension add --name containerapp --upgrade --yes 2>/dev/null || true
@@ -129,12 +149,29 @@ jobs:
           PLATFORM_ACR: ${{ secrets.PLATFORM_ACR }}
           PRISM_INGEST_URL: ${{ secrets.PRISM_INGEST_URL }}
           PRISM_API_KEY: ${{ secrets.PRISM_API_KEY }}
-          # ANTHROPIC_API_KEY is set in GITHUB_ENV by the "Fetch Anthropic API key from Key Vault" step
+          # ANTHROPIC_API_KEY, COSMOS_PASSWORD, POSTHOG_API_KEY set in GITHUB_ENV
+          # by the "Fetch secrets" step above.
         run: |
           IDENTITY_ID=$(az identity show \
             --name "id-rust-blog" \
             --resource-group "$RG" \
             --query id -o tsv)
+
+          COMMON_SECRETS=(
+            "prism-api-key=${PRISM_API_KEY}"
+            "anthropic-api-key=${ANTHROPIC_API_KEY}"
+            "cosmos-password=${COSMOS_PASSWORD}"
+            "posthog-api-key=${POSTHOG_API_KEY}"
+          )
+          COMMON_ENV=(
+            "RUST_LOG=info"
+            "PRISM_INGEST_URL=${PRISM_INGEST_URL}"
+            "PRISM_API_KEY=secretref:prism-api-key"
+            "ANTHROPIC_API_KEY=secretref:anthropic-api-key"
+            "COSMOS_PASSWORD=secretref:cosmos-password"
+            "POSTHOG_API_KEY=secretref:posthog-api-key"
+            "OTEL_SERVICE_NAME=rust-blog"
+          )
 
           if ! az containerapp show --name "$CONTAINER_APP" --resource-group "$RG" &>/dev/null; then
             echo "Creating Container App: $CONTAINER_APP"
@@ -150,15 +187,8 @@ jobs:
               --user-assigned "$IDENTITY_ID" \
               --registry-server "$PLATFORM_ACR" \
               --registry-identity "$IDENTITY_ID" \
-              --env-vars \
-                "RUST_LOG=info" \
-                "PRISM_INGEST_URL=${PRISM_INGEST_URL}" \
-                "PRISM_API_KEY=secretref:prism-api-key" \
-                "ANTHROPIC_API_KEY=secretref:anthropic-api-key" \
-                "OTEL_SERVICE_NAME=rust-blog" \
-              --secrets \
-                "prism-api-key=${PRISM_API_KEY}" \
-                "anthropic-api-key=${ANTHROPIC_API_KEY}" \
+              --env-vars "${COMMON_ENV[@]}" \
+              --secrets "${COMMON_SECRETS[@]}" \
               --output none
           else
             echo "Reconciling registry auth on: $CONTAINER_APP"
@@ -172,21 +202,14 @@ jobs:
             az containerapp secret set \
               --name "$CONTAINER_APP" \
               --resource-group "$RG" \
-              --secrets \
-                "prism-api-key=${PRISM_API_KEY}" \
-                "anthropic-api-key=${ANTHROPIC_API_KEY}" \
+              --secrets "${COMMON_SECRETS[@]}" \
               --output none
             echo "Updating image and env vars: $CONTAINER_APP"
             az containerapp update \
               --name "$CONTAINER_APP" \
               --resource-group "$RG" \
               --image "$IMAGE" \
-              --set-env-vars \
-                "RUST_LOG=info" \
-                "PRISM_INGEST_URL=${PRISM_INGEST_URL}" \
-                "PRISM_API_KEY=secretref:prism-api-key" \
-                "ANTHROPIC_API_KEY=secretref:anthropic-api-key" \
-                "OTEL_SERVICE_NAME=rust-blog" \
+              --set-env-vars "${COMMON_ENV[@]}" \
               --output none
           fi
           URL=$(az containerapp show \
