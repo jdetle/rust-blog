@@ -83,6 +83,32 @@ pub trait ProfileStore: Send + Sync {
 }
 
 // ---------------------------------------------------------------------------
+// No-op store — always available, always returns empty / discards writes.
+// Used in production when Cosmos DB credentials are not configured, allowing
+// the service to start and serve health / info routes in degraded mode.
+// ---------------------------------------------------------------------------
+pub struct NoopProfileStore;
+
+#[async_trait]
+impl ProfileStore for NoopProfileStore {
+    async fn get_profile(
+        &self,
+        _id: &str,
+    ) -> Result<Option<UserProfile>, Box<dyn std::error::Error + Send + Sync>> {
+        Ok(None)
+    }
+
+    async fn upsert_persona_avatar(
+        &self,
+        _id: &str,
+        _persona: &str,
+        _svg: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
 // In-memory test double — compiled only with the `test-support` feature.
 // NEVER included in `default` features; Dockerfile never passes --features
 // so the prod binary is guaranteed not to contain this bypass.
