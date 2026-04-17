@@ -157,21 +157,26 @@ jobs:
             --resource-group "$RG" \
             --query id -o tsv)
 
-          COMMON_SECRETS=(
-            "prism-api-key=${PRISM_API_KEY}"
-            "anthropic-api-key=${ANTHROPIC_API_KEY}"
-            "cosmos-password=${COSMOS_PASSWORD}"
-            "posthog-api-key=${POSTHOG_API_KEY}"
-          )
+          # Build secret and env-var lists dynamically; Azure rejects empty secret values.
+          COMMON_SECRETS=("prism-api-key=${PRISM_API_KEY}")
           COMMON_ENV=(
             "RUST_LOG=info"
             "PRISM_INGEST_URL=${PRISM_INGEST_URL}"
             "PRISM_API_KEY=secretref:prism-api-key"
-            "ANTHROPIC_API_KEY=secretref:anthropic-api-key"
-            "COSMOS_PASSWORD=secretref:cosmos-password"
-            "POSTHOG_API_KEY=secretref:posthog-api-key"
             "OTEL_SERVICE_NAME=rust-blog"
           )
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            COMMON_SECRETS+=("anthropic-api-key=${ANTHROPIC_API_KEY}")
+            COMMON_ENV+=("ANTHROPIC_API_KEY=secretref:anthropic-api-key")
+          fi
+          if [ -n "$COSMOS_PASSWORD" ]; then
+            COMMON_SECRETS+=("cosmos-password=${COSMOS_PASSWORD}")
+            COMMON_ENV+=("COSMOS_PASSWORD=secretref:cosmos-password")
+          fi
+          if [ -n "$POSTHOG_API_KEY" ]; then
+            COMMON_SECRETS+=("posthog-api-key=${POSTHOG_API_KEY}")
+            COMMON_ENV+=("POSTHOG_API_KEY=secretref:posthog-api-key")
+          fi
 
           if ! az containerapp show --name "$CONTAINER_APP" --resource-group "$RG" &>/dev/null; then
             echo "Creating Container App: $CONTAINER_APP"
