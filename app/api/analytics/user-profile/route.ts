@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
 		const res = await fetch(url.href, {
 			headers: { Accept: "application/json" },
 			next: { revalidate: 60 },
+			signal: AbortSignal.timeout(5_000),
 		});
 
 		if (!res.ok) {

@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
 				user_id: userId,
 				distinct_id: distinctId,
 			}),
+			signal: AbortSignal.timeout(25_000),
 		});
 
 		const data = (await res.json()) as Record<string, unknown>;
