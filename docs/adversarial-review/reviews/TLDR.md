@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-04-17 contact email jdetle](./2026-04-17-contact-email-jdetle.md)
+  - decision: proceed; `johndetlefs@gmail.com` → `jdetle@gmail.com` on work-with-me page and pitch doc
+  - unresolved risk: none
+  - follow-up: none
+
 - [2026-04-16 work-with-me capacity approval](./2026-04-16-work-with-me-capacity-approval.md)
   - decision: proceed; employer approval + ~10h/week + advisory-first on `/work-with-me` and pitch doc
   - unresolved risk: numbers and policy may drift
