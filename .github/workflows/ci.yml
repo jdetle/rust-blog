@@ -32,6 +32,25 @@ jobs:
         run: cargo build --release
         timeout-minutes: 10
 
+  rust-api:
+    name: rust-api (Axum)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-api -> target
+      - name: Check
+        run: cargo check --manifest-path rust-api/Cargo.toml
+        timeout-minutes: 3
+      - name: Clippy
+        run: cargo clippy --manifest-path rust-api/Cargo.toml -- -D warnings
+        timeout-minutes: 3
+
   next:
     name: Next.js
     runs-on: ubuntu-latest
