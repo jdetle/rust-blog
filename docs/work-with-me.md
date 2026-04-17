@@ -6,4 +6,4 @@ I'm employed full-time at PwC. Any formal outside engagement has to clear my emp
 
 If your AI initiative is stuck in demo, the problem is almost always one of: agents with no memory between sessions, no way to run agents in parallel without clobbering each other, or no review step before failures reach users. I've fixed all three, repeatedly. If your agents hallucinate in production, that's a grounding problem and it's fixable.
 
-Reach me at johndetlefs@gmail.com or linkedin.com/in/jdetle. The posts at jdetle.com/posts are the best introduction to how I think.
+Reach me at jdetle@gmail.com or linkedin.com/in/jdetle. The posts at jdetle.com/posts are the best introduction to how I think.
