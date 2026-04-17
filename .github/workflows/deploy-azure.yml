@@ -1,0 +1,134 @@
+# Builds Dockerfile (Rust multi-stage), pushes to the platform ACR, deploys to Azure Container Apps.
+#
+# First-run: creates cae-rust-blog (Container Apps Environment) and ca-rust-blog in rg-rust-blog.
+# Subsequent runs: updates ca-rust-blog image only (idempotent).
+#
+# Required secrets (set by jdetle/platform scripts/set-github-secrets-from-azure-env.sh):
+#   AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET
+#   AZURE_RESOURCE_GROUP (rg-rust-blog), PLATFORM_ACR, PRISM_INGEST_URL, PRISM_API_KEY
+
+name: deploy-azure
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "Dockerfile"
+      - ".github/workflows/deploy-azure.yml"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag (empty = short git SHA)"
+        required: false
+        default: ""
+
+concurrency:
+  group: deploy-azure-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  APP_NAME: rust-blog
+  CONTAINER_APP: ca-rust-blog
+  CAE_NAME: cae-rust-blog
+  LOCATION: eastus2
+
+jobs:
+  build-push-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install containerapp extension
+        run: az extension add --name containerapp --upgrade --yes 2>/dev/null || true
+
+      - name: Image tag
+        id: meta
+        run: |
+          if [[ -n "${{ inputs.tag }}" ]]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: ACR login
+        env:
+          PLATFORM_ACR: ${{ secrets.PLATFORM_ACR }}
+        run: |
+          ACR_NAME="${PLATFORM_ACR%%.*}"
+          az acr login --name "$ACR_NAME"
+
+      - name: Build and push
+        env:
+          PLATFORM_ACR: ${{ secrets.PLATFORM_ACR }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          IMAGE="${PLATFORM_ACR}/${APP_NAME}:${TAG}"
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Ensure Container Apps Environment
+        env:
+          RG: ${{ secrets.AZURE_RESOURCE_GROUP }}
+        run: |
+          if ! az containerapp env show --name "$CAE_NAME" --resource-group "$RG" &>/dev/null; then
+            echo "Creating Container Apps Environment: $CAE_NAME"
+            az containerapp env create \
+              --name "$CAE_NAME" \
+              --resource-group "$RG" \
+              --location "$LOCATION" \
+              --output none
+          else
+            echo "CAE exists: $CAE_NAME"
+          fi
+
+      - name: Deploy Container App
+        env:
+          RG: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          PRISM_INGEST_URL: ${{ secrets.PRISM_INGEST_URL }}
+          PRISM_API_KEY: ${{ secrets.PRISM_API_KEY }}
+        run: |
+          if ! az containerapp show --name "$CONTAINER_APP" --resource-group "$RG" &>/dev/null; then
+            echo "Creating Container App: $CONTAINER_APP"
+            az containerapp create \
+              --name "$CONTAINER_APP" \
+              --resource-group "$RG" \
+              --environment "$CAE_NAME" \
+              --image "$IMAGE" \
+              --target-port 8080 \
+              --ingress external \
+              --min-replicas 0 \
+              --max-replicas 3 \
+              --env-vars \
+                "RUST_LOG=info" \
+                "PRISM_INGEST_URL=${PRISM_INGEST_URL}" \
+                "PRISM_API_KEY=secretref:prism-api-key" \
+                "OTEL_SERVICE_NAME=rust-blog" \
+              --secrets "prism-api-key=${PRISM_API_KEY}" \
+              --output none
+          else
+            echo "Updating Container App: $CONTAINER_APP"
+            az containerapp update \
+              --name "$CONTAINER_APP" \
+              --resource-group "$RG" \
+              --image "$IMAGE" \
+              --output none
+          fi
+          echo ""
+          URL=$(az containerapp show \
+            --name "$CONTAINER_APP" --resource-group "$RG" \
+            --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null || echo "n/a")
+          echo "Deployed: $CONTAINER_APP → https://${URL}"
