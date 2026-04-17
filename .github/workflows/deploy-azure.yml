@@ -71,11 +71,16 @@ jobs:
       - name: Build and push via ACR Tasks
         env:
           PLATFORM_ACR: ${{ secrets.PLATFORM_ACR }}
+          PLATFORM_SUB_ID: ${{ secrets.PLATFORM_SUB_ID }}
           TAG: ${{ steps.meta.outputs.tag }}
         run: |
           ACR_NAME="${PLATFORM_ACR%%.*}"
+          # ACR lives in the platform subscription; SP has Contributor on it.
+          # Pass --subscription explicitly so az acr build finds the registry
+          # regardless of which subscription this workflow is logged into.
           az acr build \
             --registry "$ACR_NAME" \
+            --subscription "$PLATFORM_SUB_ID" \
             --image "${APP_NAME}:${TAG}" \
             --file Dockerfile \
             .
