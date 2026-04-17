@@ -136,7 +136,14 @@ jobs:
               --secrets "prism-api-key=${PRISM_API_KEY}" \
               --output none
           else
-            echo "Updating Container App: $CONTAINER_APP"
+            echo "Reconciling registry auth on: $CONTAINER_APP"
+            az containerapp registry set \
+              --name "$CONTAINER_APP" \
+              --resource-group "$RG" \
+              --server "$PLATFORM_ACR" \
+              --identity "$IDENTITY_ID" \
+              --output none
+            echo "Updating image: $CONTAINER_APP"
             az containerapp update \
               --name "$CONTAINER_APP" \
               --resource-group "$RG" \
