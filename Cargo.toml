@@ -8,8 +8,8 @@ name = "rust_blog"
 path = "src/lib.rs"
 
 [[bin]]
-name = "analytics-ingestion"
-path = "src/bin/analytics_ingestion.rs"
+name = "blog-service"
+path = "src/bin/blog_service.rs"
 
 [[bin]]
 name = "setup-analytics"
@@ -19,7 +19,16 @@ path = "src/bin/setup_analytics.rs"
 name = "seed-mock-analytics"
 path = "src/bin/seed_mock_analytics.rs"
 
+[features]
+# test-support enables MemoryProfileStore and in-memory binary mode for integration tests.
+# NEVER add this to `default` — the prod Dockerfile builds without --features so it is
+# always excluded from production images. CI enforces this with a metadata check.
+default = []
+test-support = []
+
 [dependencies]
+# s10 observability SDK — replaces PostHog/Prism telemetry
+s10-rust = { git = "https://github.com/jdetle/platform", subdirectory = "services/s10/s10-rust" }
 axum = { version = "0.7", features = ["macros", "json"] }
 chrono = { version = "0.4", features = ["serde"] }
 anyhow = "1"
