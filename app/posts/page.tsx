@@ -62,6 +62,7 @@ export default function PostsPage() {
 					links={[
 						{ href: "/", label: "Back home" },
 						{ href: "/who-are-you", label: "Who are you?" },
+						{ href: "/work-with-me", label: "Work with me" },
 					]}
 				/>
 			</AnimatedFrame>

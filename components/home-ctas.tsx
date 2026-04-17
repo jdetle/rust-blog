@@ -20,6 +20,15 @@ export function HomeCtas() {
 			>
 				Who are you?
 			</Link>
+			<Link
+				className="btn btn-secondary"
+				href="/work-with-me"
+				onClick={() =>
+					posthog.capture("cta_clicked", { label: "work_with_me" })
+				}
+			>
+				Work with me
+			</Link>
 			<a
 				className="btn btn-secondary"
 				href="https://www.linkedin.com/in/jdetle/"

@@ -177,12 +177,7 @@ export default function WorkWithMePage() {
 					</section>
 				</article>
 
-				<NavRow
-					links={[
-						{ href: "/posts", label: "All posts" },
-						{ href: "/", label: "Home" },
-					]}
-				/>
+				<NavRow />
 			</AnimatedFrame>
 		</main>
 	);
