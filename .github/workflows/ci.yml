@@ -9,47 +9,58 @@ jobs:
   rust:
     name: Rust
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
+
       - name: Check
         run: cargo check
         timeout-minutes: 3
+
+      - name: Check (test-support feature)
+        run: cargo check --features test-support
+        timeout-minutes: 3
+
       - name: Clippy
         run: cargo clippy -- -D warnings
         timeout-minutes: 3
-      - name: Test
+
+      - name: Clippy (test-support feature)
+        run: cargo clippy --features test-support -- -D warnings
+        timeout-minutes: 3
+
+      # Guard: test-support must never appear in the `default` feature set.
+      # If someone accidentally adds it to default, this step fails the build.
+      - name: Assert test-support not in default features
+        run: |
+          DEFAULT_FEATURES=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name=="rust-blog") | .features.default | @json')
+          echo "default features: $DEFAULT_FEATURES"
+          if echo "$DEFAULT_FEATURES" | grep -q '"test-support"'; then
+            echo "ERROR: test-support is in the default feature set — this would ship the in-memory bypass in production."
+            exit 1
+          fi
+        timeout-minutes: 1
+
+      - name: Test (unit + integration, no DB)
         run: cargo test
         timeout-minutes: 5
+
+      - name: Test (test-support feature — avatar integration tests)
+        run: cargo test --features test-support
+        timeout-minutes: 5
+
       - name: Build benches
         run: cargo build --benches
         timeout-minutes: 3
-      - name: Build release
+
+      - name: Build release (no test-support — mirrors Dockerfile)
         run: cargo build --release
         timeout-minutes: 10
-
-  rust-api:
-    name: rust-api (Axum)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: rust-api -> target
-      - name: Check
-        run: cargo check --manifest-path rust-api/Cargo.toml
-        timeout-minutes: 3
-      - name: Clippy
-        run: cargo clippy --manifest-path rust-api/Cargo.toml -- -D warnings
-        timeout-minutes: 3
 
   next:
     name: Next.js
@@ -83,3 +94,46 @@ jobs:
       - name: Build
         run: bun run build
         timeout-minutes: 5
+
+  playwright:
+    name: Playwright (avatar e2e)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.10"
+
+      - name: Install JS deps
+        run: bun install --frozen-lockfile
+        timeout-minutes: 2
+
+      # Pre-compile the blog-service binary with test-support BEFORE Playwright starts.
+      # This avoids the webServer timeout that would occur if cargo run were used inside
+      # the Playwright config (cold Rust compile = 45-120s; Playwright timeout = 15s).
+      - name: Build blog-service (test-support)
+        run: cargo build --features test-support --bin blog-service
+        timeout-minutes: 15
+
+      - name: Install Playwright Chromium
+        run: bun run test:e2e:install
+        timeout-minutes: 3
+
+      - name: Run avatar e2e tests
+        run: bun run playwright test e2e/avatar-generation.spec.ts
+        timeout-minutes: 10
+        env:
+          CI: true
+          BLOG_SERVICE_BIN: ./target/debug/blog-service
+          BLOG_SERVICE_PORT: "8090"
+          MOCK_ANTHROPIC_PORT: "9090"
+          PLAYWRIGHT_PORT: "3005"
+          # Next.js needs these to build the analytics proxy routes.
+          BLOG_SERVICE_URL: "http://127.0.0.1:8090"
+          NEXT_PUBLIC_POSTHOG_KEY: ""

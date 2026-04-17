@@ -8,7 +8,7 @@
 # Required secrets (set by jdetle/platform scripts/set-github-secrets-from-azure-env.sh):
 #   AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AZURE_CLIENT_ID
 #   AZURE_RESOURCE_GROUP (rg-rust-blog), PLATFORM_ACR, PRISM_INGEST_URL, PRISM_API_KEY
-#   ANTHROPIC_API_KEY
+#   KEY_VAULT_NAME  — Key Vault that holds 'anthropic-api-key' (fetched at deploy time)
 
 name: deploy-azure
 
@@ -21,6 +21,7 @@ on:
       - "Cargo.lock"
       - "Dockerfile"
       - ".github/workflows/deploy-azure.yml"
+      # rust-api/ was removed; its routes now live in src/info.rs
   workflow_dispatch:
     inputs:
       tag:
@@ -56,6 +57,17 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Fetch Anthropic API key from Key Vault
+        env:
+          KEY_VAULT_NAME: ${{ secrets.KEY_VAULT_NAME }}
+        run: |
+          ANTHROPIC_API_KEY="$(az keyvault secret show \
+            --vault-name "$KEY_VAULT_NAME" \
+            --name "anthropic-api-key" \
+            --query value -o tsv)"
+          echo "::add-mask::${ANTHROPIC_API_KEY}"
+          echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}" >> "$GITHUB_ENV"
 
       - name: Install containerapp extension
         run: az extension add --name containerapp --upgrade --yes 2>/dev/null || true
@@ -112,7 +124,7 @@ jobs:
           PLATFORM_ACR: ${{ secrets.PLATFORM_ACR }}
           PRISM_INGEST_URL: ${{ secrets.PRISM_INGEST_URL }}
           PRISM_API_KEY: ${{ secrets.PRISM_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # ANTHROPIC_API_KEY is set in GITHUB_ENV by the "Fetch Anthropic API key from Key Vault" step
         run: |
           IDENTITY_ID=$(az identity show \
             --name "id-rust-blog" \
