@@ -4,13 +4,11 @@
 use std::sync::Arc;
 
 use crate::analytics::{AnalyticsDb, AnalyticsEvent};
+use crate::anthropic::AnthropicClient;
 
-const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/messages";
-const ANTHROPIC_VERSION: &str = "2023-06-01";
 const MODEL: &str = "claude-3-5-sonnet-20241022";
 const MAX_TOKENS: u32 = 512;
 
-/// Builds a prompt from events for the LLM.
 fn build_prompt(events: &[AnalyticsEvent]) -> String {
     let events_json: Vec<serde_json::Value> = events
         .iter()
@@ -39,64 +37,25 @@ Summary:"#,
 
 /// Calls Anthropic Messages API to summarize events.
 pub async fn summarize_events(
-    api_key: &str,
+    client: &AnthropicClient,
     events: &[AnalyticsEvent],
-    client: &reqwest::Client,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     if events.is_empty() {
         return Ok(String::new());
     }
-
     let prompt = build_prompt(events);
-
-    let body = serde_json::json!({
-        "model": MODEL,
-        "max_tokens": MAX_TOKENS,
-        "messages": [
-            { "role": "user", "content": prompt }
-        ]
-    });
-
-    let res = client
-        .post(ANTHROPIC_URL)
-        .header("x-api-key", api_key)
-        .header("anthropic-version", ANTHROPIC_VERSION)
-        .header("content-type", "application/json")
-        .json(&body)
-        .send()
-        .await?;
-
-    if !res.status().is_success() {
-        let status = res.status();
-        let text = res.text().await.unwrap_or_default();
-        return Err(format!("Anthropic API error {}: {}", status, text).into());
-    }
-
-    let json: serde_json::Value = res.json().await?;
-    let content = json
-        .get("content")
-        .and_then(|c| c.as_array())
-        .and_then(|arr| arr.first())
-        .and_then(|block| block.get("text"))
-        .and_then(|t| t.as_str())
-        .unwrap_or_default()
-        .trim()
-        .to_string();
-
-    Ok(content)
+    let raw = client.messages(MODEL, MAX_TOKENS, &prompt).await?;
+    Ok(raw.trim().to_string())
 }
 
 /// Runs one summarization cycle: discover sessions, summarize, store.
 pub async fn run_summarization_cycle(
     db: Arc<AnalyticsDb>,
-    api_key: &str,
+    client: &AnthropicClient,
     site_id: &str,
     sessions_per_cycle: u32,
-    client: &reqwest::Client,
 ) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
-    let events = db
-        .query_recent_events(site_id, 14, 200)
-        .await?;
+    let events = db.query_recent_events(site_id, 14, 200).await?;
 
     let mut by_session: std::collections::HashMap<String, Vec<AnalyticsEvent>> =
         std::collections::HashMap::new();
@@ -129,7 +88,7 @@ pub async fn run_summarization_cycle(
             }
         }
 
-        match summarize_events(api_key, &session_events, client).await {
+        match summarize_events(client, &session_events).await {
             Ok(summary) if !summary.is_empty() => {
                 if db.upsert_user_profile(&session_id, &summary).await.is_ok() {
                     summarized += 1;
@@ -149,11 +108,10 @@ pub async fn run_summarization_cycle(
 /// Spawns a background loop that runs summarization every 30 minutes.
 pub fn spawn_summarization_loop(
     db: Arc<AnalyticsDb>,
-    api_key: String,
+    client: Arc<AnthropicClient>,
     site_id: String,
 ) {
     tokio::spawn(async move {
-        let client = reqwest::Client::new();
         let interval = tokio::time::Duration::from_secs(30 * 60);
         let sessions_per_cycle: u32 = std::env::var("SUMMARIZE_SESSIONS_PER_CYCLE")
             .ok()
@@ -163,8 +121,7 @@ pub fn spawn_summarization_loop(
         loop {
             tokio::time::sleep(interval).await;
             if let Err(e) =
-                run_summarization_cycle(db.clone(), &api_key, &site_id, sessions_per_cycle, &client)
-                    .await
+                run_summarization_cycle(db.clone(), &client, &site_id, sessions_per_cycle).await
             {
                 tracing::warn!(error = %e, "summarization cycle failed");
             }
