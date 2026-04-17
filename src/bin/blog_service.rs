@@ -49,24 +49,13 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|_| "jd-analytics.cassandra.cosmos.azure.com".to_string());
     let username =
         std::env::var("COSMOS_USERNAME").unwrap_or_else(|_| "jd-analytics".to_string());
-    let password =
-        std::env::var("COSMOS_PASSWORD").expect("COSMOS_PASSWORD must be set for blog-service");
+    let password = std::env::var("COSMOS_PASSWORD").ok();
 
-    let posthog_api_key =
-        std::env::var("POSTHOG_API_KEY").expect("POSTHOG_API_KEY must be set for blog-service");
+    let posthog_api_key = std::env::var("POSTHOG_API_KEY").ok();
     let clarity_token = std::env::var("CLARITY_EXPORT_TOKEN").ok();
     let vercel_token = std::env::var("VERCEL_TOKEN").ok();
     let google_creds_path = std::env::var("GOOGLE_APPLICATION_CREDENTIALS").ok();
     let meta_token = std::env::var("META_ACCESS_TOKEN").ok();
-
-    tracing::info!("connecting to Cosmos DB");
-    let db = Arc::new(
-        AnalyticsDb::connect(&contact_point, &username, &password)
-            .await
-            .map_err(|e| anyhow::anyhow!("Cosmos DB: {}", e))?,
-    );
-
-    let posthog = Some(Arc::new(PostHogForwarder::new(posthog_api_key.clone())));
 
     let anthropic_key = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.is_empty());
     let anthropic_base_url = std::env::var("ANTHROPIC_BASE_URL").ok();
@@ -74,23 +63,50 @@ async fn main() -> anyhow::Result<()> {
         .as_deref()
         .map(|k| Arc::new(AnthropicClient::new(k.to_string(), anthropic_base_url)));
 
-    let profile_store: Arc<dyn rust_blog::analytics::ProfileStore> = db.clone();
+    let (db, posthog, profile_store, aggregator) = if let Some(pw) = password {
+        tracing::info!("connecting to Cosmos DB");
+        match AnalyticsDb::connect(&contact_point, &username, &pw).await {
+            Ok(analytics_db) => {
+                let db = Arc::new(analytics_db);
+                let posthog = posthog_api_key
+                    .as_deref()
+                    .map(|k| Arc::new(PostHogForwarder::new(k.to_string())));
+                let profile_store: Arc<dyn rust_blog::analytics::ProfileStore> = db.clone();
+                let agg = posthog_api_key.map(|k| {
+                    Arc::new(Aggregator::new(
+                        db.clone(),
+                        k,
+                        clarity_token,
+                        vercel_token,
+                        google_creds_path,
+                        meta_token,
+                    ))
+                });
+                (Some(db), posthog, profile_store, agg)
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Cosmos DB connection failed ({}); starting in degraded mode",
+                    e
+                );
+                let profile_store: Arc<dyn rust_blog::analytics::ProfileStore> =
+                    Arc::new(rust_blog::analytics::NoopProfileStore);
+                (None, None, profile_store, None)
+            }
+        }
+    } else {
+        tracing::warn!("COSMOS_PASSWORD not set; starting in degraded mode (DB unavailable)");
+        let profile_store: Arc<dyn rust_blog::analytics::ProfileStore> =
+            Arc::new(rust_blog::analytics::NoopProfileStore);
+        (None, None, profile_store, None)
+    };
 
     let state = AppState {
-        db: Some(db.clone()),
+        db: db.clone(),
         posthog,
         anthropic: anthropic.clone(),
         profile_store,
     };
-
-    let aggregator = Arc::new(Aggregator::new(
-        db.clone(),
-        posthog_api_key,
-        clarity_token,
-        vercel_token,
-        google_creds_path,
-        meta_token,
-    ));
 
     let app = rust_blog::build_router(state);
 
@@ -102,13 +118,15 @@ async fn main() -> anyhow::Result<()> {
     let listener = TcpListener::bind(addr).await?;
     tracing::info!("listening on http://{}", listener.local_addr()?);
 
-    spawn_aggregation_loop(aggregator);
+    if let Some(agg) = aggregator {
+        spawn_aggregation_loop(agg);
+    }
 
     let summarize_enabled =
         std::env::var("SUMMARIZE_ENABLED").unwrap_or_else(|_| "true".into()) != "false";
-    if let Some(client) = anthropic.filter(|_| summarize_enabled) {
+    if let (Some(db_arc), Some(client)) = (db, anthropic.filter(|_| summarize_enabled)) {
         tracing::info!("summarization enabled, spawning loop");
-        summarize::spawn_summarization_loop(db.clone(), client, "jdetle-blog".to_string());
+        summarize::spawn_summarization_loop(db_arc, client, "jdetle-blog".to_string());
     }
 
     axum::serve(listener, app).await?;
