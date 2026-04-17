@@ -1,5 +1,5 @@
 # Builds Dockerfile (Rust multi-stage) via ACR Quick Tasks, then deploys to Azure Container Apps.
-# Runs on a self-hosted ephemeral runner (aca-runner-rust-blog in rg-platform).
+# Uses ubuntu-latest (OIDC + Azure CLI) so deploys do not depend on org self-hosted runners.
 # `az acr build` sends the build context to ACR and builds there — no Docker daemon required.
 #
 # First-run: creates cae-rust-blog (Container Apps Environment) and ca-rust-blog in rg-rust-blog.
@@ -43,7 +43,7 @@ permissions:
 
 jobs:
   build-push-deploy:
-    runs-on: [self-hosted, linux, x64, azcaj]
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
