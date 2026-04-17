@@ -1,4 +1,4 @@
-//! HTTP API for the analytics ingestion service: health check, event ingestion, user event queries, and Vercel drain.
+//! HTTP API for the blog service: health check, event ingestion, user event queries, and Vercel drain.
 
 use std::sync::Arc;
 
@@ -8,19 +8,43 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use crate::analytics::{AnalyticsDb, AnalyticsEvent, IncomingEvent};
+use crate::analytics::{AnalyticsDb, AnalyticsEvent, IncomingEvent, ProfileStore};
+use crate::anthropic::AnthropicClient;
 use crate::avatar;
 use crate::forward::PostHogForwarder;
 use crate::vercel_drain::VercelDrainPayload;
 use serde::Serialize;
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 
+/// Application state shared across all handlers.
+///
+/// `db` is `None` only in test mode (`test-support` feature + `BLOG_SERVICE_DB=memory`),
+/// where only the avatar handler is exercised and the full Cosmos DB is not available.
+/// Handlers that require `db` return 503 when it is absent rather than panicking.
 #[derive(Clone)]
 pub struct AppState {
-    pub db: Arc<AnalyticsDb>,
+    pub db: Option<Arc<AnalyticsDb>>,
     pub posthog: Option<Arc<PostHogForwarder>>,
-    /// Used for LLM summary (background) and on-demand SVG avatar generation.
-    pub anthropic_api_key: Option<String>,
+    /// Shared Anthropic client for avatar generation and session summarization.
+    pub anthropic: Option<Arc<AnthropicClient>>,
+    /// Profile storage used exclusively by the avatar handler; swappable for tests.
+    pub profile_store: Arc<dyn ProfileStore>,
+}
+
+/// Convenience macro: returns 503 if `db` is not configured.
+macro_rules! require_db {
+    ($state:expr) => {
+        match $state.db.as_ref() {
+            Some(db) => db,
+            None => {
+                return (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(serde_json::json!({"error": "Database not configured"})),
+                )
+                    .into_response()
+            }
+        }
+    };
 }
 
 #[derive(serde::Deserialize)]
@@ -88,9 +112,10 @@ pub async fn ingest_event(
     State(state): State<AppState>,
     Json(payload): Json<IncomingEvent>,
 ) -> impl IntoResponse {
+    let db = require_db!(state);
     let event = AnalyticsEvent::from_incoming(payload, "custom");
 
-    if let Err(e) = state.db.insert_event(&event).await {
+    if let Err(e) = db.insert_event(&event).await {
         tracing::error!(error = %e, "failed to insert event");
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -115,6 +140,7 @@ pub async fn user_events(
     State(state): State<AppState>,
     Query(params): Query<UserEventsQuery>,
 ) -> impl IntoResponse {
+    let db = require_db!(state);
     let lookup_id = if !params.user_id.is_empty() {
         params.user_id.clone()
     } else if !params.fingerprint.is_empty() {
@@ -126,7 +152,7 @@ pub async fn user_events(
         )
             .into_response();
     };
-    let events: Vec<_> = match state.db.query_events_by_user(&lookup_id, params.limit).await {
+    let events: Vec<_> = match db.query_events_by_user(&lookup_id, params.limit).await {
         Ok(ev) => ev,
         Err(e) => {
             tracing::error!(error = %e, "user events query failed");
@@ -146,6 +172,7 @@ pub async fn user_profile(
     State(state): State<AppState>,
     Query(params): Query<UserProfileQuery>,
 ) -> impl IntoResponse {
+    let db = require_db!(state);
     let lookup_id = if !params.user_id.is_empty() {
         params.user_id.clone()
     } else if !params.distinct_id.is_empty() {
@@ -160,7 +187,7 @@ pub async fn user_profile(
             .into_response();
     };
 
-    match state.db.get_user_profile(&lookup_id).await {
+    match db.get_user_profile(&lookup_id).await {
         Ok(Some(profile)) => (
             StatusCode::OK,
             Json(serde_json::json!({
@@ -193,7 +220,7 @@ pub async fn user_profile(
 }
 
 /// POST body: fingerprint and/or distinct_id / user_id. Generates a fictional SVG avatar via Anthropic
-/// and stores `persona_guess` + `avatar_svg` in `user_profiles`. Idempotent if avatar already set.
+/// and stores `persona_guess` + `avatar_svg` in the profile store. Idempotent if avatar already set.
 pub async fn user_profile_generate_avatar(
     State(state): State<AppState>,
     Json(body): Json<GenerateAvatarBody>,
@@ -212,7 +239,7 @@ pub async fn user_profile_generate_avatar(
             .into_response();
     };
 
-    let Some(ref api_key) = state.anthropic_api_key else {
+    let Some(ref anthropic) = state.anthropic else {
         return (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(serde_json::json!({"error": "Avatar generation not configured"})),
@@ -220,7 +247,7 @@ pub async fn user_profile_generate_avatar(
             .into_response();
     };
 
-    let prior = state.db.get_user_profile(&lookup_id).await;
+    let prior = state.profile_store.get_profile(&lookup_id).await;
     let summary_hint: Option<String> = match &prior {
         Ok(Some(p)) if !p.llm_summary.is_empty() => Some(p.llm_summary.clone()),
         _ => None,
@@ -240,11 +267,10 @@ pub async fn user_profile_generate_avatar(
         }
     }
 
-    let client = reqwest::Client::new();
-    match avatar::generate_fake_avatar(api_key, &lookup_id, summary_hint.as_deref(), &client).await {
+    match avatar::generate_fake_avatar(anthropic, &lookup_id, summary_hint.as_deref()).await {
         Ok((persona, svg)) => {
             if let Err(e) = state
-                .db
+                .profile_store
                 .upsert_persona_avatar(&lookup_id, &persona, &svg)
                 .await
             {
@@ -280,11 +306,12 @@ pub async fn vercel_drain(
     State(state): State<AppState>,
     Json(payload): Json<VercelDrainPayload>,
 ) -> impl IntoResponse {
+    let db = require_db!(state);
     let events = payload.events();
     let mut stored = 0;
     for ev in events {
         let analytics_ev = ev.to_analytics_event();
-        if let Err(e) = state.db.insert_event(&analytics_ev).await {
+        if let Err(e) = db.insert_event(&analytics_ev).await {
             tracing::error!(error = %e, "failed to store Vercel drain event");
         } else {
             stored += 1;
