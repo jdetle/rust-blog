@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-04-16 work-with-me capacity approval](./2026-04-16-work-with-me-capacity-approval.md)
+  - decision: proceed; employer approval + ~10h/week + advisory-first on `/work-with-me` and pitch doc
+  - unresolved risk: numbers and policy may drift
+  - follow-up: refresh copy if employment situation changes
+
 - [2026-04-16 marketability nav CTAs](./2026-04-16-marketability-nav-ctas.md)
   - decision: proceed; add `/work-with-me` to default nav, posts index footer, home CTAs + PostHog `work_with_me`
   - unresolved risk: none for this diff
