@@ -360,7 +360,7 @@ impl AnalyticsDb {
             }
         }
 
-        all_events.sort_by(|a, b| b.event_time.cmp(&a.event_time));
+        all_events.sort_by_key(|e| std::cmp::Reverse(e.event_time));
         Ok(all_events)
     }
 
