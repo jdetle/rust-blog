@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-04-16 marketability nav CTAs](./2026-04-16-marketability-nav-ctas.md)
+  - decision: proceed; add `/work-with-me` to default nav, posts index footer, home CTAs + PostHog `work_with_me`
+  - unresolved risk: none for this diff
+  - follow-up: optional narrow-mobile visual pass if CTA row feels crowded
+
 - [2026-04-14 analytics ingestion URL env](./2026-04-14-analytics-ingestion-url-env.md)
   - decision: proceed with push; `ANALYTICS_API_URL` preferred over `NEXT_PUBLIC_*` for Next proxies
   - unresolved risk: two env names could diverge if both set to different values
