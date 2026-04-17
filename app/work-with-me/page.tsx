@@ -5,7 +5,7 @@ import { NavRow } from "@/components/nav-row";
 export const metadata: Metadata = {
 	title: "Work with me",
 	description:
-		"I help teams build agent systems that actually work in production — rules-as-memory, adversarial review, parallel orchestration, hallucination prevention. Available for advisory, pair-build, and install-the-system engagements.",
+		"Advisory-first: production agent systems, rules-as-memory, adversarial review, grounding. Full-time at PwC — outside work needs employer approval. Roughly ten hours a week outside the day job.",
 };
 
 export default function WorkWithMePage() {
@@ -23,6 +23,30 @@ export default function WorkWithMePage() {
 				</header>
 
 				<article className="article-content">
+					<section>
+						<h2>Capacity and approval</h2>
+						<p>
+							I work full-time at PwC. Anything formal (paid work, a named
+							engagement, something that looks like a side contract) has to
+							clear my employer&apos;s approval process. I&apos;m not going to
+							skip that step, so build it into your timeline.
+						</p>
+						<p>
+							Outside the day job I have on the order of{" "}
+							<strong>ten hours a week</strong>. I want to put most of that
+							toward <strong>advisory</strong> work: read what you&apos;re
+							building, tell you where it&apos;s going to break, suggest what to
+							fix first, point you at patterns I&apos;ve already written up
+							here. That&apos;s the fit I&apos;m looking for.
+						</p>
+						<p>
+							Deeper embeds (pair-build, install-the-system) are still possible
+							when the scope fits that envelope and the paperwork is sorted. If
+							you need someone to own implementation on a crunch deadline in off
+							hours, I&apos;m not that person.
+						</p>
+					</section>
+
 					<section>
 						<h2>What I actually do</h2>
 						<p>
@@ -95,22 +119,24 @@ export default function WorkWithMePage() {
 					<section>
 						<h2>How to engage</h2>
 						<p>
-							<strong>Advisory</strong> (hourly or retainer) — I review what
-							you&apos;re building, tell you where it&apos;s going to break, and
-							explain how to fix it. Good for teams that have something running
-							and want a second opinion before it bites them.
+							<strong>Advisory</strong> (hourly or retainer) — This is the main
+							thing. I review what you&apos;re building, tell you where
+							it&apos;s going to break, and explain how to fix it. Best for
+							teams that already have something in motion and want a second
+							opinion before it bites them. Fits the weekly time box and the
+							approval path more cleanly than a big build-out.
 						</p>
 						<p>
-							<strong>Pair-build</strong> (weeks) — I embed, we ship something
-							real together, and I leave behind rules, docs, and scripts your
-							team can use after I&apos;m gone. Good for teams that want to move
-							fast and want experienced hands on the keyboard.
+							<strong>Pair-build</strong> (weeks) — We ship something real
+							together and I leave behind rules, docs, and scripts. Only when
+							the scope fits my availability and employer sign-off. Not a
+							default; ask if you think you need it.
 						</p>
 						<p>
-							<strong>Install-the-system</strong> (fixed scope) — worktrees,
-							rules corpus, adversarial review pipeline, CI hooks, trained team,
-							done. Good for teams that know they need the infrastructure but
-							don&apos;t have time to build it themselves.
+							<strong>Install-the-system</strong> (fixed scope) — Worktrees,
+							rules corpus, adversarial review pipeline, CI hooks, trained team.
+							Same constraints: narrow enough to fit the hours I have, and
+							approved through my employer.
 						</p>
 					</section>
 
@@ -171,8 +197,10 @@ export default function WorkWithMePage() {
 							</a>
 						</p>
 						<p>
-							I respond within a day or two. If you want to get a feel for how I
-							think before reaching out, the posts are the best place to start.
+							I respond within a day or two. Mention if you already know you
+							need employer-side approval on your end too — it helps set
+							expectations. If you want to get a feel for how I think before
+							reaching out, the posts are the best place to start.
 						</p>
 					</section>
 				</article>
