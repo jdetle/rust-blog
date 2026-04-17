@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-04-16 rust-api framework deploy](./2026-04-16-rust-api-framework-deploy.md)
+  - decision: proceed; Axum `rust-api`, `deploy-rust-api.yml` + `scripts/deploy-rust-api.sh` mirror `deploy-azure.yml`
+  - unresolved risk: Prism secrets empty breaks first create same as rust-blog if misconfigured
+  - follow-up: wire DNS / public URL when promoting beyond smoke test
+
 - [2026-04-17 contact email jdetle](./2026-04-17-contact-email-jdetle.md)
   - decision: proceed; `johndetlefs@gmail.com` → `jdetle@gmail.com` on work-with-me page and pitch doc
   - unresolved risk: none
