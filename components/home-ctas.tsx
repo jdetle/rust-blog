@@ -2,30 +2,44 @@
 
 import Link from "next/link";
 import posthog from "posthog-js";
+import type { HeroVariant } from "@/components/home-hero-ab";
+import { HOME_HERO_FLAG } from "@/components/home-hero-ab";
 
-export function HomeCtas() {
+interface HomeCtasProps {
+	/** Passed from HomeHeroAbTest so the primary CTA matches the experiment variant. */
+	variant?: HeroVariant;
+}
+
+export function HomeCtas({ variant = "treatment" }: HomeCtasProps) {
+	const capture = (label: string) => {
+		posthog.capture("cta_clicked", {
+			label,
+			[`$feature/${HOME_HERO_FLAG}`]: variant,
+		});
+	};
+
+	const workWithMePrimary = variant !== "control";
+
 	return (
 		<div className="cta-row">
 			<Link
-				className="btn btn-primary"
+				className={`btn ${workWithMePrimary ? "btn-primary" : "btn-secondary"}`}
 				href="/work-with-me"
-				onClick={() =>
-					posthog.capture("cta_clicked", { label: "work_with_me" })
-				}
+				onClick={() => capture("work_with_me")}
 			>
 				Work with me
 			</Link>
 			<Link
-				className="btn btn-secondary"
+				className={`btn ${workWithMePrimary ? "btn-secondary" : "btn-primary"}`}
 				href="/posts"
-				onClick={() => posthog.capture("cta_clicked", { label: "read_blog" })}
+				onClick={() => capture("read_blog")}
 			>
 				Read the blog
 			</Link>
 			<Link
 				className="btn btn-secondary"
 				href="/who-are-you"
-				onClick={() => posthog.capture("cta_clicked", { label: "who_are_you" })}
+				onClick={() => capture("who_are_you")}
 			>
 				Who are you?
 			</Link>
@@ -34,7 +48,7 @@ export function HomeCtas() {
 				href="https://www.linkedin.com/in/jdetle/"
 				target="_blank"
 				rel="noopener noreferrer"
-				onClick={() => posthog.capture("cta_clicked", { label: "linkedin" })}
+				onClick={() => capture("linkedin")}
 			>
 				LinkedIn
 			</a>
@@ -43,7 +57,7 @@ export function HomeCtas() {
 				href="https://github.com/jdetle"
 				target="_blank"
 				rel="noopener noreferrer"
-				onClick={() => posthog.capture("cta_clicked", { label: "github" })}
+				onClick={() => capture("github")}
 			>
 				GitHub
 			</a>

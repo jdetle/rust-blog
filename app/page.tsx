@@ -1,8 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { AnimatedFrame } from "@/components/animated-frame";
-import { HomeCtas } from "@/components/home-ctas";
-import { HomeFingerprintAvatar } from "@/components/home-fingerprint-avatar";
+import { HomeHeroAbTest } from "@/components/home-hero-ab";
 import { HomeWhoSnapshot } from "@/components/home-who-snapshot";
 import {
 	estimateReadingTime,
@@ -39,29 +38,7 @@ export default function HomePage() {
 					</p>
 				</header>
 
-				<section className="home-hero" aria-labelledby="home-hero-heading">
-					<p className="eyebrow">
-						Agentic Engineering &middot; Production Reliability
-					</p>
-					<div className="home-hero-headline">
-						<h1 id="home-hero-heading">
-							I install the discipline that makes AI agents reliable in
-							production.
-						</h1>
-						<HomeFingerprintAvatar />
-					</div>
-					<p className="lede">
-						Rules-as-memory, parallel agent orchestration through git worktrees,
-						adversarial review before every push, and grounding for user-facing
-						agents. Anchored in seven years of shipping customer-facing software
-						where downtime costs real money &mdash; the dashboard and account
-						surfaces behind $200M+ in annual revenue at GoDaddy, and cloud
-						infrastructure for nine-figure consulting engagements at PwC (via
-						Kunai).
-					</p>
-
-					<HomeCtas />
-				</section>
+				<HomeHeroAbTest />
 
 				{leadPost ? (
 					<section
