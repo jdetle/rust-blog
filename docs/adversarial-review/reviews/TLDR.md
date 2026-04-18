@@ -1,5 +1,7 @@
 # Adversarial Review TLDR
 
+- [2026-04-18 dispatch-smart-tasks-doc] trivial — add `DISPATCH_NOTES.md` + `docs/dispatch-smart-tasks.md` (SMART rows from `follow-ups.md` + TLDR); external agentdds/rust-blog/guardian/platform notes remain import backlog until committed — no separate review
+
 - [2026-04-18 azure-app-service-frontend](./2026-04-18-azure-app-service-frontend.md)
   - decision: proceed; move the Next.js frontend off Vercel onto Azure App Service while keeping Rust analytics on Container Apps
   - risk: App Service, Cloudflare, and Vercel cutover still require manual portal work and correct runtime env parity
