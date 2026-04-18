@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-04-18 azure-app-service-frontend](./2026-04-18-azure-app-service-frontend.md)
+  - decision: proceed; move the Next.js frontend off Vercel onto Azure App Service while keeping Rust analytics on Container Apps
+  - risk: App Service, Cloudflare, and Vercel cutover still require manual portal work and correct runtime env parity
+  - followup: [ ] author — provision the Linux B1 web app in the rust-blog subscription, set GitHub OIDC secrets, then point Cloudflare at Azure before removing the Vercel domain
+
 - [2026-04-17 site positioning: competent business professional + agentic coding](./2026-04-17-site-positioning-agentic-business.md)
   - decision: proceed (5-0) with Option A — 3 targeted PRs (lead-post hygiene, home repositioning, contact hygiene); no rebuild
   - unresolved risk: lead-post slot can today pick up `agentic-engineering-explained` (1-line draft) or `jdetle-guardian` (AI-default with "coffee" caveat) and show them as the flagship post
