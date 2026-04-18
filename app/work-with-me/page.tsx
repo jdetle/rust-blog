@@ -158,19 +158,40 @@ export default function WorkWithMePage() {
 								</a>
 							</li>
 							<li>
-								The rules corpus (~90 rules) is in <code>.cursor/rules/</code> —
-								each rule has an Origin section explaining the failure that
-								triggered it
+								The rules corpus (~90 rules) is in <code>.cursor/rules/</code>{" "}
+								— see a representative{" "}
+								<a
+									href="https://github.com/jdetle/rust-blog/commit/c187af529c1810f997818a5cea6c8e87dbcd9e27"
+									rel="noopener noreferrer"
+									target="_blank"
+								>
+									GitHub diff
+								</a>{" "}
+								where new rules and their failure-backed rationale were added
 							</li>
 							<li>
 								The skills library covers adversarial review, the blog pipeline,
 								finish-work-merge-ci, and others — under{" "}
-								<code>.cursor/skills/</code>
+								<code>.cursor/skills/</code>. Example{" "}
+								<a
+									href="https://github.com/jdetle/rust-blog/commit/7148ac40e00a8da9067fcbaa3f6098c6f115fe82"
+									rel="noopener noreferrer"
+									target="_blank"
+								>
+									GitHub diff
+								</a>
 							</li>
 							<li>
 								The adversarial review framework (personas, debate protocol,
 								evaluation rubric) is documented under{" "}
-								<code>docs/adversarial-review/</code>
+								<code>docs/adversarial-review/</code>. Example{" "}
+								<a
+									href="https://github.com/jdetle/rust-blog/commit/af18fae9fb0d8ce78acced62a47194be9befb422"
+									rel="noopener noreferrer"
+									target="_blank"
+								>
+									GitHub diff
+								</a>
 							</li>
 						</ul>
 						<p>
