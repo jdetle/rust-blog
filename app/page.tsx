@@ -34,27 +34,30 @@ export default function HomePage() {
 				<header className="masthead">
 					<p className="brand">John Detlefs</p>
 					<p className="date-mark">
-						Production systems and debugging war stories
+						Agentic engineering, production reliability, and the discipline
+						between them
 					</p>
 				</header>
 
 				<section className="home-hero" aria-labelledby="home-hero-heading">
 					<p className="eyebrow">
-						Senior Software Engineer &middot; Reliability &amp; Growth
+						Agentic Engineering &middot; Production Reliability
 					</p>
 					<div className="home-hero-headline">
 						<h1 id="home-hero-heading">
-							I build the systems behind the buy button.
+							I install the discipline that makes AI agents reliable in
+							production.
 						</h1>
 						<HomeFingerprintAvatar />
 					</div>
 					<p className="lede">
-						Seven years of shipping customer-facing software where downtime
-						costs real money. At GoDaddy I helped evolve the dashboard and
-						account surfaces behind $200M+ in annual revenue, cutting p95
-						latency and improving experiment quality across millions of
-						sessions. At PwC (via Kunai) I build cloud infrastructure for
-						nine-figure consulting engagements.
+						Rules-as-memory, parallel agent orchestration through git worktrees,
+						adversarial review before every push, and grounding for user-facing
+						agents. Anchored in seven years of shipping customer-facing software
+						where downtime costs real money &mdash; the dashboard and account
+						surfaces behind $200M+ in annual revenue at GoDaddy, and cloud
+						infrastructure for nine-figure consulting engagements at PwC (via
+						Kunai).
 					</p>
 
 					<HomeCtas />
@@ -149,15 +152,36 @@ export default function HomePage() {
 								<h3>Guardian</h3>
 								<p className="work-meta">Rust &middot; Open source</p>
 								<p className="work-copy">
-									Framework-agnostic monitor for agentic resource consumption:
-									tracks CPU, memory, and disk so long-running coding agents
-									stay within bounds, independent of editor or agent stack.{" "}
+									A Rust daemon that surfaces host resource pressure to AI
+									coding agents so they stop issuing requests the machine cannot
+									serve &mdash; operational hygiene for teams mandating agents
+									on a mixed laptop fleet.{" "}
 									<a
 										href="https://github.com/jdetle/guardian"
 										target="_blank"
 										rel="noopener noreferrer"
 									>
 										github.com/jdetle/guardian
+									</a>
+								</p>
+							</article>
+
+							<article className="work-item">
+								<h3>Rules corpus</h3>
+								<p className="work-meta">
+									Agent discipline &middot; This repository
+								</p>
+								<p className="work-copy">
+									Ninety-plus rules, each with an <code>Origin</code> section
+									describing the class of defect it addresses &mdash; the memory
+									layer a shipping agent needs and the most transferable
+									artefact of the practice.{" "}
+									<a
+										href="https://github.com/jdetle/rust-blog/tree/main/.cursor/rules"
+										target="_blank"
+										rel="noopener noreferrer"
+									>
+										.cursor/rules/
 									</a>
 								</p>
 							</article>
@@ -171,11 +195,12 @@ export default function HomePage() {
 						</p>
 
 						<ul className="chip-row">
+							<li className="chip">Agentic engineering / LLM tooling</li>
+							<li className="chip">Rust / systems programming</li>
 							<li className="chip">TypeScript / React / Next.js</li>
-							<li className="chip">AWS / Cloud Infrastructure</li>
-							<li className="chip">Node.js / Rust</li>
+							<li className="chip">AWS / cloud infrastructure</li>
 							<li className="chip">Observability / SRE</li>
-							<li className="chip">Performance / Experimentation</li>
+							<li className="chip">Experimentation / rollout design</li>
 						</ul>
 					</article>
 
@@ -189,12 +214,13 @@ export default function HomePage() {
 									Senior SDE &middot; Growth &amp; Account Experiences
 								</p>
 								<p className="work-copy">
-									Led frontend reliability for{" "}
-									<code>dashboard.godaddy.com</code>, the primary surface for
-									20M+ customers managing domains, hosting, and email. Drove p95
-									latency reductions, built the A/B experimentation framework
-									used by the growth org, and shipped simplification work that
-									measurably reduced support ticket volume.
+									Owned the experimentation framework for{" "}
+									<code>dashboard.godaddy.com</code> &mdash; the primary surface
+									for 20M+ customers &mdash; and the frontend reliability of the
+									revenue surfaces behind it. The same instincts for rollout
+									gates, experiment quality, and silent-failure detection are
+									what make an agentic rollout actually safe to mandate across a
+									team.
 								</p>
 							</article>
 
@@ -204,10 +230,11 @@ export default function HomePage() {
 									Senior Cloud Developer &middot; Advisory Technology
 								</p>
 								<p className="work-copy">
-									Building internal platforms and cloud tooling for PwC&apos;s
-									advisory practice. Infrastructure-as-code, observability
-									pipelines, and developer experience for consulting teams that
-									ship under tight client timelines.
+									Building developer experience and cloud tooling for consulting
+									teams working under an AI-first mandate.
+									Infrastructure-as-code, observability pipelines, and the
+									agent-workflow discipline that keeps engagements shipping on a
+									client clock instead of debugging their own tooling.
 								</p>
 							</article>
 
@@ -215,9 +242,11 @@ export default function HomePage() {
 								<h3>Meshify &amp; Earlier</h3>
 								<p className="work-meta">Full-stack &middot; IoT &amp; Data</p>
 								<p className="work-copy">
-									Legacy-to-React migrations, Go proxy services, and production
-									workflow reliability for IoT sensor platforms. End-to-end
-									ownership from database to dashboard.
+									End-to-end ownership from database to dashboard on IoT sensor
+									platforms &mdash; legacy-to-React migrations, Go proxy
+									services, and the kind of production workflow reliability work
+									that teaches you which failures stay silent until a customer
+									reports them.
 								</p>
 							</article>
 						</section>

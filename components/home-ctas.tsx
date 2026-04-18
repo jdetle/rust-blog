@@ -8,6 +8,15 @@ export function HomeCtas() {
 		<div className="cta-row">
 			<Link
 				className="btn btn-primary"
+				href="/work-with-me"
+				onClick={() =>
+					posthog.capture("cta_clicked", { label: "work_with_me" })
+				}
+			>
+				Work with me
+			</Link>
+			<Link
+				className="btn btn-secondary"
 				href="/posts"
 				onClick={() => posthog.capture("cta_clicked", { label: "read_blog" })}
 			>
@@ -19,15 +28,6 @@ export function HomeCtas() {
 				onClick={() => posthog.capture("cta_clicked", { label: "who_are_you" })}
 			>
 				Who are you?
-			</Link>
-			<Link
-				className="btn btn-secondary"
-				href="/work-with-me"
-				onClick={() =>
-					posthog.capture("cta_clicked", { label: "work_with_me" })
-				}
-			>
-				Work with me
 			</Link>
 			<a
 				className="btn btn-secondary"
