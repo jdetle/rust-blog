@@ -1,6 +1,6 @@
 ### jdetle.com
 
-Personal blog and journal by John Detlefs. Next.js App Router frontend deployed on Vercel. Rust analytics-ingestion service runs as a parallel daemon to pull events from Clarity/PostHog into Cosmos DB.
+Personal blog and journal by John Detlefs. Next.js App Router frontend deploys to Azure App Service. Rust analytics-ingestion service runs on Azure Container Apps to pull events from Clarity/PostHog into Cosmos DB.
 
 ### Architecture
 
@@ -16,7 +16,7 @@ src/                   Rust analytics ingestion (Cosmos, Clarity, PostHog)
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | Next.js 15 App Router on Vercel |
+| Frontend | Next.js 15 App Router on Azure App Service |
 | Analytics ingestion | Rust binary — HTTP API + Clarity/PostHog → Cosmos DB |
 
 ### Running (Next.js — frontend)
@@ -28,7 +28,7 @@ bun run dev
 
 Open http://localhost:3000.
 
-**CI — PostHog ingestion check (optional):** After Vercel preview smoke, the E2E Preview workflow can run `bun run verify:posthog-ingestion` when repository secrets `POSTHOG_PERSONAL_API_KEY` and `POSTHOG_PROJECT_ID` are set. See [e2e/README.md](e2e/README.md).
+**CI — PostHog ingestion check (optional):** After deploy smoke, the E2E Preview workflow can run `bun run verify:posthog-ingestion` when repository secrets `POSTHOG_PERSONAL_API_KEY` and `POSTHOG_PROJECT_ID` are set. See [e2e/README.md](e2e/README.md).
 
 ### Running (Rust — analytics ingestion)
 
@@ -48,16 +48,40 @@ Serves HTTP on port 8080 (`GET /health`, `POST /api/events`, `GET /user-events?u
 CREATE INDEX events_session_id_idx ON analytics.events (session_id);
 ```
 
-### Deploying (Azure Container Apps)
+### Deploying
 
-The analytics-ingestion service deploys to Azure Container Apps via `.github/workflows/deploy-analytics.yml`. Prerequisites:
+#### Frontend (Azure App Service)
+
+The production site deploys to Azure App Service via `.github/workflows/deploy-vercel.yml` (the file name is legacy; the workflow now targets Azure). The workflow builds a standalone Next.js artifact, includes the `posts/` content read at runtime, and deploys a zip package to a Linux web app.
+
+Provision the web app in the `rust-blog` subscription using:
+
+1. **Resource group:** `rg-rust-blog`
+2. **Plan:** Linux B1
+3. **Runtime stack:** Node 20 LTS
+4. **Startup command:** `node .next/standalone/server.js`
+5. **App settings:** `SCM_DO_BUILD_DURING_DEPLOYMENT=false`, `WEBSITE_RUN_FROM_PACKAGE=1`, `PORT=8080`
+
+Add these GitHub Actions secrets:
+
+- `AZUREAPPSERVICE_CLIENTID`
+- `AZUREAPPSERVICE_TENANTID`
+- `AZUREAPPSERVICE_SUBSCRIPTIONID`
+- `AZUREAPPSERVICE_RG`
+- `AZUREAPPSERVICE_NAME`
+
+See [docs/azure-deployment.md](docs/azure-deployment.md) for the exact portal steps.
+
+#### Analytics ingestion (Azure Container Apps)
+
+The analytics-ingestion service deploys to Azure Container Apps via `.github/workflows/deploy-azure.yml`. Prerequisites:
 
 1. Create an Azure Container Registry (ACR), resource group, and Container App with env vars: `COSMOS_CONTACT_POINT`, `COSMOS_USERNAME`, `COSMOS_PASSWORD`, `POSTHOG_API_KEY`
 2. Add GitHub secrets: `AZURE_CREDENTIALS` (service principal JSON)
 3. Add GitHub variables: `ACR_NAME`, `AZURE_RESOURCE_GROUP`, `CONTAINER_APP_NAME`
-4. Set `ANALYTICS_API_URL` in Vercel (Production / Preview) to your Container App URL (e.g. `https://analytics-ingestion.xxx.azurecontainerapps.io`). `NEXT_PUBLIC_ANALYTICS_API_URL` with the same value still works as a legacy alias.
+4. Set `ANALYTICS_API_URL` in Azure App Service application settings to your Container App URL (e.g. `https://analytics-ingestion.xxx.azurecontainerapps.io`). `NEXT_PUBLIC_ANALYTICS_API_URL` with the same value still works as a legacy alias.
 
-**rust-api (oakheightsllc/rust-blog on Vercel):** The small Axum service in `rust-api/` deploys to Azure as `ca-rust-api` (see `.github/workflows/deploy-rust-api.yml`). Set **`RUST_API_URL`** in the [Vercel project](https://vercel.com/oakheightsllc/rust-blog/settings/environment-variables) to that Container App’s HTTPS origin (no trailing slash), e.g. `https://ca-rust-api.<random>.eastus2.azurecontainerapps.io`. Production and Development can use `bun run ingest:rust-api` (Vercel CLI). For **Preview**, add the same variable for Preview in the dashboard (CLI preview targets often require choosing a branch). The site exposes **`GET /api/rust/health`**, **`/api/rust/ready`**, **`/api/rust/v1/info`** as server proxies to the Container App.
+**rust-api:** The small Axum service in `rust-api/` deploys to Azure as `ca-rust-api` (see `.github/workflows/deploy-rust-api.yml`). Set **`RUST_API_URL`** in Azure App Service application settings to that Container App’s HTTPS origin (no trailing slash), e.g. `https://ca-rust-api.<random>.eastus2.azurecontainerapps.io`. The site exposes **`GET /api/rust/health`**, **`/api/rust/ready`**, **`/api/rust/v1/info`** as server proxies to the Container App.
 
 ### Analytics
 
@@ -75,7 +99,7 @@ Copy `.env.example` to `.env.local` and fill in your IDs. Placeholder values (co
 
 Use the ingest scripts to add secrets: <code>bun run ingest:ga4</code>, <code>bun run ingest:clarity</code>, <code>bun run ingest:posthog</code>, <code>bun run ingest:plausible</code>, <code>bun run ingest:vercel-sync</code>.
 
-For production, add these as Vercel Environment Variables in the project settings. They'll be injected at build time.
+For production, add these as Azure App Service application settings. Public `NEXT_PUBLIC_*` values are still baked into the Next.js build; server-only values are available at runtime.
 
 ### Pages
 
@@ -90,11 +114,11 @@ For production, add these as Vercel Environment Variables in the project setting
 
 | Event | What happens |
 |-------|--------------|
-| Push to `main` | GitHub Actions CI runs Rust checks (`cargo check`, `clippy`, `test`, `build --release`); Vercel deploys to production |
-| Open or update a PR | CI runs Rust checks; Vercel posts a deploy preview URL on the PR |
-| Merge a PR | Vercel deploys the merged result to [jdetle.com](https://jdetle.com) |
+| Push to `main` | GitHub Actions CI runs Rust checks (`cargo check`, `clippy`, `test`, `build --release`) and deploys the frontend to Azure App Service |
+| Open or update a PR | CI runs Rust and Next.js validation |
+| Merge a PR | Azure App Service serves the merged result at [jdetle.com](https://jdetle.com) |
 
-**Vercel:** Connects via GitHub integration. Production deploys run automatically on push to `main`. PR preview URLs (e.g. `rust-blog-abc123.vercel.app`) are posted as comments. Next.js handles routing — no `vercel.json` needed.
+**Azure App Service:** GitHub Actions builds the standalone Next.js artifact and deploys `site.zip` to the Linux web app. App Service handles the Node runtime; Cloudflare provides DNS in front of it.
 
 **CI:** `.github/workflows/ci.yml` validates Rust (`cargo check`, `cargo clippy -- -D warnings`, `cargo test`, `cargo build --release`, benches) and the Next.js app (`bun test lib`, `bun run build`) on every push and PR.
 

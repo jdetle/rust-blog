@@ -1,78 +1,88 @@
-# Azure Deployment Readiness
+# Azure deployment
 
-Checklist to deploy the analytics-ingestion service to Azure Container Apps.
+This repo now targets two Azure runtimes:
 
-## E2E Preview (Vercel)
+- Frontend (`app/**`, `components/**`, `posts/**`) → Azure App Service (Linux, B1)
+- Rust analytics service (`src/**`) → Azure Container Apps
 
-The E2E Preview workflow runs smoke tests against the Vercel deploy preview. If you have **Deployment Protection** enabled:
+## Frontend: Azure App Service (Linux)
 
-1. Vercel → Project Settings → Security → Deployment Protection → **Protection Bypass for Automation**
-2. Create a bypass secret (e.g. "CI E2E")
-3. Add it to GitHub: Repository → Settings → Secrets → Actions → `VERCEL_AUTOMATION_BYPASS_SECRET`
+Use this for `jdetle.com`.
 
-## Prerequisites
+### Azure portal provisioning
 
-- [ ] Azure CLI installed (`az --version`)
-- [ ] Logged in (`az login`)
-- [ ] Docker installed (for local build/push)
+Create the web app in the `rust-blog` subscription:
 
-## 1. Obtain Secrets
+1. Azure Portal → App Services → Create
+2. Subscription: `rust-blog`
+3. Resource group: use your existing blog RG (for example `rg-rust-blog`) or create one
+4. Name: `app-rust-blog-web` (or your preferred globally unique name)
+5. Publish: Code
+6. Runtime stack: Node 20 LTS
+7. Operating system: Linux
+8. Region: same region as the rest of the blog infra
+9. Pricing plan: B1 Basic
 
-Run the secrets script to gather all required values:
+After the app exists, set:
+
+- Startup Command: `node .next/standalone/server.js`
+- App Settings:
+  - `SCM_DO_BUILD_DURING_DEPLOYMENT=false`
+  - `WEBSITE_RUN_FROM_PACKAGE=1`
+  - `PORT=8080`
+  - all runtime env vars currently used by the frontend (`NEXT_PUBLIC_*`, `ANALYTICS_API_URL`, `RUST_API_URL`, etc.)
+
+### GitHub Actions OIDC setup
+
+Create a federated credential / app registration that can deploy to this App Service resource group, then add these GitHub repository secrets:
+
+| Secret | Description |
+|---|---|
+| `AZUREAPPSERVICE_CLIENTID` | App registration / workload identity client id |
+| `AZUREAPPSERVICE_TENANTID` | Azure tenant id |
+| `AZUREAPPSERVICE_SUBSCRIPTIONID` | `rust-blog` subscription id |
+| `AZUREAPPSERVICE_RG` | App Service resource group |
+| `AZUREAPPSERVICE_NAME` | App Service name |
+
+The workflow in `.github/workflows/deploy-vercel.yml` now deploys the Next.js frontend to App Service by:
+
+1. Building Next.js in standalone mode
+2. Packaging `.next/standalone`, `.next/static`, and `posts/`
+3. Logging into Azure with OIDC
+4. Deploying `site.zip` to the Linux web app
+
+### Verify frontend deployment
+
+After a deploy:
 
 ```bash
-./scripts/azure-secrets.sh [resource-group] > .env.azure
+curl -I https://<app-name>.azurewebsites.net
+curl https://<app-name>.azurewebsites.net/posts
 ```
 
-Or source directly (use with caution—exposes secrets in shell):
+When DNS is ready, point Cloudflare at the Azure hostname and add the custom domain inside App Service.
+
+## Rust analytics service: Azure Container Apps
+
+The Rust analytics service still deploys via `.github/workflows/deploy-azure.yml`.
+
+Required secrets:
+
+| Secret | Description |
+|---|---|
+| `AZURE_CLIENT_ID` | OIDC client id for Container Apps deploy |
+| `AZURE_TENANT_ID` | Azure tenant id |
+| `AZURE_SUBSCRIPTION_ID` | subscription id hosting the app RG |
+| `AZURE_RESOURCE_GROUP` | resource group for Container Apps |
+| `PLATFORM_ACR` | Azure Container Registry login server |
+| `PLATFORM_SUB_ID` | subscription id that owns the ACR |
+| `S10_INGEST_URL` | ingest endpoint |
+| `S10_INGEST_KEY` | ingest key |
+| `KEY_VAULT_NAME` | optional key vault for runtime secrets |
+
+### Verify Container Apps deployment
 
 ```bash
-source <(./scripts/azure-secrets.sh jd-analytics-rg)
-```
-
-Required for analytics-ingestion:
-
-| Variable | Source |
-|----------|--------|
-| COSMOS_CONTACT_POINT | Cosmos DB Cassandra API |
-| COSMOS_USERNAME | Cosmos account name |
-| COSMOS_PASSWORD | Cosmos primary key |
-| POSTHOG_API_KEY | Key Vault or .env (from PostHog) |
-| CLARITY_EXPORT_TOKEN | Key Vault or .env (optional) |
-
-## 2. GitHub Actions: AZURE_CREDENTIALS
-
-Create a service principal for deploy-analytics workflow:
-
-```bash
-az ad sp create-for-rbac \
-  --name github-rust-blog-deploy \
-  --role contributor \
-  --scopes /subscriptions/<SUB_ID>/resourceGroups/<RG> \
-  --sdk-auth
-```
-
-Add the JSON output as repository secret `AZURE_CREDENTIALS`.
-
-## 3. Repository Variables
-
-Set in GitHub → Settings → Secrets and variables → Actions:
-
-| Variable | Description |
-|----------|-------------|
-| ACR_NAME | Azure Container Registry name (default: jdetleblogacr) |
-| AZURE_RESOURCE_GROUP | Resource group (default: rg-jdetle-blog) |
-| CONTAINER_APP_NAME | Container App name (default: analytics-ingestion) |
-
-## 4. Deploy
-
-**Via GitHub Actions:** Push to `main` (or workflow_dispatch). The `.github/workflows/deploy-analytics.yml` builds and deploys on changes to `src/`, `Cargo.toml`, or `Dockerfile`.
-
-**Locally:** `./scripts/deploy-azure.sh [resource-group] [location]`
-
-## 5. Verify
-
-```bash
-az containerapp show --name <CONTAINER_APP_NAME> --resource-group <RG> --query properties.configuration.ingress.fqdn -o tsv
-curl https://<FQDN>/health
+az containerapp show --name ca-rust-blog --resource-group <RG> --query properties.configuration.ingress.fqdn -o tsv
+curl https://<fqdn>/health
 ```
