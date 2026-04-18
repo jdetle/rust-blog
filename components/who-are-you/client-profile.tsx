@@ -7,6 +7,7 @@ import {
 	aggregateThirdPartyResources,
 	computeExposureScore,
 } from "@/lib/third-party-resources";
+import { safeDecodeUriComponent } from "@/lib/url-display";
 import type {
 	ClientSignals,
 	EdgeSignals,
@@ -409,6 +410,8 @@ export function ClientProfile({
 			region: geoSource.region ?? null,
 			country:
 				(edgeApi?.ipapi?.countryName as string) ?? geoSource.country ?? null,
+			latitude: geoSource.latitude ?? null,
+			longitude: geoSource.longitude ?? null,
 			isp: edgeApi?.edge.org ?? "Detected server-side",
 			org: edgeApi?.edge.org ?? "Detected server-side",
 			timezone_ip: geoSource.timezone ?? null,
@@ -850,11 +853,27 @@ export function ClientProfile({
 	}, [vpnAssessment]);
 
 	const likelyLocation = useMemo(() => {
-		const parts = [network.city, network.region, network.country].filter(
-			Boolean,
-		) as string[];
+		const parts = [network.city, network.region, network.country]
+			.filter(Boolean)
+			.map((part) => safeDecodeUriComponent(part as string));
 		return parts.length ? parts.join(", ") : null;
 	}, [network.city, network.region, network.country]);
+
+	const googleMapsUrl = useMemo(() => {
+		const lat = network.latitude?.trim();
+		const lon = network.longitude?.trim();
+		const query = lat && lon ? `${lat},${lon}` : likelyLocation;
+		if (!query) return null;
+		return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+	}, [likelyLocation, network.latitude, network.longitude]);
+
+	const googleMapsEmbedUrl = useMemo(() => {
+		const lat = network.latitude?.trim();
+		const lon = network.longitude?.trim();
+		const query = lat && lon ? `${lat},${lon}` : likelyLocation;
+		if (!query) return null;
+		return `https://www.google.com/maps?q=${encodeURIComponent(query)}&output=embed`;
+	}, [likelyLocation, network.latitude, network.longitude]);
 
 	const deviceContextLine = useMemo(() => {
 		const parts = [device.browser, device.os, device.deviceType].filter(
@@ -959,7 +978,30 @@ export function ClientProfile({
 					<div className="persona-row">
 						<dt>Likely location</dt>
 						<dd>
-							{likelyLocation ?? (network.country ? network.country : "\u2026")}
+							<span>
+								{likelyLocation ??
+									(network.country ? network.country : "\u2026")}
+								{googleMapsUrl ? (
+									<span className="persona-row-sub">
+										{" "}
+										&middot;{" "}
+										<a href={googleMapsUrl} target="_blank" rel="noreferrer">
+											View on Google Maps
+										</a>
+									</span>
+								) : null}
+							</span>
+							{googleMapsEmbedUrl ? (
+								<div className="persona-map-preview">
+									<iframe
+										title={`Map preview for ${likelyLocation ?? "detected location"}`}
+										src={googleMapsEmbedUrl}
+										loading="lazy"
+										referrerPolicy="no-referrer-when-downgrade"
+										allowFullScreen
+									/>
+								</div>
+							) : null}
 						</dd>
 					</div>
 					<div className="persona-row">

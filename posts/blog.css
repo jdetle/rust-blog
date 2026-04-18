@@ -1317,6 +1317,21 @@ New post skeleton:
 	line-height: 1.55;
 }
 
+.persona-map-preview {
+	margin-top: 0.55rem;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	overflow: hidden;
+	background: rgba(255, 255, 255, 0.6);
+}
+
+.persona-map-preview iframe {
+	display: block;
+	width: 100%;
+	min-height: 210px;
+	border: 0;
+}
+
 .persona-row-sub {
 	color: var(--muted-ink);
 	font-size: 0.88rem;
