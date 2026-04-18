@@ -19,6 +19,34 @@ src/                   Rust analytics ingestion (Cosmos, Clarity, PostHog)
 | Frontend | Next.js 15 App Router on Azure App Service |
 | Analytics ingestion | Rust binary — HTTP API + Clarity/PostHog → Cosmos DB |
 
+### Azure architecture
+
+The production stack is split across Azure services with Cloudflare in front:
+
+```text
+Cloudflare DNS / proxy
+  -> Azure App Service (Linux B1)
+     -> Next.js 15 standalone server
+     -> reads runtime blog content from posts/
+     -> calls Rust APIs through ANALYTICS_API_URL and RUST_API_URL
+
+Azure Container Apps
+  -> ca-rust-blog        (analytics ingestion / warehouse APIs)
+  -> ca-rust-api         (small Axum API surfaced through /api/rust/* proxies)
+
+Shared Azure services
+  -> Cosmos DB           (analytics storage)
+  -> Azure Container Registry
+  -> optional Key Vault  (runtime secrets for Rust services)
+```
+
+Operationally, that means:
+
+- `jdetle.com` and `www.jdetle.com` terminate at Cloudflare
+- Cloudflare forwards traffic to the Azure App Service hostname
+- the Next.js frontend is the only public web origin for the site
+- Rust services stay isolated behind Azure-managed endpoints and are consumed by the frontend through environment variables
+
 ### Running (Next.js — frontend)
 
 ```bash
@@ -59,7 +87,7 @@ Provision the web app in the `rust-blog` subscription using:
 1. **Resource group:** `rg-rust-blog`
 2. **Plan:** Linux B1
 3. **Runtime stack:** Node 20 LTS
-4. **Startup command:** `node .next/standalone/server.js`
+4. **Startup command:** `node server.js`
 5. **App settings:** `SCM_DO_BUILD_DURING_DEPLOYMENT=false`, `WEBSITE_RUN_FROM_PACKAGE=1`, `PORT=8080`
 
 Add these GitHub Actions secrets:

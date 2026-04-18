@@ -25,7 +25,7 @@ Create the web app in the `rust-blog` subscription:
 
 After the app exists, set:
 
-- Startup Command: `node .next/standalone/server.js`
+- Startup Command: `node server.js`
 - App Settings:
   - `SCM_DO_BUILD_DURING_DEPLOYMENT=false`
   - `WEBSITE_RUN_FROM_PACKAGE=1`
