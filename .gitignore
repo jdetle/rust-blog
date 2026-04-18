@@ -42,3 +42,4 @@ node_modules/
 # Visual smoke test screenshots
 screenshots/
 test-results/
+tsconfig.tsbuildinfo

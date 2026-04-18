@@ -2,9 +2,9 @@
 	"title": "jdetle/guardian — agent resource monitoring for Cursor and Codex on macOS",
 	"author": "John Detlefs",
 	"date": "April 14, 2026",
-	"defaultVersion": "ai",
+	"defaultVersion": "human",
 	"showHeroImage": true,
-	"versions": ["ai", "human"],
+	"versions": ["human", "ai"],
 	"authorship": {
 		"ai": "ai",
 		"human": "human"

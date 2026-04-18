@@ -1,8 +1,7 @@
 {
-	"title": "Agentic Engineering Explained",
+	"title": "Agentic Engineering, in Practice",
 	"author": "John Detlefs",
 	"date": "March 15, 2026",
-	"draft": true,
 	"defaultVersion": "human",
 	"versions": ["human", "ai"],
 	"authorship": {
