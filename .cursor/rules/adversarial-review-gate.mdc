@@ -7,28 +7,34 @@ alwaysApply: true
 
 Before declaring work complete on any code-producing task (pushing a branch, opening a PR, or telling the user "done"), run an adversarial review proportional to the change size.
 
-## What to Review
-
-Examine the full diff (`git diff origin/main...HEAD`) through these lenses:
-
-1. **Accidental reversions** — Did conflict resolution, rebase, or cherry-pick silently drop upstream changes? Compare each modified file against `origin/main` to verify only intended changes remain.
-2. **Scope creep** — Does the diff contain changes unrelated to the stated goal? Every hunk should trace back to the task.
-3. **Semantic correctness** — Do the changes actually achieve what was asked? (e.g., updating URLs means the old URL no longer appears, not just that a new one was added somewhere)
-4. **Edge cases** — What happens when the happy path doesn't hold? (missing certs, missing DNS, missing env vars, empty inputs)
-5. **Test coverage** — If behavior changed, are tests updated? If tests were changed, do they still assert meaningful things?
+**Use the adversarial-review skill for the full protocol.** This gate rule is the trigger; the skill at `.cursor/skills/adversarial-review/SKILL.md` is the implementation. The skill defines both diff-audit mode (used here) and design-debate mode (used for contested proposals).
 
 ## Proportionality
 
 | Change size | Review depth |
 |---|---|
-| Trivial (1-2 files, style-only) | Quick scan of the diff, 1-2 sentences |
-| Small feature (3-10 files) | Check each file against the 5 lenses above |
-| Multi-file refactor or rebase | Full file-by-file comparison against upstream; verify no accidental reversions |
-| Architecture / new system | Full review + call out risks, trade-offs, and rollback plan |
+| Trivial (1-2 files, style/copy/rename only) | One line in `TLDR.md`, no separate review file |
+| Small feature (3-10 files) | Diff-audit: five lenses, save review file |
+| Multi-file refactor or rebase | Diff-audit: full file-by-file vs `origin/main`; verify no accidental reversions |
+| Architecture / new system | Diff-audit first; escalate to design-debate if contested |
+
+## Five Lenses (Diff-Audit)
+
+Examine `git diff origin/main...HEAD` through:
+
+1. **Accidental reversions** — Did conflict resolution, rebase, or cherry-pick silently drop upstream changes?
+2. **Scope creep** — Does the diff contain changes unrelated to the stated goal?
+3. **Semantic correctness** — Do the changes actually achieve what was asked?
+4. **Edge cases** — What happens when the happy path doesn't hold?
+5. **Test coverage** — If behavior changed, are tests updated?
 
 ## When Rebase or Conflict Resolution Was Involved
 
 Always compare the final diff against upstream to catch silent reversions. The pattern that triggered this rule: `git checkout --theirs` during a rebase took the wrong side and stripped upstream features without anyone noticing until the adversarial review caught it.
+
+## Open Follow-Ups
+
+Before pushing, scan `docs/adversarial-review/reviews/TLDR.md` for unchecked follow-ups (`- [ ]`) that are related to files in the current diff. Surface them — do not silently skip.
 
 ## Output
 
