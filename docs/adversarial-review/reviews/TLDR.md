@@ -2,7 +2,7 @@
 
 - [2026-04-17 site positioning: competent business professional + agentic coding](./2026-04-17-site-positioning-agentic-business.md)
   - decision: proceed (5-0) with Option A — 3 targeted PRs (lead-post hygiene, home repositioning, contact hygiene); no rebuild
-  - unresolved risk: lead-post slot can today pick up `agentic-engineering-explained` (1-line draft) or `jdetle-guardian` (AI-default with caveat) and show them as the flagship post
+  - unresolved risk: lead-post slot can today pick up `agentic-engineering-explained` (1-line draft) or `jdetle-guardian` (AI-default with "coffee" caveat) and show them as the flagship post
   - follow-up: ship lead-post hygiene guard first (highest-leverage fix), then hero copy + CTA swap, then domain-aliased contact email
 
 - [2026-04-17 blog-service consolidation + avatar e2e](./2026-04-17-blog-service-consolidation-avatar-e2e.md)

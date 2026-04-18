@@ -1,0 +1,20 @@
+---
+description: Enforce production-grade Rust CI checks in GitHub Actions.
+alwaysApply: true
+---
+
+# Rust GitHub CI Quality Gate
+
+Require a Rust CI workflow on pull requests and pushes:
+
+- `cargo fmt --all -- --check`
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`
+- `cargo nextest run --workspace --all-features --profile ci` (or `cargo test`)
+- `cargo check --workspace --all-targets --all-features`
+
+Use Cargo caching (`Swatinem/rust-cache@v2` or equivalent) and keep a matrix for OS/toolchain coverage.
+
+Recommended security steps:
+
+- `cargo deny check`
+- `cargo audit`
