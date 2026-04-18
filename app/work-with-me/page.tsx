@@ -184,7 +184,8 @@ export default function WorkWithMePage() {
 					<section>
 						<h2>Contact</h2>
 						<p>
-							Email: <a href="mailto:jdetle@gmail.com">jdetle@gmail.com</a>
+							Email:{" "}
+							<a href="mailto:business@jdetle.com">business@jdetle.com</a>
 						</p>
 						<p>
 							LinkedIn:{" "}
@@ -197,7 +198,7 @@ export default function WorkWithMePage() {
 						</p>
 						<p>
 							I respond within a day or two. Mention if you already know you
-							need employer-side approval on your end too — it helps set
+							need employer-side approval on your end too &mdash; it helps set
 							expectations. If you want to get a feel for how I think before
 							reaching out, the posts are the best place to start.
 						</p>
