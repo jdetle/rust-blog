@@ -242,11 +242,34 @@ export function getAllPosts(): AnyPost[] {
 	return getAllQuarters().flatMap((q) => q.posts);
 }
 
-/** Newest first, same ordering as quarter listings. */
+/**
+ * Minimum word count (visible text, default version) below which a post is
+ * considered in-progress and excluded from the home-page recent feed.
+ * Keeps placeholder/draft bodies from appearing as the flagship post.
+ */
+export const DISPLAY_READY_MIN_WORDS = 120;
+
+/**
+ * True when the default-version body contains at least
+ * `DISPLAY_READY_MIN_WORDS` words of visible text. Posts below this threshold
+ * remain reachable at their direct URL but are suppressed from lead/recent
+ * surfacing so a half-written draft cannot become the site's front door.
+ */
+export function isDisplayReady(post: AnyPost): boolean {
+	const html = getDefaultVersionHtml(post);
+	const text = html
+		.replace(/<[^>]+>/g, " ")
+		.replace(/\s+/g, " ")
+		.trim();
+	if (!text) return false;
+	const words = text.split(" ").filter(Boolean).length;
+	return words >= DISPLAY_READY_MIN_WORDS;
+}
+
+/** Newest first, same ordering as quarter listings. Only display-ready posts. */
 export function getRecentPosts(limit: number): AnyPost[] {
-	const all = getAllPosts();
 	if (limit <= 0) return [];
-	return all.slice(0, limit);
+	return getAllPosts().filter(isDisplayReady).slice(0, limit);
 }
 
 export function resolvePostDir(slug: string): string | null {
