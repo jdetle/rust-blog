@@ -48,7 +48,7 @@ export default function WorkWithMePage() {
 					</section>
 
 					<section>
-						<h2>What I actually do</h2>
+						<h2>The breakthrough I&apos;ve had</h2>
 						<p>
 							I build the discipline around AI agents — the rules, review
 							protocols, orchestration patterns, and grounding systems that make
@@ -59,9 +59,9 @@ export default function WorkWithMePage() {
 							across multiple production codebases.
 						</p>
 						<p>
-							The post{" "}
-							<a href="/posts/2026-q2/what-i-actually-do">What I actually do</a>{" "}
-							goes into more detail if you want the long version. The short
+						The post{" "}
+						<a href="/posts/2026-q2/what-i-actually-do">The breakthrough I&apos;ve had</a>{" "}
+						goes into more detail if you want the long version. The short
 							version: rules-as-memory, parallel agent orchestration via git
 							worktrees, adversarial review before every push, and grounding for
 							production agents that talk to users.
@@ -154,7 +154,7 @@ export default function WorkWithMePage() {
 								</a>{" "}
 								and{" "}
 								<a href="/posts/2026-q2/what-i-actually-do">
-									What I actually do
+									The breakthrough I&apos;ve had
 								</a>
 							</li>
 							<li>
