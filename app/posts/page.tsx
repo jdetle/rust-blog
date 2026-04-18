@@ -19,6 +19,10 @@ export default function PostsPage() {
 				<header className="list-header">
 					<p className="eyebrow">Archive</p>
 					<h1 className="page-title">Notes and essays</h1>
+					<p className="byline">
+						Posts are occasionally revised or retired as my thinking changes.
+						The current essays are the source of truth.
+					</p>
 				</header>
 
 				<div className="quarter-timeline">
