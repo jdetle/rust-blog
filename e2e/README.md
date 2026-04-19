@@ -23,14 +23,3 @@ NEXT_PUBLIC_POSTHOG_KEY=phc_… bun run test:e2e:posthog
 CI: add `NEXT_PUBLIC_POSTHOG_KEY` to the workflow env or secrets for this job.
 
 Optional: `PLAYWRIGHT_PORT` / `BASE_URL` if you point at an already-running server; set `PLAYWRIGHT_REUSE_SERVER=1` only when reusing that server.
-
-## E2E Preview workflow — PostHog ingestion check
-
-After GET smoke tests, [`.github/workflows/e2e-preview.yml`](../.github/workflows/e2e-preview.yml) can run `bun run verify:posthog-ingestion` when these **repository secrets** are set:
-
-| Secret | Purpose |
-|--------|---------|
-| `POSTHOG_PERSONAL_API_KEY` | HogQL Query API (`phx_…`) |
-| `POSTHOG_PROJECT_ID` | Numeric PostHog project id |
-
-The script counts events in the last 2 hours (configurable via `POSTHOG_VERIFY_HOURS`) and retries with backoff so short query lag does not flake the job.

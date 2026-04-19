@@ -5,7 +5,7 @@
 
 use crate::anthropic::AnthropicClient;
 
-const MODEL: &str = "claude-3-5-sonnet-20241022";
+const MODEL: &str = "claude-haiku-4-5-20251001";
 const MAX_TOKENS: u32 = 2048;
 const MAX_SVG_CHARS: usize = 48_000;
 
