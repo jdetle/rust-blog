@@ -2,7 +2,7 @@
 	"title": "Logging into Spotify OAuth2 with NextJS",
 	"author": "John Detlefs",
 	"date": "February 04, 2021",
-	"defaultVersion": "human",
+	"defaultVersion": "ai",
 	"versions": ["human", "ai"],
 	"authorship": {
 		"human": "human",

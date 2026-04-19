@@ -2,7 +2,7 @@
 	"title": "2023 Year in Review",
 	"author": "John Detlefs",
 	"date": "January 10, 2024",
-	"defaultVersion": "human",
+	"defaultVersion": "ai",
 	"versions": ["human", "ai"],
 	"authorship": {
 		"human": "human",

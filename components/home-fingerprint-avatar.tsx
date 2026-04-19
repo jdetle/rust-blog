@@ -10,6 +10,15 @@ const AVATAR_LABEL =
 
 type Phase = "awaiting-captcha" | "loading" | "ready" | "absent";
 
+type LoadingStep = "fingerprint" | "region" | "artists" | "rendering";
+
+const STEP_MESSAGES: Record<LoadingStep, string> = {
+	fingerprint: "Reading your fingerprint…",
+	region: "Detecting your region…",
+	artists: "Consulting regional artists…",
+	rendering: "Rendering your portrait…",
+};
+
 interface UserContext {
 	city?: string;
 	region?: string;
@@ -195,6 +204,7 @@ export function HomeFingerprintAvatar() {
 	const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 	const [avatarSvg, setAvatarSvg] = useState<string | null>(null);
 	const [phase, setPhase] = useState<Phase>("awaiting-captcha");
+	const [loadingStep, setLoadingStep] = useState<LoadingStep>("fingerprint");
 	const requestedRef = useRef(false);
 	const tokenRef = useRef<string | null>(null);
 
@@ -211,6 +221,7 @@ export function HomeFingerprintAvatar() {
 			).get_session_id?.() ?? null;
 
 		setPhase("loading");
+		setLoadingStep("fingerprint");
 
 		let cancelled = false;
 		const profileController = new AbortController();
@@ -220,6 +231,7 @@ export function HomeFingerprintAvatar() {
 
 		try {
 			// ── Step 1: check if a cached avatar exists ───────────────────
+			setLoadingStep("region");
 			const profileUrl = new URL(
 				"/api/analytics/user-profile",
 				window.location.origin,
@@ -258,8 +270,10 @@ export function HomeFingerprintAvatar() {
 			}
 			requestedRef.current = true;
 
+			setLoadingStep("artists");
 			const userContext = await buildUserContext();
 
+			setLoadingStep("rendering");
 			generateTimeoutId = setTimeout(() => generateController.abort(), 45_000);
 			const gr = await fetch("/api/analytics/generate-avatar", {
 				method: "POST",
@@ -318,9 +332,25 @@ export function HomeFingerprintAvatar() {
 				<TurnstileGate onToken={handleToken} />
 				<div
 					className="home-fingerprint-avatar home-fingerprint-avatar--loading"
-					aria-hidden="true"
+					role="status"
+					aria-busy="true"
 				>
-					<div className="home-fingerprint-avatar-skeleton" />
+					<div className="home-fingerprint-avatar-skeleton">
+						<div className="home-fingerprint-avatar-shimmer-lines">
+							<div className="home-fingerprint-avatar-shimmer-line home-fingerprint-avatar-shimmer-line--wide" />
+							<div className="home-fingerprint-avatar-shimmer-line home-fingerprint-avatar-shimmer-line--medium" />
+							<div className="home-fingerprint-avatar-shimmer-line home-fingerprint-avatar-shimmer-line--narrow" />
+						</div>
+					</div>
+					{phase === "loading" && (
+						<p
+							key={loadingStep}
+							className="home-fingerprint-avatar-status"
+							aria-live="polite"
+						>
+							{STEP_MESSAGES[loadingStep]}
+						</p>
+					)}
 				</div>
 			</>
 		);

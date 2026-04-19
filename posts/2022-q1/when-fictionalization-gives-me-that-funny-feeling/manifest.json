@@ -2,7 +2,7 @@
 	"title": "When Fictionalization Gives Me That Funny Feeling",
 	"author": "John Detlefs",
 	"date": "January 06, 2022",
-	"defaultVersion": "human",
+	"defaultVersion": "ai",
 	"versions": ["human", "ai"],
 	"authorship": {
 		"human": "human",

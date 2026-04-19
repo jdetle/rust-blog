@@ -8,6 +8,7 @@ use axum::{
     response::IntoResponse,
     Json,
 };
+use chrono::Utc;
 use crate::analytics::{AnalyticsDb, AnalyticsEvent, IncomingEvent, ProfileStore};
 use crate::anthropic::AnthropicClient;
 use crate::avatar::{self, UserContext};
@@ -243,12 +244,10 @@ pub async fn user_profile(
 /// If OpenAI is configured, generates a 1024×1024 regional-artist collage PNG via gpt-image-1
 /// (with persona derived from Claude Haiku). Otherwise falls back to the legacy SVG path.
 ///
-/// Cache logic: a hit occurs when `existing.avatar_png` is non-empty AND either:
-///
-///   - `body.session_id` is empty (fall back to fingerprint-level: any existing PNG is reused), or
-///   - `existing.avatar_session_id == body.session_id` (same PostHog session).
-///
-/// A new session always forces regeneration.
+/// Cache logic: a hit occurs when `existing.avatar_png` is non-empty AND
+/// `existing.avatar_session_id == today_utc_date` (format `YYYY-MM-DD`).
+/// One new image is generated per calendar day (UTC); the same PNG is served for all
+/// requests within that day.
 pub async fn user_profile_generate_avatar(
     State(state): State<AppState>,
     Json(body): Json<GenerateAvatarBody>,
@@ -286,15 +285,16 @@ pub async fn user_profile_generate_avatar(
     };
 
     // ── Cache check ──────────────────────────────────────────────────
+    let today_utc = Utc::now().format("%Y-%m-%d").to_string();
+
     if let Ok(Some(existing)) = &prior {
         let has_png = !existing.avatar_png.is_empty();
         let has_svg = !existing.avatar_svg.is_empty();
 
         if state.openai.is_some() {
-            // New path: cache on PNG + session match.
-            let same_session = body.session_id.is_empty()
-                || existing.avatar_session_id == body.session_id;
-            if has_png && same_session {
+            // New path: cache on PNG + same calendar day (UTC).
+            let same_day = existing.avatar_session_id == today_utc;
+            if has_png && same_day {
                 let avatar_url =
                     format!("data:image/png;base64,{}", existing.avatar_png);
                 return (
@@ -349,7 +349,7 @@ pub async fn user_profile_generate_avatar(
                     .profile_store
                     .upsert_persona_avatar(
                         &lookup_id,
-                        &body.session_id,
+                        &today_utc,
                         &persona,
                         &png_b64,
                         "",

@@ -64,8 +64,8 @@ pub struct UserProfile {
     pub persona_guess: String,
     /// Legacy: sanitized inline SVG avatar. Empty when `avatar_png` is populated.
     pub avatar_svg: String,
-    /// PostHog session ID used when the current `avatar_png` was generated.
-    /// Cache hit when `incoming_session_id == avatar_session_id && !avatar_png.is_empty()`.
+    /// UTC date string (`YYYY-MM-DD`) recorded when the current `avatar_png` was generated.
+    /// Cache hit when this equals today's UTC date and `avatar_png` is non-empty.
     pub avatar_session_id: String,
     /// Base64-encoded PNG from OpenAI gpt-image-1 (without `data:image/png;base64,` prefix).
     pub avatar_png: String,
@@ -83,8 +83,8 @@ pub trait ProfileStore: Send + Sync {
 
     /// Store persona guess + avatar for a profile.
     ///
-    /// `avatar_session_id` is the PostHog session ID tied to this generation — used for
-    /// per-session cache invalidation. Pass an empty string to fall back to fingerprint-level caching.
+    /// `avatar_session_id` is the UTC date string (`YYYY-MM-DD`) when this avatar was generated —
+    /// used for once-per-day cache invalidation. The handler passes today's UTC date.
     /// `png_b64` is a raw base64 PNG string (no `data:` prefix); if empty, `svg` is stored instead.
     async fn upsert_persona_avatar(
         &self,
@@ -449,7 +449,7 @@ impl AnalyticsDb {
 
     /// Store fictional persona line + avatar for a session_id (fingerprint / distinct id).
     ///
-    /// If `png_b64` is non-empty, writes to the new `avatar_png` + `avatar_session_id` columns.
+    /// If `png_b64` is non-empty, writes to `avatar_png` + `avatar_session_id` (today's UTC date).
     /// Otherwise falls back to the legacy `avatar_svg` column.
     pub async fn upsert_persona_avatar(
         &self,

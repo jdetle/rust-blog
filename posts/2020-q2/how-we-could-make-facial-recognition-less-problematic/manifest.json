@@ -3,7 +3,7 @@
 	"author": "John Detlefs",
 	"date": "June 18, 2020",
 	"draft": true,
-	"defaultVersion": "human",
+	"defaultVersion": "ai",
 	"versions": ["human", "ai"],
 	"authorship": {
 		"human": "human",

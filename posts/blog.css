@@ -509,6 +509,9 @@ a:hover {
 
 .home-fingerprint-avatar--loading {
 	min-height: 8.5rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
 }
 
 .home-fingerprint-avatar-skeleton {
@@ -524,6 +527,60 @@ a:hover {
 	);
 	background-size: 200% 100%;
 	animation: home-fp-skel 1.35s ease-in-out infinite;
+	position: relative;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
+	padding: 1rem;
+	gap: 0.45rem;
+}
+
+.home-fingerprint-avatar-shimmer-lines {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+}
+
+.home-fingerprint-avatar-shimmer-line {
+	height: 0.55rem;
+	border-radius: 4px;
+	background: rgba(176, 112, 80, 0.18);
+	animation: home-fp-skel 1.35s ease-in-out infinite;
+	animation-delay: 0.15s;
+}
+
+.home-fingerprint-avatar-shimmer-line--wide {
+	width: 80%;
+}
+
+.home-fingerprint-avatar-shimmer-line--medium {
+	width: 62%;
+	animation-delay: 0.25s;
+}
+
+.home-fingerprint-avatar-shimmer-line--narrow {
+	width: 45%;
+	animation-delay: 0.35s;
+}
+
+.home-fingerprint-avatar-status {
+	font-size: 0.72rem;
+	color: rgba(176, 112, 80, 0.7);
+	letter-spacing: 0.03em;
+	margin: 0;
+	animation: home-fp-status-in 0.35s ease both;
+}
+
+@keyframes home-fp-status-in {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
 }
 
 @keyframes home-fp-skel {
