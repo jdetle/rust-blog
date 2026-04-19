@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-04-19 github-actions-cleanup](./2026-04-19-github-actions-cleanup.md)
+  - decision: proceed; rename frontend deploy workflow to `deploy-frontend.yml`, remove Vercel-preview `e2e-preview.yml` and doc references
+  - risk: no automated PR preview smoke until a replacement workflow exists
+  - follow-up: none unless preview CI is needed again
+
 - [2026-04-18 dispatch-smart-tasks-doc] trivial — add `DISPATCH_NOTES.md` + `docs/dispatch-smart-tasks.md` (SMART rows from `follow-ups.md` + TLDR); external agentdds/rust-blog/guardian/platform notes remain import backlog until committed — no separate review
 
 - [2026-04-18 azure-app-service-frontend](./2026-04-18-azure-app-service-frontend.md)

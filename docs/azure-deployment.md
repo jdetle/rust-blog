@@ -44,7 +44,7 @@ Create a federated credential / app registration that can deploy to this App Ser
 | `AZUREAPPSERVICE_RG` | App Service resource group |
 | `AZUREAPPSERVICE_NAME` | App Service name |
 
-The workflow in `.github/workflows/deploy-vercel.yml` now deploys the Next.js frontend to App Service by:
+The workflow in `.github/workflows/deploy-frontend.yml` deploys the Next.js frontend to App Service by:
 
 1. Building Next.js in standalone mode
 2. Packaging `.next/standalone`, `.next/static`, and `posts/`
