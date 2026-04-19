@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use chrono::{NaiveDate, Utc};
 use openssl::ssl::{SslContextBuilder, SslMethod, SslVerifyMode};
+use scylla::frame::value::CqlTimestamp;
 use scylla::prepared_statement::PreparedStatement;
 use scylla::{Session, SessionBuilder};
 use serde::{Deserialize, Serialize};
@@ -403,7 +404,7 @@ impl AnalyticsDb {
         session_id: &str,
         llm_summary: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let updated_at = Utc::now().timestamp_millis();
+        let updated_at = CqlTimestamp(Utc::now().timestamp_millis());
         self.session
             .execute_unpaged(
                 &self.upsert_profile_stmt,
@@ -420,7 +421,7 @@ impl AnalyticsDb {
         persona_guess: &str,
         avatar_svg: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let updated_at = Utc::now().timestamp_millis();
+        let updated_at = CqlTimestamp(Utc::now().timestamp_millis());
         self.session
             .execute_unpaged(
                 &self.upsert_avatar_stmt,
@@ -449,7 +450,7 @@ impl AnalyticsDb {
             .rows::<(
                 String,
                 Option<String>,
-                Option<i64>,
+                Option<CqlTimestamp>,
                 Option<String>,
                 Option<String>,
             )>()?
@@ -459,7 +460,7 @@ impl AnalyticsDb {
             return Ok(Some(UserProfile {
                 session_id: sid,
                 llm_summary: summary.unwrap_or_default(),
-                updated_at: updated_at.unwrap_or(0),
+                updated_at: updated_at.map(|t| t.0).unwrap_or(0),
                 persona_guess: persona.unwrap_or_default(),
                 avatar_svg: avatar.unwrap_or_default(),
             }));
