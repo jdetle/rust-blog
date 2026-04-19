@@ -1,0 +1,8 @@
+{
+  "terminal.integrated.cwd": "${workspaceFolder}",
+  "plugins": {
+    "cloudflare": {
+      "enabled": true
+    }
+  }
+}
