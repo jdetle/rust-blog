@@ -7,7 +7,7 @@
 		"node": "20.x"
 	},
 	"scripts": {
-		"dev": "bun run --bun next dev",
+		"dev": "bun run --bun next dev --turbopack",
 		"build": "bun run --bun next build",
 		"start": "bun run --bun next start",
 		"start:azure": "HOSTNAME=0.0.0.0 PORT=${PORT:-8080} node .next/standalone/server.js",
