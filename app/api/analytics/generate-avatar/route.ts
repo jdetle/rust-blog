@@ -7,8 +7,8 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
-import { verifyTurnstileToken } from "@/app/api/captcha/verify/route";
 import { getAnalyticsIngestionBaseUrl } from "@/lib/analytics-ingestion-url";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 
 export async function POST(request: NextRequest) {
 	const ANALYTICS_API_URL = getAnalyticsIngestionBaseUrl();

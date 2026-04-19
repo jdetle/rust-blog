@@ -244,8 +244,10 @@ pub async fn user_profile(
 /// (with persona derived from Claude Haiku). Otherwise falls back to the legacy SVG path.
 ///
 /// Cache logic: a hit occurs when `existing.avatar_png` is non-empty AND either:
+///
 ///   - `body.session_id` is empty (fall back to fingerprint-level: any existing PNG is reused), or
 ///   - `existing.avatar_session_id == body.session_id` (same PostHog session).
+///
 /// A new session always forces regeneration.
 pub async fn user_profile_generate_avatar(
     State(state): State<AppState>,

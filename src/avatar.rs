@@ -193,9 +193,11 @@ Abstract and expressive — not a photograph of a real person. No text, no logos
     )
 }
 
-/// Full collage generation pipeline:
+/// Full collage generation pipeline.
+///
 /// 1. Claude Haiku: persona + art-direction from visitor signals.
 /// 2. OpenAI gpt-image-1: 1024×1024 PNG collage.
+///
 /// Returns `(persona_line, data_uri)` where `data_uri` starts with `data:image/png;base64,`.
 pub async fn generate_regional_collage(
     openai: &OpenAiImagesClient,
