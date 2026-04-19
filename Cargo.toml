@@ -45,6 +45,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 rand = "0.8"
 rand_chacha = "0.3"
 async-trait = "0.1"
+base64 = "0.22"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

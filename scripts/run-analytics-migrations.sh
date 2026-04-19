@@ -28,4 +28,7 @@ echo "002 (user_profiles table)"
 echo "003 (persona_guess + avatar_svg)"
 "${CQLSH[@]}" -f "${ROOT}/migrations/003_user_profiles_avatar.cql"
 
+echo "004 (avatar_session_id + avatar_png)"
+"${CQLSH[@]}" -f "${ROOT}/migrations/004_user_profiles_session_avatar.cql"
+
 echo "Done."

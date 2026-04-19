@@ -10,8 +10,9 @@ use axum::{
 };
 use crate::analytics::{AnalyticsDb, AnalyticsEvent, IncomingEvent, ProfileStore};
 use crate::anthropic::AnthropicClient;
-use crate::avatar;
+use crate::avatar::{self, UserContext};
 use crate::forward::PostHogForwarder;
+use crate::openai_images::OpenAiImagesClient;
 use crate::vercel_drain::VercelDrainPayload;
 use serde::Serialize;
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
@@ -25,8 +26,11 @@ use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 pub struct AppState {
     pub db: Option<Arc<AnalyticsDb>>,
     pub posthog: Option<Arc<PostHogForwarder>>,
-    /// Shared Anthropic client for avatar generation and session summarization.
+    /// Shared Anthropic client for persona derivation and session summarization.
     pub anthropic: Option<Arc<AnthropicClient>>,
+    /// OpenAI Images client for regional-collage PNG generation.
+    /// When `None`, the handler falls back to the legacy SVG path via Anthropic.
+    pub openai: Option<Arc<OpenAiImagesClient>>,
     /// Profile storage used exclusively by the avatar handler; swappable for tests.
     pub profile_store: Arc<dyn ProfileStore>,
 }
@@ -75,6 +79,12 @@ pub struct GenerateAvatarBody {
     pub user_id: String,
     #[serde(default)]
     pub distinct_id: String,
+    /// PostHog session ID — used for per-session cache invalidation.
+    #[serde(default)]
+    pub session_id: String,
+    /// Rich browser/edge signals forwarded from the client for prompt enrichment.
+    #[serde(default)]
+    pub user_context: UserContext,
 }
 
 fn default_limit() -> u32 {
@@ -188,23 +198,32 @@ pub async fn user_profile(
     };
 
     match db.get_user_profile(&lookup_id).await {
-        Ok(Some(profile)) => (
-            StatusCode::OK,
-            Json(serde_json::json!({
-                "summary": profile.llm_summary,
-                "updated_at": profile.updated_at,
-                "persona_guess": profile.persona_guess,
-                "avatar_svg": profile.avatar_svg,
-            })),
-        )
-            .into_response(),
+        Ok(Some(profile)) => {
+            let avatar_url = if !profile.avatar_png.is_empty() {
+                Some(format!("data:image/png;base64,{}", profile.avatar_png))
+            } else {
+                None
+            };
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "summary": profile.llm_summary,
+                    "updated_at": profile.updated_at,
+                    "persona_guess": profile.persona_guess,
+                    "avatar_svg": if profile.avatar_svg.is_empty() { serde_json::Value::Null } else { serde_json::Value::String(profile.avatar_svg) },
+                    "avatar_url": avatar_url,
+                })),
+            )
+                .into_response()
+        }
         Ok(None) => (
             StatusCode::OK,
             Json(serde_json::json!({
                 "summary": null,
                 "updated_at": null,
                 "persona_guess": null,
-                "avatar_svg": null
+                "avatar_svg": null,
+                "avatar_url": null,
             })),
         )
             .into_response(),
@@ -219,8 +238,15 @@ pub async fn user_profile(
     }
 }
 
-/// POST body: fingerprint and/or distinct_id / user_id. Generates a fictional SVG avatar via Anthropic
-/// and stores `persona_guess` + `avatar_svg` in the profile store. Idempotent if avatar already set.
+/// POST body: fingerprint and/or distinct_id / user_id, optional session_id + user_context.
+///
+/// If OpenAI is configured, generates a 1024×1024 regional-artist collage PNG via gpt-image-1
+/// (with persona derived from Claude Haiku). Otherwise falls back to the legacy SVG path.
+///
+/// Cache logic: a hit occurs when `existing.avatar_png` is non-empty AND either:
+///   - `body.session_id` is empty (fall back to fingerprint-level: any existing PNG is reused), or
+///   - `existing.avatar_session_id == body.session_id` (same PostHog session).
+/// A new session always forces regeneration.
 pub async fn user_profile_generate_avatar(
     State(state): State<AppState>,
     Json(body): Json<GenerateAvatarBody>,
@@ -252,52 +278,144 @@ pub async fn user_profile_generate_avatar(
         Ok(Some(p)) if !p.llm_summary.is_empty() => Some(p.llm_summary.clone()),
         _ => None,
     };
+    let prior_persona: Option<String> = match &prior {
+        Ok(Some(p)) if !p.persona_guess.is_empty() => Some(p.persona_guess.clone()),
+        _ => None,
+    };
 
+    // ── Cache check ──────────────────────────────────────────────────
     if let Ok(Some(existing)) = &prior {
-        if !existing.avatar_svg.is_empty() {
-            return (
-                StatusCode::OK,
-                Json(serde_json::json!({
-                    "persona_guess": existing.persona_guess,
-                    "avatar_svg": existing.avatar_svg,
-                    "cached": true
-                })),
-            )
-                .into_response();
-        }
-    }
+        let has_png = !existing.avatar_png.is_empty();
+        let has_svg = !existing.avatar_svg.is_empty();
 
-    match avatar::generate_fake_avatar(anthropic, &lookup_id, summary_hint.as_deref()).await {
-        Ok((persona, svg)) => {
-            if let Err(e) = state
-                .profile_store
-                .upsert_persona_avatar(&lookup_id, &persona, &svg)
-                .await
-            {
-                tracing::error!(error = %e, "upsert persona avatar failed");
+        if state.openai.is_some() {
+            // New path: cache on PNG + session match.
+            let same_session = body.session_id.is_empty()
+                || existing.avatar_session_id == body.session_id;
+            if has_png && same_session {
+                let avatar_url =
+                    format!("data:image/png;base64,{}", existing.avatar_png);
                 return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({"error": "Failed to store avatar"})),
+                    StatusCode::OK,
+                    Json(serde_json::json!({
+                        "persona_guess": existing.persona_guess,
+                        "avatar_url": avatar_url,
+                        "avatar_svg": serde_json::Value::Null,
+                        "cached": true
+                    })),
                 )
                     .into_response();
             }
-            (
-                StatusCode::OK,
-                Json(serde_json::json!({
-                    "persona_guess": persona,
-                    "avatar_svg": svg,
-                    "cached": false
-                })),
-            )
-                .into_response()
+        } else {
+            // Legacy path: cache on any existing SVG (original behaviour).
+            if has_svg {
+                return (
+                    StatusCode::OK,
+                    Json(serde_json::json!({
+                        "persona_guess": existing.persona_guess,
+                        "avatar_svg": existing.avatar_svg,
+                        "avatar_url": serde_json::Value::Null,
+                        "cached": true
+                    })),
+                )
+                    .into_response();
+            }
         }
-        Err(e) => {
-            tracing::warn!(error = %e, "avatar generation failed");
-            (
-                StatusCode::BAD_GATEWAY,
-                Json(serde_json::json!({"error": "Avatar generation failed"})),
-            )
-                .into_response()
+    }
+
+    // ── Generate ─────────────────────────────────────────────────────
+    if let Some(ref openai) = state.openai {
+        // New regional-collage path.
+        let fp = body.fingerprint.as_str();
+        let ctx = &body.user_context;
+        match avatar::generate_regional_collage(
+            openai,
+            anthropic,
+            fp,
+            ctx,
+            prior_persona.as_deref(),
+        )
+        .await
+        {
+            Ok((persona, data_uri)) => {
+                // Strip the data-URI prefix before storing (only the raw b64 goes in DB).
+                let png_b64 = data_uri
+                    .strip_prefix("data:image/png;base64,")
+                    .unwrap_or(&data_uri)
+                    .to_string();
+                if let Err(e) = state
+                    .profile_store
+                    .upsert_persona_avatar(
+                        &lookup_id,
+                        &body.session_id,
+                        &persona,
+                        &png_b64,
+                        "",
+                    )
+                    .await
+                {
+                    tracing::error!(error = %e, "upsert persona avatar (png) failed");
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(serde_json::json!({"error": "Failed to store avatar"})),
+                    )
+                        .into_response();
+                }
+                (
+                    StatusCode::OK,
+                    Json(serde_json::json!({
+                        "persona_guess": persona,
+                        "avatar_url": format!("data:image/png;base64,{png_b64}"),
+                        "avatar_svg": serde_json::Value::Null,
+                        "cached": false
+                    })),
+                )
+                    .into_response()
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "regional collage generation failed");
+                (
+                    StatusCode::BAD_GATEWAY,
+                    Json(serde_json::json!({"error": "Avatar generation failed"})),
+                )
+                    .into_response()
+            }
+        }
+    } else {
+        // Legacy SVG path.
+        match avatar::generate_fake_avatar(anthropic, &lookup_id, summary_hint.as_deref()).await {
+            Ok((persona, svg)) => {
+                if let Err(e) = state
+                    .profile_store
+                    .upsert_persona_avatar(&lookup_id, "", &persona, "", &svg)
+                    .await
+                {
+                    tracing::error!(error = %e, "upsert persona avatar (svg) failed");
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(serde_json::json!({"error": "Failed to store avatar"})),
+                    )
+                        .into_response();
+                }
+                (
+                    StatusCode::OK,
+                    Json(serde_json::json!({
+                        "persona_guess": persona,
+                        "avatar_svg": svg,
+                        "avatar_url": serde_json::Value::Null,
+                        "cached": false
+                    })),
+                )
+                    .into_response()
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "avatar generation failed");
+                (
+                    StatusCode::BAD_GATEWAY,
+                    Json(serde_json::json!({"error": "Avatar generation failed"})),
+                )
+                    .into_response()
+            }
         }
     }
 }

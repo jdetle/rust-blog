@@ -18,6 +18,7 @@ use rust_blog::analytics::AnalyticsDb;
 use rust_blog::anthropic::AnthropicClient;
 use rust_blog::api::AppState;
 use rust_blog::forward::PostHogForwarder;
+use rust_blog::openai_images::OpenAiImagesClient;
 use rust_blog::summarize;
 use tokio::net::TcpListener;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -63,6 +64,18 @@ async fn main() -> anyhow::Result<()> {
         .as_deref()
         .map(|k| Arc::new(AnthropicClient::new(k.to_string(), anthropic_base_url)));
 
+    let collage_enabled = std::env::var("AVATAR_COLLAGE_ENABLED")
+        .unwrap_or_else(|_| "false".into())
+        .trim()
+        .eq_ignore_ascii_case("true");
+    let openai_key = std::env::var("OPENAI_API_KEY").ok().filter(|k| !k.is_empty());
+    let openai_base_url = std::env::var("OPENAI_IMAGES_BASE_URL").ok();
+    let openai: Option<Arc<OpenAiImagesClient>> = if collage_enabled {
+        openai_key.map(|k| Arc::new(OpenAiImagesClient::new(k, openai_base_url)))
+    } else {
+        None
+    };
+
     let (db, posthog, profile_store, aggregator) = if let Some(pw) = password {
         tracing::info!("connecting to Cosmos DB");
         match AnalyticsDb::connect(&contact_point, &username, &pw).await {
@@ -105,6 +118,7 @@ async fn main() -> anyhow::Result<()> {
         db: db.clone(),
         posthog,
         anthropic: anthropic.clone(),
+        openai,
         profile_store,
     };
 
@@ -154,6 +168,7 @@ async fn run_memory_mode() -> anyhow::Result<()> {
         db: None,
         posthog: None,
         anthropic,
+        openai: None,
         profile_store,
     };
 

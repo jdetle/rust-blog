@@ -62,8 +62,13 @@ pub struct UserProfile {
     pub updated_at: i64,
     /// Playful fictional guess line (Anthropic-generated).
     pub persona_guess: String,
-    /// Sanitized inline SVG avatar (Anthropic-generated vector markup).
+    /// Legacy: sanitized inline SVG avatar. Empty when `avatar_png` is populated.
     pub avatar_svg: String,
+    /// PostHog session ID used when the current `avatar_png` was generated.
+    /// Cache hit when `incoming_session_id == avatar_session_id && !avatar_png.is_empty()`.
+    pub avatar_session_id: String,
+    /// Base64-encoded PNG from OpenAI gpt-image-1 (without `data:image/png;base64,` prefix).
+    pub avatar_png: String,
 }
 
 /// Minimal storage contract needed by the avatar handler.
@@ -76,10 +81,17 @@ pub trait ProfileStore: Send + Sync {
         id: &str,
     ) -> Result<Option<UserProfile>, Box<dyn std::error::Error + Send + Sync>>;
 
+    /// Store persona guess + avatar for a profile.
+    ///
+    /// `avatar_session_id` is the PostHog session ID tied to this generation — used for
+    /// per-session cache invalidation. Pass an empty string to fall back to fingerprint-level caching.
+    /// `png_b64` is a raw base64 PNG string (no `data:` prefix); if empty, `svg` is stored instead.
     async fn upsert_persona_avatar(
         &self,
         id: &str,
+        avatar_session_id: &str,
         persona: &str,
+        png_b64: &str,
         svg: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 }
@@ -103,7 +115,9 @@ impl ProfileStore for NoopProfileStore {
     async fn upsert_persona_avatar(
         &self,
         _id: &str,
+        _avatar_session_id: &str,
         _persona: &str,
+        _png_b64: &str,
         _svg: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Ok(())
@@ -136,6 +150,8 @@ impl MemoryProfileStore {
             updated_at: p.updated_at,
             persona_guess: p.persona_guess.clone(),
             avatar_svg: p.avatar_svg.clone(),
+            avatar_session_id: p.avatar_session_id.clone(),
+            avatar_png: p.avatar_png.clone(),
         })
     }
 }
@@ -161,13 +177,17 @@ impl ProfileStore for MemoryProfileStore {
             updated_at: p.updated_at,
             persona_guess: p.persona_guess.clone(),
             avatar_svg: p.avatar_svg.clone(),
+            avatar_session_id: p.avatar_session_id.clone(),
+            avatar_png: p.avatar_png.clone(),
         }))
     }
 
     async fn upsert_persona_avatar(
         &self,
         id: &str,
+        avatar_session_id: &str,
         persona: &str,
+        png_b64: &str,
         svg: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut map = self.profiles.lock().await;
@@ -177,9 +197,13 @@ impl ProfileStore for MemoryProfileStore {
             updated_at: 0,
             persona_guess: String::new(),
             avatar_svg: String::new(),
+            avatar_session_id: String::new(),
+            avatar_png: String::new(),
         });
         entry.persona_guess = persona.to_string();
         entry.avatar_svg = svg.to_string();
+        entry.avatar_session_id = avatar_session_id.to_string();
+        entry.avatar_png = png_b64.to_string();
         entry.updated_at = chrono::Utc::now().timestamp_millis();
         Ok(())
     }
@@ -189,7 +213,10 @@ pub struct AnalyticsDb {
     session: Arc<Session>,
     insert_stmt: PreparedStatement,
     upsert_profile_stmt: PreparedStatement,
+    /// Legacy: writes persona_guess + avatar_svg. Kept for back-compat.
     upsert_avatar_stmt: PreparedStatement,
+    /// New: writes persona_guess + avatar_png + avatar_session_id.
+    upsert_avatar_png_stmt: PreparedStatement,
     get_profile_stmt: PreparedStatement,
 }
 
@@ -226,7 +253,12 @@ impl AnalyticsDb {
             (session_id, persona_guess, avatar_svg, updated_at) VALUES (?, ?, ?, ?)";
         let upsert_avatar_stmt = session.prepare(upsert_avatar_cql).await?;
 
-        let get_profile_cql = "SELECT session_id, llm_summary, updated_at, persona_guess, avatar_svg \
+        let upsert_avatar_png_cql = "INSERT INTO analytics.user_profiles \
+            (session_id, persona_guess, avatar_png, avatar_session_id, updated_at) VALUES (?, ?, ?, ?, ?)";
+        let upsert_avatar_png_stmt = session.prepare(upsert_avatar_png_cql).await?;
+
+        let get_profile_cql = "SELECT session_id, llm_summary, updated_at, persona_guess, \
+             avatar_svg, avatar_session_id, avatar_png \
              FROM analytics.user_profiles WHERE session_id = ?";
         let get_profile_stmt = session.prepare(get_profile_cql).await?;
 
@@ -235,6 +267,7 @@ impl AnalyticsDb {
             insert_stmt,
             upsert_profile_stmt,
             upsert_avatar_stmt,
+            upsert_avatar_png_stmt,
             get_profile_stmt,
         })
     }
@@ -414,20 +447,34 @@ impl AnalyticsDb {
         Ok(())
     }
 
-    /// Store fictional persona line + SVG avatar for a session_id (fingerprint / distinct id).
+    /// Store fictional persona line + avatar for a session_id (fingerprint / distinct id).
+    ///
+    /// If `png_b64` is non-empty, writes to the new `avatar_png` + `avatar_session_id` columns.
+    /// Otherwise falls back to the legacy `avatar_svg` column.
     pub async fn upsert_persona_avatar(
         &self,
         session_id: &str,
+        avatar_session_id: &str,
         persona_guess: &str,
+        png_b64: &str,
         avatar_svg: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let updated_at = CqlTimestamp(Utc::now().timestamp_millis());
-        self.session
-            .execute_unpaged(
-                &self.upsert_avatar_stmt,
-                (session_id, persona_guess, avatar_svg, updated_at),
-            )
-            .await?;
+        if !png_b64.is_empty() {
+            self.session
+                .execute_unpaged(
+                    &self.upsert_avatar_png_stmt,
+                    (session_id, persona_guess, png_b64, avatar_session_id, updated_at),
+                )
+                .await?;
+        } else {
+            self.session
+                .execute_unpaged(
+                    &self.upsert_avatar_stmt,
+                    (session_id, persona_guess, avatar_svg, updated_at),
+                )
+                .await?;
+        }
         Ok(())
     }
 
@@ -453,16 +500,20 @@ impl AnalyticsDb {
                 Option<CqlTimestamp>,
                 Option<String>,
                 Option<String>,
+                Option<String>,
+                Option<String>,
             )>()?
             .next()
         {
-            let (sid, summary, updated_at, persona, avatar) = row?;
+            let (sid, summary, updated_at, persona, avatar_svg, avatar_session_id, avatar_png) = row?;
             return Ok(Some(UserProfile {
                 session_id: sid,
                 llm_summary: summary.unwrap_or_default(),
                 updated_at: updated_at.map(|t| t.0).unwrap_or(0),
                 persona_guess: persona.unwrap_or_default(),
-                avatar_svg: avatar.unwrap_or_default(),
+                avatar_svg: avatar_svg.unwrap_or_default(),
+                avatar_session_id: avatar_session_id.unwrap_or_default(),
+                avatar_png: avatar_png.unwrap_or_default(),
             }));
         }
         Ok(None)
@@ -481,10 +532,12 @@ impl ProfileStore for AnalyticsDb {
     async fn upsert_persona_avatar(
         &self,
         id: &str,
+        avatar_session_id: &str,
         persona: &str,
+        png_b64: &str,
         svg: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Use explicit inherent-method call to avoid ambiguity with the trait method of the same name.
-        AnalyticsDb::upsert_persona_avatar(self, id, persona, svg).await
+        AnalyticsDb::upsert_persona_avatar(self, id, avatar_session_id, persona, png_b64, svg).await
     }
 }

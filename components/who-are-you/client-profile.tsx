@@ -2,6 +2,7 @@
 
 import posthog from "posthog-js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { TurnstileGate } from "@/components/turnstile-gate";
 import { canvasFingerprint } from "@/components/who-are-you/canvas-fingerprint";
 import {
 	aggregateThirdPartyResources,
@@ -375,7 +376,9 @@ export function ClientProfile({
 	const [llmSummary, setLlmSummary] = useState<string | null>(null);
 	const [personaGuess, setPersonaGuess] = useState<string | null>(null);
 	const [avatarSvg, setAvatarSvg] = useState<string | null>(null);
+	const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 	const avatarRequestedRef = useRef(false);
+	const turnstileTokenRef = useRef<string | null>(null);
 	const [thirdPartyHostCount, setThirdPartyHostCount] = useState(0);
 	const [gtmPresent, setGtmPresent] = useState(false);
 	const [distinctIdDisplay, setDistinctIdDisplay] = useState<string | null>(
@@ -882,12 +885,17 @@ export function ClientProfile({
 		return parts.length ? parts.join(" · ") : null;
 	}, [device.browser, device.os, device.deviceType]);
 
-	// Fetch LLM summary + stored avatar; if none, request generation (Anthropic → SVG stored in DB)
+	// Fetch LLM summary + stored avatar; if none, request generation via Anthropic + OpenAI.
 	useEffect(() => {
 		if (!loaded) return;
 		const distinctId = posthog.get_distinct_id?.();
 		const fp = fingerprint;
 		if (!distinctId && !fp) return;
+
+		const sessionId =
+			(
+				posthog as { get_session_id?: () => string | null }
+			).get_session_id?.() ?? null;
 
 		let cancelled = false;
 
@@ -899,6 +907,7 @@ export function ClientProfile({
 			if (fp) url.searchParams.set("fingerprint", fp);
 			if (distinctId) url.searchParams.set("distinct_id", distinctId);
 			if (distinctId) url.searchParams.set("user_id", distinctId);
+			if (sessionId) url.searchParams.set("session_id", sessionId);
 
 			try {
 				const r = await fetch(url.href);
@@ -906,14 +915,67 @@ export function ClientProfile({
 					summary?: string | null;
 					persona_guess?: string | null;
 					avatar_svg?: string | null;
+					avatar_url?: string | null;
 				};
 				if (cancelled) return;
 				if (data.summary) setLlmSummary(data.summary);
 				if (data.persona_guess) setPersonaGuess(data.persona_guess);
-				if (data.avatar_svg) setAvatarSvg(data.avatar_svg);
+				if (data.avatar_url) setAvatarUrl(data.avatar_url);
+				else if (data.avatar_svg) setAvatarSvg(data.avatar_svg);
 
-				if (data.avatar_svg || avatarRequestedRef.current || !fp) return;
+				const hasAvatar = data.avatar_url || data.avatar_svg;
+				if (hasAvatar || avatarRequestedRef.current || !fp) return;
 				avatarRequestedRef.current = true;
+
+				// Wait for Turnstile token (may arrive slightly after component mounts).
+				let token = turnstileTokenRef.current;
+				if (!token) {
+					await new Promise<void>((resolve) => {
+						const poll = setInterval(() => {
+							if (turnstileTokenRef.current) {
+								clearInterval(poll);
+								resolve();
+							}
+						}, 100);
+						// Give up after 10s and proceed without token (server will reject if required).
+						setTimeout(() => {
+							clearInterval(poll);
+							resolve();
+						}, 10_000);
+					});
+					token = turnstileTokenRef.current ?? "__timeout__";
+				}
+
+				// Build user_context from already-collected signals.
+				const userContext = {
+					city: network.city ?? undefined,
+					region: network.region ?? undefined,
+					country: network.country ?? undefined,
+					latitude: network.latitude ?? undefined,
+					longitude: network.longitude ?? undefined,
+					timezone_ip: network.timezone_ip ?? undefined,
+					asn: network.asn ?? undefined,
+					org: network.org ?? undefined,
+					browser: device.browser ?? undefined,
+					os: device.os ?? undefined,
+					device_type: device.deviceType ?? undefined,
+					screen: device.screen ?? undefined,
+					gpu: device.gpu ?? undefined,
+					cores: device.cores ?? undefined,
+					ram: device.ram ?? undefined,
+					timezone_browser: capabilities.timezone ?? undefined,
+					languages: capabilities.languages ?? undefined,
+					dark_mode: capabilities.darkMode === "Preferred" ? true : undefined,
+					reduced_motion:
+						capabilities.reducedMotion === "Reduce requested"
+							? true
+							: undefined,
+					connection_type: capabilities.connection ?? undefined,
+					referrer_type: referral.referrerType ?? undefined,
+					utm:
+						referral.utm && referral.utm !== "None" ? referral.utm : undefined,
+					vpn_verdict: vpnAssessment?.verdict ?? undefined,
+				};
 
 				const gr = await fetch("/api/analytics/generate-avatar", {
 					method: "POST",
@@ -922,14 +984,21 @@ export function ClientProfile({
 						fingerprint: fp,
 						distinct_id: distinctId ?? undefined,
 						user_id: distinctId ?? undefined,
+						session_id: sessionId ?? undefined,
+						turnstile_token: token,
+						user_context: userContext,
 					}),
 				});
 				const gen = (await gr.json()) as {
 					persona_guess?: string;
+					avatar_url?: string;
 					avatar_svg?: string;
 				};
 				if (cancelled) return;
-				if (gen.avatar_svg) {
+				if (gen.avatar_url) {
+					setAvatarUrl(gen.avatar_url);
+					setPersonaGuess(gen.persona_guess ?? null);
+				} else if (gen.avatar_svg) {
 					setAvatarSvg(gen.avatar_svg);
 					setPersonaGuess(gen.persona_guess ?? null);
 				}
@@ -941,10 +1010,24 @@ export function ClientProfile({
 		return () => {
 			cancelled = true;
 		};
-	}, [loaded, fingerprint]);
+	}, [
+		loaded,
+		fingerprint,
+		network,
+		device,
+		capabilities,
+		referral,
+		vpnAssessment,
+	]);
 
 	return (
 		<>
+			{/* Turnstile token collection (invisible for clean traffic) */}
+			<TurnstileGate
+				onToken={(token) => {
+					turnstileTokenRef.current = token;
+				}}
+			/>
 			<div className={`profile-status ${loaded ? "profile-hidden" : ""}`}>
 				Gathering data&hellip;
 			</div>
@@ -1544,9 +1627,19 @@ export function ClientProfile({
 				<h2>The Composite Picture</h2>
 				{summary ? (
 					<>
-						{(avatarSvg || personaGuess) && (
+						{(avatarUrl || avatarSvg || personaGuess) && (
 							<div className="fingerprint-avatar-block">
-								{avatarSvg ? (
+								{avatarUrl ? (
+									// biome-ignore lint/performance/noImgElement: data: URIs are not supported by next/image
+									<img
+										src={avatarUrl}
+										width={256}
+										height={256}
+										alt="Regional-artist collage aligned with your visitor profile — not a photograph"
+										className="fingerprint-avatar-img"
+										decoding="async"
+									/>
+								) : avatarSvg ? (
 									<div
 										className="fingerprint-avatar-svg"
 										// biome-ignore lint/security/noDangerouslySetInnerHtml: SVG from server-side Anthropic path + Rust sanitizer only
@@ -1558,6 +1651,15 @@ export function ClientProfile({
 								{personaGuess ? (
 									<p className="summary-paragraph fingerprint-avatar-guess">
 										<strong>Wild guess:</strong> {personaGuess}
+									</p>
+								) : null}
+								{avatarUrl ? (
+									<p
+										className="summary-paragraph"
+										style={{ fontSize: "0.75rem", opacity: 0.7 }}
+									>
+										Generated with OpenAI using your visible browser &amp; edge
+										signals.
 									</p>
 								) : null}
 							</div>
