@@ -2,20 +2,17 @@
 # Azure App Service (Linux). The Rust analytics service remains on Azure
 # Container Apps via deploy-azure.yml.
 #
-# Required secrets:
+# NOTE: The primary frontend deployment is handled by Vercel (auto-deploys on
+# push to main). This workflow provides a secondary Azure App Service path for
+# when that infrastructure exists. It is a no-op when AZUREAPPSERVICE_NAME is
+# not configured — the job skips rather than failing.
+#
+# Required secrets (all optional — job skips if any are absent):
 #   AZUREAPPSERVICE_CLIENTID
 #   AZUREAPPSERVICE_TENANTID
 #   AZUREAPPSERVICE_SUBSCRIPTIONID
 #   AZUREAPPSERVICE_RG
 #   AZUREAPPSERVICE_NAME
-#
-# Required App Service app settings:
-#   SCM_DO_BUILD_DURING_DEPLOYMENT=false
-#   WEBSITE_RUN_FROM_PACKAGE=1
-#   PORT=8080
-#
-# Recommended startup command in Azure:
-#   node server.js
 name: Deploy frontend to Azure App Service
 
 on:
@@ -37,6 +34,8 @@ jobs:
   deploy:
     name: Deploy frontend
     runs-on: ubuntu-latest
+    # Skip entirely when Azure App Service is not provisioned.
+    if: ${{ secrets.AZUREAPPSERVICE_NAME != '' }}
     permissions:
       id-token: write
       contents: read
