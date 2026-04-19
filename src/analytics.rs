@@ -200,6 +200,7 @@ impl AnalyticsDb {
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let mut tls_builder = SslContextBuilder::new(SslMethod::tls())?;
         tls_builder.set_verify(SslVerifyMode::PEER);
+        tls_builder.set_default_verify_paths()?;
         let ssl_context = tls_builder.build();
 
         let session: Session = SessionBuilder::new()
