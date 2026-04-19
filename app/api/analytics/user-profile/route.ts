@@ -1,6 +1,6 @@
 /**
  * Proxies to the Rust analytics aggregator's user-profile endpoint.
- * Returns the LLM-generated summary for the given fingerprint/distinct_id.
+ * Returns the LLM-generated summary, persona guess, and avatar for the given fingerprint/distinct_id.
  *
  * AUTH: Public — user requests own profile by fingerprint or distinct_id.
  */
@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
 	const fingerprint = searchParams.get("fingerprint") ?? "";
 	const userId = searchParams.get("user_id") ?? "";
 	const distinctId = searchParams.get("distinct_id") ?? "";
+	const sessionId = searchParams.get("session_id") ?? "";
 
 	const lookupId = fingerprint || userId || distinctId;
 	if (!lookupId) {
@@ -29,6 +30,7 @@ export async function GET(request: NextRequest) {
 			updated_at: null,
 			persona_guess: null,
 			avatar_svg: null,
+			avatar_url: null,
 		});
 	}
 
@@ -37,6 +39,7 @@ export async function GET(request: NextRequest) {
 		url.searchParams.set("fingerprint", fingerprint);
 		url.searchParams.set("user_id", userId);
 		url.searchParams.set("distinct_id", distinctId);
+		if (sessionId) url.searchParams.set("session_id", sessionId);
 
 		const res = await fetch(url.href, {
 			headers: { Accept: "application/json" },
@@ -50,6 +53,7 @@ export async function GET(request: NextRequest) {
 				updated_at: null,
 				persona_guess: null,
 				avatar_svg: null,
+				avatar_url: null,
 			});
 		}
 
@@ -58,12 +62,14 @@ export async function GET(request: NextRequest) {
 			updated_at?: number | null;
 			persona_guess?: string | null;
 			avatar_svg?: string | null;
+			avatar_url?: string | null;
 		};
 		return NextResponse.json({
 			summary: data.summary ?? null,
 			updated_at: data.updated_at ?? null,
 			persona_guess: data.persona_guess ?? null,
 			avatar_svg: data.avatar_svg ?? null,
+			avatar_url: data.avatar_url ?? null,
 		});
 	} catch (err) {
 		console.warn("User profile fetch failed:", err);
@@ -72,6 +78,7 @@ export async function GET(request: NextRequest) {
 			updated_at: null,
 			persona_guess: null,
 			avatar_svg: null,
+			avatar_url: null,
 		});
 	}
 }

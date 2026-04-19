@@ -10,6 +10,7 @@ pub mod event_sink;
 pub mod forward;
 pub mod info;
 pub mod mock;
+pub mod openai_images;
 pub mod summarize;
 pub mod vercel_drain;
 
