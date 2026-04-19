@@ -8,7 +8,7 @@
 ## TL;DR
 
 - **decision:** Proceed with three targeted fixes before any paid-channel traffic. Current site reads closer to "senior reliability engineer who blogs about agents" than "agentic engineering specialist a buyer can hire." The gap is closeable with copy and surfacing changes, not a rebuild.
-- **key reason:** The strongest business-professional assets (`/work-with-me`, "What I actually do", "Rules that make quality sites easy") exist and are credible, but the home page hero and the post feed route visitors away from them.
+- **key reason:** The strongest business-professional assets (`/work-with-me`, "The breakthrough I've had", "Rules that make quality sites easy") exist and are credible, but the home page hero and the post feed route visitors away from them.
 - **top unresolved risk:** Posts whose **default version is AI slop** or whose human version is a one-line placeholder. Any such post appearing above the fold in "Latest on the journal" actively undermines the "competent professional" frame by showing unfinished work labeled with the author's name.
 - **immediate next step:** (1) Re-order home hero to lead with agentic positioning, (2) hide or finish posts with placeholder human versions before they can appear as the home lead, (3) remove or complete `agentic-engineering-explained` (currently "I'm not sick but I'm not well" + `draft: true`).
 
@@ -56,8 +56,8 @@ Each persona identifies the strongest reasons the site **fails** the "competent 
 
 ### Skeptical Engineer
 
-- **"Ninety-odd rules" is repeated verbatim three times** across `/work-with-me`, "What I actually do", and "Rules that make quality sites easy". It starts to sound like a slogan rather than a specific claim. A peer will want a count, a link, and one concrete rule-to-production-bug story surfaced.
-- **The multi-version (human vs AI) gimmick is load-bearing but inconsistently executed.** When it works (`what-i-actually-do`, `rules-that-make-quality-sites-easy`) it's a differentiator. When it fails (`agentic-engineering-explained` human = 1 line; `jdetle-guardian` human = "Placeholder for the human-reviewed version"), it makes the author look like he published before finishing.
+- **"Ninety-odd rules" is repeated verbatim three times** across `/work-with-me`, "The breakthrough I've had", and "Rules that make quality sites easy". It starts to sound like a slogan rather than a specific claim. A peer will want a count, a link, and one concrete rule-to-production-bug story surfaced.
+- **The multi-version (human vs AI) gimmick is load-bearing but inconsistently executed.** When it works (`the-breakthrough-ive-had` / `what-i-actually-do`, `rules-that-make-quality-sites-easy`) it's a differentiator. When it fails (`agentic-engineering-explained` human = 1 line; `jdetle-guardian` human = "Placeholder for the human-reviewed version"), it makes the author look like he published before finishing.
 - **GitHub contrib chart is embedded as the lead of the GitHub panel** via a third-party SVG from `github-readme-activity-graph.vercel.app` (see `app/page.tsx` line 16 comment: "ghchart.rshah.io no longer resolves (dead domain)"). It's a visible external dep; a peer will notice it breaks the "I own my stack" narrative the rules corpus argues for.
 - **Claim inflation risk on home.** "shipping customer-facing software where downtime costs real money" + "$200M+ in annual revenue" + "millions of sessions" + "nine-figure consulting engagements." Each is plausible on its own; stacked in one lede they read as a pitch deck.
 
@@ -158,7 +158,7 @@ Each persona defends the choices in the current site against the offense above.
 ## Core Takeaways
 
 - **Competent business professional** framing is undermined more by *publication discipline* than by copy. Posts with placeholder human versions and AI-default content are the single largest liability. Close that surface before anything else.
-- **Agentic coding skill** is over-evidenced *off* the home and under-evidenced *on* it. The work-with-me page and "What I actually do" are strong. Promote them, don't rebuild them.
+- **Agentic coding skill** is over-evidenced *off* the home and under-evidenced *on* it. The work-with-me page and "The breakthrough I've had" are strong. Promote them, don't rebuild them.
 - **Honesty about capacity and employer constraints is an asset** for advisory positioning, but only if it reads as a feature ("your contract will be clean") rather than a caveat ("I can't do much").
 - The site's own infrastructure (rules corpus, skills library, adversarial review, worktrees) is the most defensible proof of skill. None of it is linked from the home page. Adding one "rules corpus" link from the home GitHub panel is the highest-leverage single hyperlink on the site.
 
