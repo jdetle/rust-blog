@@ -19,8 +19,12 @@ export function HomeFingerprintAvatar() {
 		let cancelled = false;
 		setPhase("loading");
 
-		const controller = new AbortController();
-		const timeoutId = setTimeout(() => controller.abort(), 8_000);
+		// Two independent abort controllers: profile lookup gets 6s, avatar
+		// generation gets 27s (server-side proxy budget is 25s + network margin).
+		const profileController = new AbortController();
+		const generateController = new AbortController();
+		const profileTimeoutId = setTimeout(() => profileController.abort(), 6_000);
+		let generateTimeoutId: ReturnType<typeof setTimeout> | undefined;
 
 		void (async () => {
 			const url = new URL(
@@ -34,7 +38,7 @@ export function HomeFingerprintAvatar() {
 			}
 
 			try {
-				const r = await fetch(url.href, { signal: controller.signal });
+				const r = await fetch(url.href, { signal: profileController.signal });
 				const data = (await r.json()) as {
 					avatar_svg?: string | null;
 				};
@@ -51,6 +55,10 @@ export function HomeFingerprintAvatar() {
 				}
 				requestedRef.current = true;
 
+				generateTimeoutId = setTimeout(
+					() => generateController.abort(),
+					27_000,
+				);
 				const gr = await fetch("/api/analytics/generate-avatar", {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
@@ -59,7 +67,7 @@ export function HomeFingerprintAvatar() {
 						distinct_id: distinctId ?? undefined,
 						user_id: distinctId ?? undefined,
 					}),
-					signal: controller.signal,
+					signal: generateController.signal,
 				});
 				const gen = (await gr.json()) as { avatar_svg?: string | null };
 				if (cancelled) return;
@@ -72,14 +80,17 @@ export function HomeFingerprintAvatar() {
 			} catch {
 				if (!cancelled) setPhase("absent");
 			} finally {
-				clearTimeout(timeoutId);
+				clearTimeout(profileTimeoutId);
+				if (generateTimeoutId !== undefined) clearTimeout(generateTimeoutId);
 			}
 		})();
 
 		return () => {
 			cancelled = true;
-			controller.abort();
-			clearTimeout(timeoutId);
+			profileController.abort();
+			generateController.abort();
+			clearTimeout(profileTimeoutId);
+			if (generateTimeoutId !== undefined) clearTimeout(generateTimeoutId);
 		};
 	}, []);
 

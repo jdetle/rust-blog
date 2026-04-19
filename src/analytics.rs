@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use chrono::{NaiveDate, Utc};
+use openssl::ssl::{SslContextBuilder, SslMethod, SslVerifyMode};
 use scylla::prepared_statement::PreparedStatement;
 use scylla::{Session, SessionBuilder};
 use serde::{Deserialize, Serialize};
@@ -197,9 +198,14 @@ impl AnalyticsDb {
         username: &str,
         password: &str,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        let mut tls_builder = SslContextBuilder::new(SslMethod::tls())?;
+        tls_builder.set_verify(SslVerifyMode::PEER);
+        let ssl_context = tls_builder.build();
+
         let session: Session = SessionBuilder::new()
             .known_node(format!("{contact_point}:10350"))
             .user(username, password)
+            .ssl_context(Some(ssl_context))
             .build()
             .await?;
 
