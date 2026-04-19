@@ -1,0 +1,26 @@
+---
+description: CI must pass on a PR before any deploy workflow runs — never trigger deployments from direct pushes to main
+alwaysApply: true
+---
+
+# PR Before Deploy
+
+Deploy workflows (`deploy-azure`, Vercel) are gated on merging a green PR. They MUST NOT be triggered by pushing directly to `main`.
+
+## Deploy gate
+
+```
+branch → PR → CI green → merge → deploy workflows auto-trigger
+```
+
+`deploy-azure` runs on `src/**`, `Cargo.toml`, or `Dockerfile` changes.  
+Vercel runs on every merge to `main`.  
+Both are triggered automatically — never run them manually ahead of a merge.
+
+## Why this matters
+
+Direct pushes to `main` have caused production outages in this repo:
+- The `Column avatar_png does not exist` degraded-mode startup was caused by merging without a migration-verified PR
+- The `deploy-frontend` workflow failed silently on every push for months because no PR CI caught the broken `cache: npm` setting
+
+See `agent-branching.mdc` for the full branch/worktree workflow.
