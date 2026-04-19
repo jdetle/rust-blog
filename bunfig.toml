@@ -1,3 +1,10 @@
+[install]
+# Persist the global package cache across installs.
+# Bun uses hardlinks from this directory — no re-downloading identical files.
+# In CI, pair with actions/cache on ~/.bun/install/cache for a further speedup.
+[install.cache]
+dir = "~/.bun/install/cache"
+
 [test]
 timeout = 10000
 root = "lib"
