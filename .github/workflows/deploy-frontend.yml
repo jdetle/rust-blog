@@ -30,7 +30,7 @@ on:
       - "bun.lockb"
       - "posts/**"
       - "lib/**"
-      - ".github/workflows/deploy-vercel.yml"
+      - ".github/workflows/deploy-frontend.yml"
   workflow_dispatch:
 
 jobs:

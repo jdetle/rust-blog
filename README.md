@@ -56,8 +56,6 @@ bun run dev
 
 Open http://localhost:3000.
 
-**CI — PostHog ingestion check (optional):** After deploy smoke, the E2E Preview workflow can run `bun run verify:posthog-ingestion` when repository secrets `POSTHOG_PERSONAL_API_KEY` and `POSTHOG_PROJECT_ID` are set. See [e2e/README.md](e2e/README.md).
-
 ### Running (Rust — analytics ingestion)
 
 Run alongside the Next.js app when Cosmos + Clarity + PostHog are configured:
@@ -80,7 +78,7 @@ CREATE INDEX events_session_id_idx ON analytics.events (session_id);
 
 #### Frontend (Azure App Service)
 
-The production site deploys to Azure App Service via `.github/workflows/deploy-vercel.yml` (the file name is legacy; the workflow now targets Azure). The workflow builds a standalone Next.js artifact, includes the `posts/` content read at runtime, and deploys a zip package to a Linux web app.
+The production site deploys to Azure App Service via `.github/workflows/deploy-frontend.yml`. The workflow builds a standalone Next.js artifact, includes the `posts/` content read at runtime, and deploys a zip package to a Linux web app.
 
 Provision the web app in the `rust-blog` subscription using:
 
@@ -150,4 +148,6 @@ For production, add these as Azure App Service application settings. Public `NEX
 
 **CI:** `.github/workflows/ci.yml` validates Rust (`cargo check`, `cargo clippy -- -D warnings`, `cargo test`, `cargo build --release`, benches) and the Next.js app (`bun test lib`, `bun run build`) on every push and PR.
 
-**E2E preview (`e2e-preview.yml`):** After the deploy-preview smoke test, an optional step runs `bun run verify:analytics-read-apis` when you configure at least one complete provider in GitHub **Secrets**: PostHog (`POSTHOG_PERSONAL_API_KEY` + `POSTHOG_PROJECT_ID`), `CLARITY_EXPORT_TOKEN`, `ANALYTICS_API_URL` (warehouse `GET /health`), or Plausible (`PLAUSIBLE_API_KEY` plus `PLAUSIBLE_SITE_ID` or `NEXT_PUBLIC_PLAUSIBLE_DOMAIN`). The script only GETs read endpoints (Clarity export, Plausible aggregate, warehouse health) or PostHog HogQL counts; it skips providers with missing env. Optional repository **Variables** `POSTHOG_VERIFY_HOURS`, `POSTHOG_VERIFY_ATTEMPTS`, and `POSTHOG_VERIFY_DELAY_MS` tune PostHog retries.
+**Scheduled checks:** `.github/workflows/visual-regression.yml` runs twice daily against production (`bun run visual-regression`) to catch empty or broken pages.
+
+**Deploys:** `.github/workflows/deploy-frontend.yml` (Next.js → Azure App Service) and `.github/workflows/deploy-azure.yml` (Rust → Container Apps) run on pushes to `main` when relevant paths change.
