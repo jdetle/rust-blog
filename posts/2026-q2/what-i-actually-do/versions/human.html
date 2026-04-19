@@ -1,12 +1,24 @@
             <p>The first time I watched an agent catch one of its own bugs — not because I told it to, but because an adversarial review step I'd wired up flagged the diff before it could push — I thought: this is what code review was supposed to be. Not the performance of code review. Actual review, done automatically, every time, before it matters.</p>
 
-            <p>That's the thing that's hard to explain about the work I've been doing for the last year. It's not "using AI to write code faster." That framing is technically true and almost entirely useless. What I've actually been doing is figuring out how to make AI agents reliable enough to operate in a real codebase — which means building the discipline around them, not just the agents themselves.</p>
+            <p>That's the thing that's hard to explain about the work I've been doing for the last year. It's not "using AI to write code faster." That framing is technically true and almost entirely useless. What I've actually been doing is figuring out how to make AI agents reliable enough to operate in a real codebase — and the path to that ran straight through a realization about myself.</p>
+
+            <h2>The breakthrough</h2>
+
+            <p>I'm a jack of all trades. I've spent my career being decent at a lot of things and elite at none of them — frontend, backend, infrastructure, data, a little ML, enough Rust to be dangerous, enough React to ship production UIs. Classic generalist. For most of my career, that was a ceiling. Specialists go deeper, and depth is usually what gets rewarded.</p>
+
+            <p>What changed is that agents don't actually care whether you're the deepest Rust person in the room. They care whether the constraints, tradeoffs, and failure modes you've learned across disciplines are written down somewhere they can load into context. The specialist carries their depth in their head. The generalist, if they're disciplined about encoding what they've learned, can carry breadth in the rules corpus.</p>
+
+            <p>That's the unlock. Every hard-won lesson — the "don't do X because Y will happen" stuff that lives in a senior engineer's head and walks out the door when they leave — becomes a rule file or a skill. Once it's encoded, the agent applies it with a consistency and coverage I can't match alone. I don't have to be the world's most pedantic React reviewer; I just have to have written down what I know about React failure modes once. The agent reads it every session.</p>
+
+            <p>The compounding effect is real. Breadth times encoded depth turns out to be something a single specialist can't easily replicate. The generalist becomes the person who can move coherently across stacks because the discipline travels with them — not in their memory, but in the corpus.</p>
+
+            <p>This is also what I mean when I use the phrase "agentic engineering" instead of "vibe coding." Vibe coding is shipping something that works until it doesn't. No memory between sessions, no review step, no institutional knowledge — just prompting and hoping. Agentic engineering is building the discipline around the agent: the rules, the review protocols, the orchestration patterns, the grounding systems. The rest of this post is the four load-bearing pieces of that discipline.</p>
 
             <h2>Rules-as-memory</h2>
 
             <p>When an agent makes a mistake (and they do, constantly), the question is whether it'll make that same mistake again tomorrow. Out of the box, the answer is yes. The agent has no memory of the failure. So I built a system: every bug that makes it past the editor and bites us in CI becomes a rule. The rule lives in the codebase, gets loaded into the agent's context on every session, and explains — in plain language — what the failure was, what caused it, and what the correct pattern is. Each rule includes a "Detection Acceleration" section: how long did this take to find before the rule existed, vs. how long now?</p>
 
-            <p>Ninety-odd rules later, the system works. Not because AI got smarter. Because the failures are encoded and the agent reads them. There's a <a href="/posts/2026-q1/rules-that-make-quality-sites-easy">whole post about this</a> if you want the details — the short version is that the rules corpus is the most defensible part of any agentic setup I've seen. It's institutional memory that doesn't depend on who's currently on the team.</p>
+            <p>Ninety-odd rules later, the system works. Not because AI got smarter. Because the failures are encoded and the agent reads them. For a generalist, this is the single biggest lever: each rule is a specialist's lesson I don't have to personally re-derive every time I touch a new corner of the stack. There's a <a href="/posts/2026-q1/rules-that-make-quality-sites-easy">whole post about this</a> if you want the details — the short version is that the rules corpus is the most defensible part of any agentic setup I've seen. It's institutional memory that doesn't depend on who's currently on the team.</p>
 
             <h2>Parallel agents, no collisions</h2>
 
