@@ -14,6 +14,7 @@
 use std::sync::Arc;
 
 use axum::Router;
+use chrono::Utc;
 use rust_blog::analytics::MemoryProfileStore;
 use rust_blog::anthropic::AnthropicClient;
 use rust_blog::api::AppState;
@@ -340,7 +341,9 @@ async fn collage_generates_png_avatar_url() {
 
     let stored = store.get_stored("collage-fp-001").await.unwrap();
     assert!(!stored.avatar_png.is_empty());
-    assert_eq!(stored.avatar_session_id, "session-aaa");
+    // avatar_session_id now holds the UTC date (YYYY-MM-DD) for daily caching.
+    let today_utc = Utc::now().format("%Y-%m-%d").to_string();
+    assert_eq!(stored.avatar_session_id, today_utc);
 
     anthropic_mock.verify().await;
     openai_mock.verify().await;
@@ -407,10 +410,12 @@ async fn collage_same_session_returns_from_cache_without_api_calls() {
 }
 
 #[tokio::test]
-async fn collage_new_session_regenerates_avatar() {
+async fn collage_same_day_different_session_serves_from_cache() {
     let (base, anthropic_mock, openai_mock, _store) = setup_collage().await;
 
-    // Expect TWO Anthropic calls (one per session).
+    // Expect exactly ONE Anthropic + ONE OpenAI call: once-per-day cache means
+    // the second request (different PostHog session, same calendar day) is served
+    // from the stored PNG without calling either API again.
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
         .respond_with(
@@ -419,7 +424,7 @@ async fn collage_new_session_regenerates_avatar() {
                 "Lagos Afrobeats album-art brightness",
             )),
         )
-        .expect(2)
+        .expect(1)
         .mount(&anthropic_mock)
         .await;
 
@@ -429,7 +434,7 @@ async fn collage_new_session_regenerates_avatar() {
             ResponseTemplate::new(200)
                 .set_body_json(openai_image_response(CANNED_PNG_B64)),
         )
-        .expect(2)
+        .expect(1)
         .mount(&openai_mock)
         .await;
 
@@ -450,7 +455,7 @@ async fn collage_new_session_regenerates_avatar() {
     assert_eq!(first.status(), 200);
     assert_eq!(first.json::<serde_json::Value>().await.unwrap()["cached"], false);
 
-    // Second visit — different session (session-ddd) — must regenerate.
+    // Second visit — different session (session-ddd) same day — must be a cache hit.
     let second = client
         .post(format!("{base}/user-profile/generate-avatar"))
         .json(&json!({
@@ -462,7 +467,7 @@ async fn collage_new_session_regenerates_avatar() {
         .await
         .unwrap();
     assert_eq!(second.status(), 200);
-    assert_eq!(second.json::<serde_json::Value>().await.unwrap()["cached"], false);
+    assert_eq!(second.json::<serde_json::Value>().await.unwrap()["cached"], true);
 
     anthropic_mock.verify().await;
     openai_mock.verify().await;
