@@ -15,27 +15,16 @@
 #   AZUREAPPSERVICE_NAME
 name: Deploy frontend to Azure App Service
 
+# Disabled automatic push trigger — the primary frontend deployment is Vercel
+# (auto-triggered on push to main). Re-enable push trigger below when Azure
+# App Service infrastructure is provisioned and the required secrets are added.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "app/**"
-      - "components/**"
-      - "middleware.ts"
-      - "next.config.ts"
-      - "package.json"
-      - "bun.lockb"
-      - "posts/**"
-      - "lib/**"
-      - ".github/workflows/deploy-frontend.yml"
   workflow_dispatch:
 
 jobs:
   deploy:
     name: Deploy frontend
     runs-on: ubuntu-latest
-    # Skip entirely when Azure App Service is not provisioned.
-    if: ${{ secrets.AZUREAPPSERVICE_NAME != '' }}
     permissions:
       id-token: write
       contents: read
