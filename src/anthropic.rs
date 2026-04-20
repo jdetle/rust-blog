@@ -5,9 +5,20 @@
 //! `ANTHROPIC_BASE_URL` (or by passing a value directly) so tests can point at a
 //! local `wiremock` or `mock-anthropic` sidecar without touching the real API.
 
+use std::time::Duration;
+
 use reqwest::Client;
 
 const ANTHROPIC_VERSION: &str = "2023-06-01";
+
+/// Hard cap on how long we wait for the Anthropic API to respond.
+///
+/// The Next.js proxy budget is 25 s (`AbortSignal.timeout(25_000)`).
+/// Setting the Rust client timeout slightly above that (30 s) means:
+/// - Most requests complete before the proxy times out.
+/// - Requests that do stall are cancelled server-side, preventing connection
+///   pile-up in the Rust service when the browser has already given up.
+const ANTHROPIC_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Clone)]
 pub struct AnthropicClient {
@@ -20,13 +31,17 @@ impl AnthropicClient {
     /// Create a client.  `base_url` should be the scheme+host only, e.g.
     /// `"https://api.anthropic.com"` or `"http://127.0.0.1:9090"` for tests.
     pub fn new(api_key: String, base_url: Option<String>) -> Self {
+        let client = Client::builder()
+            .timeout(ANTHROPIC_TIMEOUT)
+            .build()
+            .expect("failed to build reqwest client");
         Self {
             base_url: base_url
                 .unwrap_or_else(|| "https://api.anthropic.com".to_string())
                 .trim_end_matches('/')
                 .to_string(),
             api_key,
-            client: Client::new(),
+            client,
         }
     }
 

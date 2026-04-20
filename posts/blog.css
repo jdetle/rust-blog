@@ -1641,6 +1641,32 @@ New post skeleton:
 	margin-bottom: 0;
 }
 
+.avatar-generating-skeleton {
+	width: 128px;
+	height: 128px;
+	border-radius: 10px;
+	background: linear-gradient(
+		110deg,
+		rgba(176, 112, 80, 0.12) 0%,
+		rgba(176, 112, 80, 0.24) 42%,
+		rgba(176, 112, 80, 0.12) 84%
+	);
+	background-size: 200% 100%;
+	animation: home-fp-skel 1.35s ease-in-out infinite;
+}
+
+.avatar-generating-label {
+	margin-top: 0.75rem;
+	margin-bottom: 0;
+	font-size: 0.88rem;
+	color: var(--muted-ink);
+	line-height: 1.55;
+}
+
+.avatar-generating-label strong {
+	color: var(--terracotta);
+}
+
 .summary-paragraph {
 	font-size: 1.05rem;
 	line-height: 1.75;

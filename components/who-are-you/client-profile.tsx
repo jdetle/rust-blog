@@ -377,6 +377,7 @@ export function ClientProfile({
 	const [personaGuess, setPersonaGuess] = useState<string | null>(null);
 	const [avatarSvg, setAvatarSvg] = useState<string | null>(null);
 	const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+	const [avatarGenerating, setAvatarGenerating] = useState(false);
 	const avatarRequestedRef = useRef(false);
 	const turnstileTokenRef = useRef<string | null>(null);
 	const [thirdPartyHostCount, setThirdPartyHostCount] = useState(0);
@@ -977,6 +978,8 @@ export function ClientProfile({
 					vpn_verdict: vpnAssessment?.verdict ?? undefined,
 				};
 
+			if (!cancelled) setAvatarGenerating(true);
+			try {
 				const gr = await fetch("/api/analytics/generate-avatar", {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
@@ -988,6 +991,8 @@ export function ClientProfile({
 						turnstile_token: token,
 						user_context: userContext,
 					}),
+					// 45 s: slightly above the 40 s Rust-side proxy budget.
+					signal: AbortSignal.timeout(45_000),
 				});
 				const gen = (await gr.json()) as {
 					persona_guess?: string;
@@ -1002,9 +1007,12 @@ export function ClientProfile({
 					setAvatarSvg(gen.avatar_svg);
 					setPersonaGuess(gen.persona_guess ?? null);
 				}
-			} catch {
-				/* analytics optional */
+			} finally {
+				if (!cancelled) setAvatarGenerating(false);
 			}
+		} catch {
+			/* analytics optional */
+		}
 		})();
 
 		return () => {
@@ -1627,6 +1635,20 @@ export function ClientProfile({
 				<h2>The Composite Picture</h2>
 				{summary ? (
 					<>
+						{avatarGenerating && !avatarSvg && !avatarUrl && (
+							<div className="fingerprint-avatar-block">
+								<div
+									className="avatar-generating-skeleton"
+									role="status"
+									aria-label="Generating avatar"
+								/>
+								<p className="avatar-generating-label">
+									<strong>Generating your avatar&hellip;</strong>{" "}
+									Claude (Anthropic) is reading your canvas fingerprint and
+									writing a personalised SVG. This usually takes 10&ndash;20 s.
+								</p>
+							</div>
+						)}
 						{(avatarUrl || avatarSvg || personaGuess) && (
 							<div className="fingerprint-avatar-block">
 								{avatarUrl ? (
