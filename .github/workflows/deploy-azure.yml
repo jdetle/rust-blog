@@ -24,6 +24,7 @@ on:
       - "Cargo.lock"
       - "Dockerfile"
       - "migrations/**"
+      - "scripts/**"
       - ".github/workflows/deploy-azure.yml"
   workflow_dispatch:
     inputs:
