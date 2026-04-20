@@ -31,7 +31,9 @@ interface TurnstileGateProps {
 }
 
 const SCRIPT_ID = "cf-turnstile-script";
-const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
+// Trim defensively — env values pulled from some providers (or pasted into
+// .env files) can carry trailing whitespace/newlines, which Turnstile rejects.
+const SITE_KEY = (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "").trim();
 
 /** Renders a Cloudflare Turnstile widget (interaction-only — invisible for clean traffic).
  *  Calls `onToken` when a token is issued and `onError` on challenge failure.
