@@ -101,11 +101,10 @@ jobs:
         env:
           COSMOS_CONTACT_POINT: jd-analytics.cassandra.cosmos.azure.com
           COSMOS_USERNAME: jd-analytics
-          # COSMOS_PASSWORD set in GITHUB_ENV by the "Fetch secrets" step above.
+          # COSMOS_PASSWORD set in GITHUB_ENV by "Fetch secrets" step above.
+          # SSL_CERTFILE auto-resolved by the script (ubuntu: /etc/ssl/certs/ca-certificates.crt).
         run: |
-          pip install cassandra-driver --quiet
-          # cqlsh is bundled with cassandra-driver; set SSL env vars for Cosmos DB TLS.
-          export SSL_VALIDATE=false
+          pip install cqlsh --quiet
           COSMOS_CONTACT_POINT="$COSMOS_CONTACT_POINT" \
           COSMOS_USERNAME="$COSMOS_USERNAME" \
           bash scripts/run-analytics-migrations.sh
