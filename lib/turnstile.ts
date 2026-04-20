@@ -24,6 +24,16 @@ export async function verifyTurnstileToken(
 		return { ok: true };
 	}
 
+	// Sentinel emitted by TurnstileGate when NEXT_PUBLIC_TURNSTILE_SITE_KEY is
+	// not set on the client. If the secret IS configured, the keys are
+	// mismatched — reject early rather than sending a garbage token to Cloudflare.
+	if (token === "__no-site-key__") {
+		console.error(
+			"[turnstile] NEXT_PUBLIC_TURNSTILE_SITE_KEY is not set but TURNSTILE_SECRET_KEY is — both must be configured together.",
+		);
+		return { ok: false, error_codes: ["misconfigured-site-key"] };
+	}
+
 	const form = new URLSearchParams({ secret, response: token });
 	if (remoteIp) form.set("remoteip", remoteIp);
 

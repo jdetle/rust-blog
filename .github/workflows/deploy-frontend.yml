@@ -1,11 +1,11 @@
-# Builds the Next.js frontend as a standalone Node app and deploys it to
-# Azure App Service (Linux). The Rust analytics service remains on Azure
-# Container Apps via deploy-azure.yml.
+# Deploys the Next.js frontend to Azure App Service (Linux).
 #
-# NOTE: The primary frontend deployment is handled by Vercel (auto-deploys on
-# push to main). This workflow provides a secondary Azure App Service path for
-# when that infrastructure exists. It is a no-op when AZUREAPPSERVICE_NAME is
-# not configured — the job skips rather than failing.
+# NOTE: The primary frontend deployment is deploy-frontend-azure.yml, which
+# targets Azure Container Apps (ca-rust-blog-web) and triggers automatically
+# on push to main. This workflow is a manual fallback for deploying to the
+# App Service (app-rust-blog-web) once that infrastructure is provisioned.
+# It is a no-op when AZUREAPPSERVICE_NAME is not configured — the job skips
+# rather than failing.
 #
 # Required secrets (all optional — job skips if any are absent):
 #   AZUREAPPSERVICE_CLIENTID
