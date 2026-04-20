@@ -87,17 +87,16 @@ pub trait ProfileStore: Send + Sync {
         id: &str,
     ) -> Result<Option<UserProfile>, Box<dyn std::error::Error + Send + Sync>>;
 
-    /// Store persona guess + four PNG avatars for a profile.
+    /// Store persona guess + single composite PNG avatar for a profile.
     ///
     /// `avatar_session_id` is the UTC date string (`YYYY-MM-DD`) — used for once-per-day
-    /// cache invalidation. `pngs` is `[slot1, slot2, slot3, slot4]` raw base64 strings
-    /// (no `data:` prefix).
+    /// cache invalidation. `png` is a raw base64 string (no `data:` prefix).
     async fn upsert_persona_avatar(
         &self,
         id: &str,
         avatar_session_id: &str,
         persona: &str,
-        pngs: &[String; 4],
+        png: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 }
 
@@ -122,7 +121,7 @@ impl ProfileStore for NoopProfileStore {
         _id: &str,
         _avatar_session_id: &str,
         _persona: &str,
-        _pngs: &[String; 4],
+        _png: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Ok(())
     }
@@ -197,7 +196,7 @@ impl ProfileStore for MemoryProfileStore {
         id: &str,
         avatar_session_id: &str,
         persona: &str,
-        pngs: &[String; 4],
+        png: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut map = self.profiles.lock().await;
         let entry = map.entry(id.to_string()).or_insert_with(|| UserProfile {
@@ -214,10 +213,7 @@ impl ProfileStore for MemoryProfileStore {
         });
         entry.persona_guess = persona.to_string();
         entry.avatar_session_id = avatar_session_id.to_string();
-        entry.avatar_png = pngs[0].clone();
-        entry.avatar_png_2 = pngs[1].clone();
-        entry.avatar_png_3 = pngs[2].clone();
-        entry.avatar_png_4 = pngs[3].clone();
+        entry.avatar_png = png.to_string();
         entry.updated_at = chrono::Utc::now().timestamp_millis();
         Ok(())
     }
@@ -261,10 +257,10 @@ impl AnalyticsDb {
             (session_id, llm_summary, updated_at) VALUES (?, ?, ?)";
         let upsert_profile_stmt = session.prepare(upsert_profile_cql).await?;
 
-        let upsert_avatar_4img_cql = "INSERT INTO analytics.user_profiles \
-            (session_id, persona_guess, avatar_png, avatar_png_2, avatar_png_3, avatar_png_4, \
-             avatar_session_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-        let upsert_avatar_stmt = session.prepare(upsert_avatar_4img_cql).await?;
+        let upsert_avatar_cql = "INSERT INTO analytics.user_profiles \
+            (session_id, persona_guess, avatar_png, avatar_session_id, updated_at) \
+            VALUES (?, ?, ?, ?, ?)";
+        let upsert_avatar_stmt = session.prepare(upsert_avatar_cql).await?;
 
         let get_profile_cql = "SELECT session_id, llm_summary, updated_at, persona_guess, \
              avatar_svg, avatar_session_id, avatar_png, avatar_png_2, avatar_png_3, avatar_png_4 \
@@ -455,28 +451,19 @@ impl AnalyticsDb {
         Ok(())
     }
 
-    /// Store persona + four PNG avatars for a session_id (fingerprint / distinct id).
+    /// Store persona + single composite PNG avatar for a session_id (fingerprint / distinct id).
     pub async fn upsert_persona_avatar(
         &self,
         session_id: &str,
         avatar_session_id: &str,
         persona_guess: &str,
-        pngs: &[String; 4],
+        png: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let updated_at = CqlTimestamp(Utc::now().timestamp_millis());
         self.session
             .execute_unpaged(
                 &self.upsert_avatar_stmt,
-                (
-                    session_id,
-                    persona_guess,
-                    &pngs[0],
-                    &pngs[1],
-                    &pngs[2],
-                    &pngs[3],
-                    avatar_session_id,
-                    updated_at,
-                ),
+                (session_id, persona_guess, png, avatar_session_id, updated_at),
             )
             .await?;
         Ok(())
@@ -545,8 +532,8 @@ impl ProfileStore for AnalyticsDb {
         id: &str,
         avatar_session_id: &str,
         persona: &str,
-        pngs: &[String; 4],
+        png: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        AnalyticsDb::upsert_persona_avatar(self, id, avatar_session_id, persona, pngs).await
+        AnalyticsDb::upsert_persona_avatar(self, id, avatar_session_id, persona, png).await
     }
 }

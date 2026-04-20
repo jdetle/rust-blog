@@ -1,4 +1,4 @@
-//! Integration tests for the 4-image regional-collage avatar flow.
+//! Integration tests for the single-composite-image avatar flow.
 //!
 //! Spins up the full Axum router in-process with:
 //!   - WireMock servers standing in for Anthropic Messages API and OpenAI Images API
@@ -11,9 +11,10 @@
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use axum::Router;
 use chrono::Utc;
-use rust_blog::analytics::MemoryProfileStore;
+use rust_blog::analytics::{MemoryProfileStore, ProfileStore, UserProfile};
 use rust_blog::anthropic::AnthropicClient;
 use rust_blog::api::AppState;
 use rust_blog::openai_images::OpenAiImagesClient;
@@ -38,7 +39,7 @@ fn anthropic_collage_response() -> serde_json::Value {
         "content": [{
             "type": "text",
             "text": format!(
-                "PERSONA: {}\nART_1: Ukiyo-e woodblock indigo waves.\nART_2: Crisp Bauhaus geometry in steel.\nART_3: Midnight watercolour washes.\nART_4: Abstract circuit diagrams in teal.",
+                "PERSONA: {}\nART_DIRECTION: Ukiyo-e indigo woodblock waves meet crisp M3 geometry in silver, midnight watercolour mood, circuit archetype in teal and copper.",
                 CANNED_PERSONA
             )
         }],
@@ -70,9 +71,31 @@ fn openai_image_response(b64: &str) -> serde_json::Value {
     })
 }
 
+struct FailingProfileStore;
+
+#[async_trait]
+impl ProfileStore for FailingProfileStore {
+    async fn get_profile(
+        &self,
+        _id: &str,
+    ) -> Result<Option<UserProfile>, Box<dyn std::error::Error + Send + Sync>> {
+        Err("profile lookup failed".into())
+    }
+
+    async fn upsert_persona_avatar(
+        &self,
+        _id: &str,
+        _avatar_session_id: &str,
+        _persona: &str,
+        _png: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        Err("profile upsert failed".into())
+    }
+}
+
 // ── Setup helpers ─────────────────────────────────────────────────────
 
-/// Spin up router with Anthropic + OpenAI both mocked (4-image collage path).
+/// Spin up router with Anthropic + OpenAI both mocked (composite image path).
 async fn setup_collage() -> (String, MockServer, MockServer, Arc<MemoryProfileStore>) {
     let anthropic_mock = MockServer::start().await;
     let openai_mock = MockServer::start().await;
@@ -102,6 +125,37 @@ async fn setup_collage() -> (String, MockServer, MockServer, Arc<MemoryProfileSt
     });
 
     (format!("http://{addr}"), anthropic_mock, openai_mock, store)
+}
+
+async fn setup_collage_with_store(
+    profile_store: Arc<dyn ProfileStore>,
+) -> (String, MockServer, MockServer) {
+    let anthropic_mock = MockServer::start().await;
+    let openai_mock = MockServer::start().await;
+
+    let anthropic = Arc::new(AnthropicClient::new(
+        "test-key".to_string(),
+        Some(anthropic_mock.uri()),
+    ));
+    let openai_url = format!("{}/v1/images/generations", openai_mock.uri());
+    let openai = Arc::new(OpenAiImagesClient::new("oai-test-key".to_string(), Some(openai_url)));
+
+    let state = AppState {
+        db: None,
+        posthog: None,
+        anthropic: Some(anthropic),
+        openai: Some(openai),
+        profile_store,
+    };
+
+    let app: Router = rust_blog::build_router(state);
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    (format!("http://{addr}"), anthropic_mock, openai_mock)
 }
 
 /// Spin up router with only Anthropic mocked (no OpenAI) — used for observations test.
@@ -168,10 +222,10 @@ async fn no_openai_returns_503() {
     assert_eq!(res.status(), 503);
 }
 
-// ── 4-image collage tests ─────────────────────────────────────────────
+// ── Single composite image tests ──────────────────────────────────────
 
 #[tokio::test]
-async fn collage_generates_four_avatar_urls() {
+async fn single_composite_image_generated() {
     let (base, anthropic_mock, openai_mock, store) = setup_collage().await;
 
     Mock::given(method("POST"))
@@ -183,13 +237,13 @@ async fn collage_generates_four_avatar_urls() {
         .mount(&anthropic_mock)
         .await;
 
-    // OpenAI is called 4 times (one per image slot).
+    // OpenAI is called exactly once (single composite image).
     Mock::given(method("POST"))
         .and(path("/v1/images/generations"))
         .respond_with(
             ResponseTemplate::new(200).set_body_json(openai_image_response(CANNED_PNG_B64)),
         )
-        .expect(4)
+        .expect(1)
         .mount(&openai_mock)
         .await;
 
@@ -215,21 +269,12 @@ async fn collage_generates_four_avatar_urls() {
     assert_eq!(body["cached"], false);
     assert!(body["persona_guess"].as_str().unwrap().contains("curious builder"));
 
-    let urls = body["avatar_urls"].as_array().unwrap();
-    assert_eq!(urls.len(), 4, "must return exactly 4 avatar URLs");
-    for url in urls {
-        assert!(
-            url.as_str().unwrap().starts_with("data:image/png;base64,"),
-            "each URL must be a data URI"
-        );
-    }
+    let url = body["avatar_url"].as_str().unwrap();
+    assert!(url.starts_with("data:image/png;base64,"), "must be a data URI");
 
-    // Verify all 4 PNGs stored in the profile.
+    // Verify PNG stored in the profile.
     let stored = store.get_stored("collage-fp-001").await.unwrap();
-    assert!(!stored.avatar_png.is_empty(), "slot 1 must be stored");
-    assert!(!stored.avatar_png_2.is_empty(), "slot 2 must be stored");
-    assert!(!stored.avatar_png_3.is_empty(), "slot 3 must be stored");
-    assert!(!stored.avatar_png_4.is_empty(), "slot 4 must be stored");
+    assert!(!stored.avatar_png.is_empty(), "avatar_png must be stored");
 
     let today_utc = Utc::now().format("%Y-%m-%d").to_string();
     assert_eq!(stored.avatar_session_id, today_utc, "session date must be today");
@@ -239,10 +284,167 @@ async fn collage_generates_four_avatar_urls() {
 }
 
 #[tokio::test]
+async fn collage_generation_uses_gpt_image_default_base64_response() {
+    let (base, anthropic_mock, openai_mock, _store) = setup_collage().await;
+
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(anthropic_collage_response()),
+        )
+        .expect(1)
+        .mount(&anthropic_mock)
+        .await;
+
+    // Exactly 1 OpenAI call (single composite image).
+    Mock::given(method("POST"))
+        .and(path("/v1/images/generations"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(openai_image_response(CANNED_PNG_B64)),
+        )
+        .expect(1)
+        .mount(&openai_mock)
+        .await;
+
+    let client = reqwest::Client::new();
+    let res = client
+        .post(format!("{base}/user-profile/generate-avatar"))
+        .json(&json!({
+            "fingerprint": "gpt-image-default-b64-fp",
+            "session_id": "session-default-b64",
+            "user_context": {
+                "city": "Austin",
+                "country": "United States",
+                "browser": "Chrome 135"
+            }
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(res.status(), 200);
+    let body: serde_json::Value = res.json().await.unwrap();
+    assert_eq!(body["cached"], false);
+    assert!(
+        body["avatar_url"].as_str().unwrap().starts_with("data:image/png;base64,"),
+        "must be a data URI"
+    );
+
+    anthropic_mock.verify().await;
+    openai_mock.verify().await;
+}
+
+#[tokio::test]
+async fn collage_generation_returns_persona_guess_when_images_fail() {
+    let (base, anthropic_mock, openai_mock, _store) = setup_collage().await;
+
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(anthropic_collage_response()),
+        )
+        .expect(1)
+        .mount(&anthropic_mock)
+        .await;
+
+    // 1 OpenAI call (single composite), returns billing error.
+    Mock::given(method("POST"))
+        .and(path("/v1/images/generations"))
+        .respond_with(ResponseTemplate::new(400).set_body_json(json!({
+            "error": {
+                "message": "Billing hard limit has been reached.",
+                "type": "billing_limit_user_error",
+                "code": "billing_hard_limit_reached"
+            }
+        })))
+        .expect(1)
+        .mount(&openai_mock)
+        .await;
+
+    let client = reqwest::Client::new();
+    let res = client
+        .post(format!("{base}/user-profile/generate-avatar"))
+        .json(&json!({
+            "fingerprint": "persona-only-fp",
+            "session_id": "session-persona-only",
+            "user_context": {
+                "city": "Austin",
+                "country": "United States",
+                "browser": "Chrome 135"
+            }
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(res.status(), 200);
+    let body: serde_json::Value = res.json().await.unwrap();
+    assert_eq!(body["cached"], false);
+    assert_eq!(body["image_generation_failed"], true);
+    assert!(body["persona_guess"].as_str().unwrap().contains("curious builder"));
+    assert_eq!(body["avatar_url"].as_str().unwrap(), "");
+
+    anthropic_mock.verify().await;
+    openai_mock.verify().await;
+}
+
+#[tokio::test]
+async fn collage_generation_returns_persona_guess_when_image_validation_fails() {
+    let (base, anthropic_mock, openai_mock, _store) = setup_collage().await;
+    let oversized_b64 = "A".repeat(3 * 1024 * 1024 + 1);
+
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(anthropic_collage_response()),
+        )
+        .expect(1)
+        .mount(&anthropic_mock)
+        .await;
+
+    // 1 OpenAI call returning an oversized/invalid PNG.
+    Mock::given(method("POST"))
+        .and(path("/v1/images/generations"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(openai_image_response(&oversized_b64)),
+        )
+        .expect(1)
+        .mount(&openai_mock)
+        .await;
+
+    let client = reqwest::Client::new();
+    let res = client
+        .post(format!("{base}/user-profile/generate-avatar"))
+        .json(&json!({
+            "fingerprint": "persona-validation-fp",
+            "session_id": "session-persona-validation",
+            "user_context": {
+                "city": "Austin",
+                "country": "United States",
+                "browser": "Chrome 135"
+            }
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(res.status(), 200);
+    let body: serde_json::Value = res.json().await.unwrap();
+    assert_eq!(body["cached"], false);
+    assert_eq!(body["image_generation_failed"], true);
+    assert!(body["persona_guess"].as_str().unwrap().contains("curious builder"));
+    assert_eq!(body["avatar_url"].as_str().unwrap(), "");
+
+    anthropic_mock.verify().await;
+    openai_mock.verify().await;
+}
+
+#[tokio::test]
 async fn collage_second_request_served_from_cache() {
     let (base, anthropic_mock, openai_mock, _store) = setup_collage().await;
 
-    // Exactly one Anthropic + four OpenAI calls for the first request.
+    // Exactly one Anthropic + one OpenAI call for the first request.
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
         .respond_with(
@@ -257,7 +459,7 @@ async fn collage_second_request_served_from_cache() {
         .respond_with(
             ResponseTemplate::new(200).set_body_json(openai_image_response(CANNED_PNG_B64)),
         )
-        .expect(4)
+        .expect(1)
         .mount(&openai_mock)
         .await;
 
@@ -287,7 +489,7 @@ async fn collage_second_request_served_from_cache() {
     assert_eq!(second.status(), 200);
     let second_body: serde_json::Value = second.json().await.unwrap();
     assert_eq!(second_body["cached"], true);
-    assert_eq!(second_body["avatar_urls"], first_body["avatar_urls"]);
+    assert_eq!(second_body["avatar_url"], first_body["avatar_url"]);
 
     anthropic_mock.verify().await;
     openai_mock.verify().await;
@@ -311,7 +513,7 @@ async fn collage_same_day_different_session_serves_from_cache() {
         .respond_with(
             ResponseTemplate::new(200).set_body_json(openai_image_response(CANNED_PNG_B64)),
         )
-        .expect(4)
+        .expect(1)
         .mount(&openai_mock)
         .await;
 
@@ -336,6 +538,58 @@ async fn collage_same_day_different_session_serves_from_cache() {
         .unwrap();
     assert_eq!(second.status(), 200);
     assert_eq!(second.json::<serde_json::Value>().await.unwrap()["cached"], true);
+
+    anthropic_mock.verify().await;
+    openai_mock.verify().await;
+}
+
+#[tokio::test]
+async fn collage_generation_succeeds_when_profile_store_errors() {
+    let (base, anthropic_mock, openai_mock) =
+        setup_collage_with_store(Arc::new(FailingProfileStore)).await;
+
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(anthropic_collage_response()),
+        )
+        .expect(1)
+        .mount(&anthropic_mock)
+        .await;
+
+    Mock::given(method("POST"))
+        .and(path("/v1/images/generations"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(openai_image_response(CANNED_PNG_B64)),
+        )
+        .expect(1)
+        .mount(&openai_mock)
+        .await;
+
+    let client = reqwest::Client::new();
+    let res = client
+        .post(format!("{base}/user-profile/generate-avatar"))
+        .json(&json!({
+            "fingerprint": "profile-store-failure-fp",
+            "session_id": "session-profile-store-failure",
+            "user_context": {
+                "city": "Austin",
+                "country": "United States",
+                "browser": "Chrome 135"
+            }
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(res.status(), 200);
+    let body: serde_json::Value = res.json().await.unwrap();
+    assert_eq!(body["cached"], false);
+    assert!(
+        body["avatar_url"].as_str().unwrap().starts_with("data:image/png;base64,"),
+        "must return a valid data URI even when profile store errors"
+    );
+    assert!(body["persona_guess"].as_str().unwrap().contains("curious builder"));
 
     anthropic_mock.verify().await;
     openai_mock.verify().await;

@@ -1,6 +1,6 @@
 /**
- * Proxies to Rust analytics service: generates 4 × 1024×1024 regional-artist collage
- * PNGs per visitor per calendar day (UTC) via OpenAI gpt-image-1, persisted in Cosmos DB.
+ * Proxies to Rust analytics service: generates one 1024×1024 composite portrait PNG
+ * per visitor per calendar day (UTC) via OpenAI gpt-image-1, persisted in Cosmos DB.
  *
  * AUTH: Gated by Cloudflare Turnstile token verification before proxying upstream.
  *       The token is verified server-side and is NOT forwarded to the Rust service.
@@ -86,9 +86,9 @@ export async function POST(request: NextRequest) {
 				session_id: body.session_id ?? "",
 				user_context: body.user_context ?? {},
 			}),
-			// 4 parallel gpt-image-1 calls; p95 per call ≈ 20–30 s, all run in parallel.
-			// Give 55 s total to accommodate variance across all four slots.
-			signal: AbortSignal.timeout(55_000),
+			// The backend may need extra time when image generation degrades to persona-only
+			// or skips slow profile-store operations. Keep the proxy budget above that path.
+			signal: AbortSignal.timeout(90_000),
 		});
 
 		const data = (await res.json()) as Record<string, unknown>;

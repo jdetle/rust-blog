@@ -604,15 +604,13 @@ a:hover {
 	max-height: min(18rem, 42vw);
 }
 
-/* ── 4-image collage grid ────────────────────────────────────────── */
+/* ── Single composite portrait frame ────────────────────────────── */
 
-.home-fingerprint-avatar-grid {
-	display: grid;
-	grid-template-columns: 1fr 1fr;
-	gap: 0.25rem;
+.home-fingerprint-avatar-frame {
 	border-radius: 12px;
 	overflow: hidden;
 	filter: drop-shadow(0 2px 16px rgba(34, 28, 22, 0.14));
+	border: 1px solid rgba(176, 112, 80, 0.18);
 }
 
 .home-fingerprint-avatar-img {
@@ -620,6 +618,15 @@ a:hover {
 	width: 100%;
 	aspect-ratio: 1;
 	object-fit: cover;
+}
+
+.home-fingerprint-avatar-persona {
+	font-size: 0.72rem;
+	color: rgba(34, 28, 22, 0.55);
+	font-style: italic;
+	margin: 0.5rem 0 0;
+	line-height: 1.4;
+	letter-spacing: 0.01em;
 }
 
 /* ── Observation stream (shown during loading) ───────────────────── */
@@ -1686,6 +1693,23 @@ New post skeleton:
 	border-radius: 14px;
 	border: 1px solid var(--line-strong);
 	background: rgba(255, 255, 255, 0.45);
+}
+
+.fingerprint-avatar-frame {
+	display: inline-block;
+	border-radius: 12px;
+	overflow: hidden;
+	filter: drop-shadow(0 2px 14px rgba(34, 28, 22, 0.13));
+	border: 1px solid rgba(176, 112, 80, 0.18);
+	max-width: 256px;
+	width: 100%;
+}
+
+.fingerprint-avatar-img {
+	display: block;
+	width: 100%;
+	aspect-ratio: 1;
+	object-fit: cover;
 }
 
 .fingerprint-avatar-svg {

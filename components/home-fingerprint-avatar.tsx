@@ -6,7 +6,7 @@ import { TurnstileGate } from "@/components/turnstile-gate";
 import { canvasFingerprint } from "@/components/who-are-you/canvas-fingerprint";
 
 const AVATAR_LABEL =
-	"Four personalised collages generated from regional artists' styles and your browser signals. Updates each unique visit.";
+	"A personalised portrait generated from regional art traditions and your browser signals. Updates each calendar day.";
 
 type Phase = "awaiting-captcha" | "loading" | "ready" | "absent";
 type LoadingStep = "fingerprint" | "region" | "artists" | "rendering";
@@ -14,8 +14,8 @@ type LoadingStep = "fingerprint" | "region" | "artists" | "rendering";
 const STEP_MESSAGES: Record<LoadingStep, string> = {
 	fingerprint: "Reading your fingerprint…",
 	region: "Detecting your region…",
-	artists: "Consulting regional artists…",
-	rendering: "Rendering your portraits…",
+	artists: "Composing your art direction…",
+	rendering: "Rendering your portrait…",
 };
 
 interface UserContext {
@@ -200,7 +200,8 @@ async function buildUserContext(): Promise<UserContext> {
 const OBSERVATION_INTERVAL_MS = 8_000;
 
 export function HomeFingerprintAvatar() {
-	const [avatarUrls, setAvatarUrls] = useState<string[]>([]);
+	const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+	const [personaGuess, setPersonaGuess] = useState<string | null>(null);
 	const [phase, setPhase] = useState<Phase>("awaiting-captcha");
 	const [loadingStep, setLoadingStep] = useState<LoadingStep>("fingerprint");
 	const [observations, setObservations] = useState<string[]>([]);
@@ -254,7 +255,10 @@ export function HomeFingerprintAvatar() {
 			let cancelled = false;
 			const profileController = new AbortController();
 			const generateController = new AbortController();
-			const profileTimeoutId = setTimeout(() => profileController.abort(), 6_000);
+			const profileTimeoutId = setTimeout(
+				() => profileController.abort(),
+				6_000,
+			);
 			let generateTimeoutId: ReturnType<typeof setTimeout> | undefined;
 
 			try {
@@ -275,12 +279,14 @@ export function HomeFingerprintAvatar() {
 					signal: profileController.signal,
 				});
 				const data = (await r.json()) as {
-					avatar_urls?: string[] | null;
+					avatar_url?: string | null;
+					persona_guess?: string | null;
 				};
 				if (cancelled) return;
 
-				if (data.avatar_urls && data.avatar_urls.length > 0) {
-					setAvatarUrls(data.avatar_urls.filter(Boolean) as string[]);
+				if (data.avatar_url) {
+					setAvatarUrl(data.avatar_url);
+					if (data.persona_guess) setPersonaGuess(data.persona_guess);
 					setPhase("ready");
 					return;
 				}
@@ -299,7 +305,7 @@ export function HomeFingerprintAvatar() {
 				setLoadingStep("rendering");
 				generateTimeoutId = setTimeout(
 					() => generateController.abort(),
-					55_000,
+					90_000,
 				);
 
 				const obsPayload = {
@@ -341,14 +347,16 @@ export function HomeFingerprintAvatar() {
 
 				const [gr] = await Promise.all([genPromise, obsPromise]);
 				const gen = (await gr.json()) as {
-					avatar_urls?: string[] | null;
+					avatar_url?: string | null;
+					persona_guess?: string | null;
 				};
 				if (cancelled) return;
 
 				stopObservationReveal();
 
-				if (gen.avatar_urls && gen.avatar_urls.length > 0) {
-					setAvatarUrls(gen.avatar_urls.filter(Boolean) as string[]);
+				if (gen.avatar_url) {
+					setAvatarUrl(gen.avatar_url);
+					if (gen.persona_guess) setPersonaGuess(gen.persona_guess);
 					setPhase("ready");
 				} else {
 					setPhase("absent");
@@ -426,30 +434,26 @@ export function HomeFingerprintAvatar() {
 		);
 	}
 
-	if (avatarUrls.length === 0) return null;
+	if (!avatarUrl) return null;
 
 	return (
 		<div className="home-fingerprint-avatar">
-			<div
-				className="home-fingerprint-avatar-grid"
-				role="img"
-				aria-label={AVATAR_LABEL}
-			>
-				{avatarUrls.map((url, i) => (
-					// biome-ignore lint/performance/noImgElement: data: URIs are not supported by next/image
-					<img
-						key={url}
-						src={url}
-						width={128}
-						height={128}
-						alt={`Collage ${i + 1} of 4 — ${AVATAR_LABEL}`}
-						className="home-fingerprint-avatar-img"
-						decoding="async"
-					/>
-				))}
+			<div className="home-fingerprint-avatar-frame">
+				{/* biome-ignore lint/performance/noImgElement: data: URIs are not supported by next/image */}
+				<img
+					src={avatarUrl}
+					width={256}
+					height={256}
+					alt={AVATAR_LABEL}
+					className="home-fingerprint-avatar-img"
+					decoding="async"
+				/>
 			</div>
+			{personaGuess && (
+				<p className="home-fingerprint-avatar-persona">{personaGuess}</p>
+			)}
 			<p className="home-fingerprint-avatar-disclosure">
-				Generated with OpenAI using your visible browser &amp; edge signals.{" "}
+				Generated with OpenAI from your browser &amp; edge signals.{" "}
 				<a href="/who-are-you">See what we know about you.</a>
 			</p>
 		</div>
