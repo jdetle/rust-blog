@@ -35,11 +35,11 @@ echo "Applying migrations from ${ROOT}/migrations ..."
 echo "001 (index — ok if already exists)"
 "${CQLSH[@]}" -f "${ROOT}/migrations/001_add_session_id_index.cql" || true
 
-echo "002 (user_profiles table)"
-"${CQLSH[@]}" -f "${ROOT}/migrations/002_add_user_profiles.cql"
+echo "002 (user_profiles table — ok if already exists)"
+"${CQLSH[@]}" -f "${ROOT}/migrations/002_add_user_profiles.cql" || true
 
-echo "003 (persona_guess + avatar_svg)"
-"${CQLSH[@]}" -f "${ROOT}/migrations/003_user_profiles_avatar.cql"
+echo "003 (persona_guess + avatar_svg — ok if columns already exist)"
+"${CQLSH[@]}" -f "${ROOT}/migrations/003_user_profiles_avatar.cql" || true
 
 echo "004a (avatar_session_id + avatar_png slot 1)"
 "${CQLSH[@]}" -f "${ROOT}/migrations/004_user_profiles_session_avatar.cql" || true
