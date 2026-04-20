@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * E2E test: 4-image avatar generation via the /who-are-you page and home-page hero.
+ * E2E test: single composite avatar generation via the /who-are-you page and home-page hero.
  *
  * The generate-avatar and observations routes are mocked at the network level so tests
  * run without a live OpenAI key or a full blog-service in CI.
@@ -13,13 +13,6 @@ const BLOG_SERVICE_URL =
 /** Minimal 1×1 transparent PNG as a data URI (for fixture responses). */
 const FIXTURE_PNG_DATA_URI =
 	"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-
-const FIXTURE_AVATAR_URLS = [
-	FIXTURE_PNG_DATA_URI,
-	FIXTURE_PNG_DATA_URI,
-	FIXTURE_PNG_DATA_URI,
-	FIXTURE_PNG_DATA_URI,
-];
 
 const FIXTURE_OBSERVATIONS = [
 	"You are browsing from Tokyo, Japan.",
@@ -57,8 +50,6 @@ async function stubAnalyticsRoutes(
 	page: import("@playwright/test").Page,
 	options: { hasCache?: boolean; generateFails?: boolean } = {},
 ) {
-	const cachedUrls = options.hasCache ? FIXTURE_AVATAR_URLS : null;
-
 	await page.route("**/api/analytics/user-profile**", async (route) => {
 		await route.fulfill({
 			status: 200,
@@ -67,7 +58,7 @@ async function stubAnalyticsRoutes(
 				summary: null,
 				updated_at: null,
 				persona_guess: null,
-				avatar_urls: cachedUrls,
+				avatar_url: options.hasCache ? FIXTURE_PNG_DATA_URI : null,
 			}),
 		});
 	});
@@ -86,7 +77,7 @@ async function stubAnalyticsRoutes(
 					contentType: "application/json",
 					body: JSON.stringify({
 						persona_guess: "Probably a curious builder — just a guess.",
-						avatar_urls: FIXTURE_AVATAR_URLS,
+						avatar_url: FIXTURE_PNG_DATA_URI,
 						cached: false,
 					}),
 				});
@@ -105,16 +96,16 @@ async function stubAnalyticsRoutes(
 
 // ── Home hero tests ───────────────────────────────────────────────────
 
-test("home hero renders 4-image grid when generate-avatar returns avatar_urls", async ({
+test("home hero renders single portrait when generate-avatar returns avatar_url", async ({
 	page,
 }) => {
 	await stubTurnstile(page);
 	await stubAnalyticsRoutes(page);
 	await page.goto("/");
 
-	// The component renders multiple <img class="home-fingerprint-avatar-img"> elements.
+	// The component renders one <img class="home-fingerprint-avatar-img"> inside the frame.
 	const imgs = page.locator("img.home-fingerprint-avatar-img");
-	await expect(imgs).toHaveCount(4, { timeout: 30_000 });
+	await expect(imgs).toHaveCount(1, { timeout: 30_000 });
 
 	const src = await imgs.first().getAttribute("src");
 	expect(src).toMatch(/^data:image\/png;base64,/);
@@ -130,13 +121,17 @@ test("home hero loads from cache without calling generate-avatar", async ({
 	let generateCalled = false;
 	await page.route("**/api/analytics/generate-avatar", async (route) => {
 		generateCalled = true;
-		await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+		await route.fulfill({
+			status: 200,
+			contentType: "application/json",
+			body: "{}",
+		});
 	});
 
 	await page.goto("/");
 
 	const imgs = page.locator("img.home-fingerprint-avatar-img");
-	await expect(imgs).toHaveCount(4, { timeout: 15_000 });
+	await expect(imgs).toHaveCount(1, { timeout: 15_000 });
 	expect(generateCalled).toBe(false);
 });
 
@@ -153,18 +148,18 @@ test("home hero is absent when generate-avatar fails", async ({ page }) => {
 
 // ── Who-are-you page tests ────────────────────────────────────────────
 
-test("who-are-you page renders avatar grid in composite picture section", async ({
+test("who-are-you page renders avatar in composite picture section", async ({
 	page,
 }) => {
 	await stubTurnstile(page);
 	await stubAnalyticsRoutes(page);
 	await page.goto("/who-are-you");
 
-	const grid = page.locator(".fingerprint-avatar-grid");
-	await expect(grid).toBeVisible({ timeout: 45_000 });
+	const frame = page.locator(".fingerprint-avatar-frame");
+	await expect(frame).toBeVisible({ timeout: 45_000 });
 
-	const imgs = grid.locator("img.fingerprint-avatar-img");
-	await expect(imgs).toHaveCount(4, { timeout: 5_000 });
+	const img = frame.locator("img.fingerprint-avatar-img");
+	await expect(img).toHaveCount(1, { timeout: 5_000 });
 });
 
 // ── Service health ─────────────────────────────────────────────────────
