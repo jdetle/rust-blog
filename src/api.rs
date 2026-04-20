@@ -200,10 +200,18 @@ pub async fn user_profile(
 
     match db.get_user_profile(&lookup_id).await {
         Ok(Some(profile)) => {
-            let avatar_url = if !profile.avatar_png.is_empty() {
-                Some(format!("data:image/png;base64,{}", profile.avatar_png))
+            let avatar_urls = if !profile.avatar_png.is_empty() {
+                serde_json::Value::Array(
+                    profile_to_avatar_urls(&profile)
+                        .into_iter()
+                        .map(|u| match u {
+                            Some(s) => serde_json::Value::String(s),
+                            None => serde_json::Value::Null,
+                        })
+                        .collect(),
+                )
             } else {
-                None
+                serde_json::Value::Null
             };
             (
                 StatusCode::OK,
@@ -211,8 +219,7 @@ pub async fn user_profile(
                     "summary": profile.llm_summary,
                     "updated_at": profile.updated_at,
                     "persona_guess": profile.persona_guess,
-                    "avatar_svg": if profile.avatar_svg.is_empty() { serde_json::Value::Null } else { serde_json::Value::String(profile.avatar_svg) },
-                    "avatar_url": avatar_url,
+                    "avatar_urls": avatar_urls,
                 })),
             )
                 .into_response()
@@ -223,8 +230,7 @@ pub async fn user_profile(
                 "summary": null,
                 "updated_at": null,
                 "persona_guess": null,
-                "avatar_svg": null,
-                "avatar_url": null,
+                "avatar_urls": null,
             })),
         )
             .into_response(),
@@ -241,13 +247,12 @@ pub async fn user_profile(
 
 /// POST body: fingerprint and/or distinct_id / user_id, optional session_id + user_context.
 ///
-/// If OpenAI is configured, generates a 1024×1024 regional-artist collage PNG via gpt-image-1
-/// (with persona derived from Claude Haiku). Otherwise falls back to the legacy SVG path.
+/// Requires OpenAI to be configured (503 otherwise). Generates four 1024×1024 regional-artist
+/// collage PNGs via gpt-image-1 in parallel, with persona + art-directions derived from
+/// Claude Haiku. All four images are stored and returned as data URIs.
 ///
-/// Cache logic: a hit occurs when `existing.avatar_png` is non-empty AND
-/// `existing.avatar_session_id == today_utc_date` (format `YYYY-MM-DD`).
-/// One new image is generated per calendar day (UTC); the same PNG is served for all
-/// requests within that day.
+/// Cache: hit when slot 1 (`avatar_png`) is non-empty AND `avatar_session_id == today_utc`.
+/// One set of four images is generated per calendar day (UTC).
 pub async fn user_profile_generate_avatar(
     State(state): State<AppState>,
     Json(body): Json<GenerateAvatarBody>,
@@ -274,11 +279,15 @@ pub async fn user_profile_generate_avatar(
             .into_response();
     };
 
-    let prior = state.profile_store.get_profile(&lookup_id).await;
-    let summary_hint: Option<String> = match &prior {
-        Ok(Some(p)) if !p.llm_summary.is_empty() => Some(p.llm_summary.clone()),
-        _ => None,
+    let Some(ref openai) = state.openai else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"error": "OpenAI not configured — 4-image collage requires gpt-image-1"})),
+        )
+            .into_response();
     };
+
+    let prior = state.profile_store.get_profile(&lookup_id).await;
     let prior_persona: Option<String> = match &prior {
         Ok(Some(p)) if !p.persona_guess.is_empty() => Some(p.persona_guess.clone()),
         _ => None,
@@ -288,138 +297,118 @@ pub async fn user_profile_generate_avatar(
     let today_utc = Utc::now().format("%Y-%m-%d").to_string();
 
     if let Ok(Some(existing)) = &prior {
-        let has_png = !existing.avatar_png.is_empty();
-        let has_svg = !existing.avatar_svg.is_empty();
-
-        if state.openai.is_some() {
-            // New path: cache on PNG + same calendar day (UTC).
-            let same_day = existing.avatar_session_id == today_utc;
-            if has_png && same_day {
-                let avatar_url =
-                    format!("data:image/png;base64,{}", existing.avatar_png);
-                return (
-                    StatusCode::OK,
-                    Json(serde_json::json!({
-                        "persona_guess": existing.persona_guess,
-                        "avatar_url": avatar_url,
-                        "avatar_svg": serde_json::Value::Null,
-                        "cached": true
-                    })),
-                )
-                    .into_response();
-            }
-        } else {
-            // Legacy path: cache on any existing SVG (original behaviour).
-            if has_svg {
-                return (
-                    StatusCode::OK,
-                    Json(serde_json::json!({
-                        "persona_guess": existing.persona_guess,
-                        "avatar_svg": existing.avatar_svg,
-                        "avatar_url": serde_json::Value::Null,
-                        "cached": true
-                    })),
-                )
-                    .into_response();
-            }
+        let same_day = existing.avatar_session_id == today_utc;
+        if !existing.avatar_png.is_empty() && same_day {
+            let urls = profile_to_avatar_urls(existing);
+            return (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "persona_guess": existing.persona_guess,
+                    "avatar_urls": urls,
+                    "cached": true
+                })),
+            )
+                .into_response();
         }
     }
 
-    // ── Generate ─────────────────────────────────────────────────────
-    if let Some(ref openai) = state.openai {
-        // New regional-collage path.
-        let fp = body.fingerprint.as_str();
-        let ctx = &body.user_context;
-        match avatar::generate_regional_collage(
-            openai,
-            anthropic,
-            fp,
-            ctx,
-            prior_persona.as_deref(),
-        )
+    // ── Generate 4 images ────────────────────────────────────────────
+    let fp = body.fingerprint.as_str();
+    let ctx = &body.user_context;
+    match avatar::generate_regional_collage(openai, anthropic, fp, ctx, prior_persona.as_deref())
         .await
-        {
-            Ok((persona, data_uri)) => {
-                // Strip the data-URI prefix before storing (only the raw b64 goes in DB).
-                let png_b64 = data_uri
-                    .strip_prefix("data:image/png;base64,")
-                    .unwrap_or(&data_uri)
-                    .to_string();
-                if let Err(e) = state
-                    .profile_store
-                    .upsert_persona_avatar(
-                        &lookup_id,
-                        &today_utc,
-                        &persona,
-                        &png_b64,
-                        "",
-                    )
-                    .await
-                {
-                    tracing::error!(error = %e, "upsert persona avatar (png) failed");
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(serde_json::json!({"error": "Failed to store avatar"})),
-                    )
-                        .into_response();
-                }
-                (
-                    StatusCode::OK,
-                    Json(serde_json::json!({
-                        "persona_guess": persona,
-                        "avatar_url": format!("data:image/png;base64,{png_b64}"),
-                        "avatar_svg": serde_json::Value::Null,
-                        "cached": false
-                    })),
+    {
+        Ok((persona, pngs)) => {
+            if let Err(e) = state
+                .profile_store
+                .upsert_persona_avatar(&lookup_id, &today_utc, &persona, &pngs)
+                .await
+            {
+                tracing::error!(error = %e, "upsert 4-image avatar failed");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": "Failed to store avatar"})),
                 )
-                    .into_response()
+                    .into_response();
             }
-            Err(e) => {
-                tracing::warn!(error = %e, "regional collage generation failed");
-                (
-                    StatusCode::BAD_GATEWAY,
-                    Json(serde_json::json!({"error": "Avatar generation failed"})),
-                )
-                    .into_response()
-            }
+            let urls: Vec<String> = pngs
+                .iter()
+                .map(|b| format!("data:image/png;base64,{b}"))
+                .collect();
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "persona_guess": persona,
+                    "avatar_urls": urls,
+                    "cached": false
+                })),
+            )
+                .into_response()
         }
-    } else {
-        // Legacy SVG path.
-        match avatar::generate_fake_avatar(anthropic, &lookup_id, summary_hint.as_deref()).await {
-            Ok((persona, svg)) => {
-                if let Err(e) = state
-                    .profile_store
-                    .upsert_persona_avatar(&lookup_id, "", &persona, "", &svg)
-                    .await
-                {
-                    tracing::error!(error = %e, "upsert persona avatar (svg) failed");
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(serde_json::json!({"error": "Failed to store avatar"})),
-                    )
-                        .into_response();
-                }
-                (
-                    StatusCode::OK,
-                    Json(serde_json::json!({
-                        "persona_guess": persona,
-                        "avatar_svg": svg,
-                        "avatar_url": serde_json::Value::Null,
-                        "cached": false
-                    })),
-                )
-                    .into_response()
-            }
-            Err(e) => {
-                tracing::warn!(error = %e, "avatar generation failed");
-                (
-                    StatusCode::BAD_GATEWAY,
-                    Json(serde_json::json!({"error": "Avatar generation failed"})),
-                )
-                    .into_response()
-            }
+        Err(e) => {
+            tracing::warn!(error = %e, "4-image collage generation failed");
+            (
+                StatusCode::BAD_GATEWAY,
+                Json(serde_json::json!({"error": "Avatar generation failed"})),
+            )
+                .into_response()
         }
     }
+}
+
+/// POST body for the observations endpoint.
+#[derive(serde::Deserialize)]
+pub struct ObservationsBody {
+    #[serde(default)]
+    pub fingerprint: String,
+    #[serde(default)]
+    pub user_id: String,
+    #[serde(default)]
+    pub distinct_id: String,
+    #[serde(default)]
+    pub user_context: UserContext,
+}
+
+/// POST /user-profile/observations — returns 6 factual bullet observations about the visitor's
+/// analytics signals, generated by Claude Haiku. The client reveals these one-by-one during the
+/// ~40 s image-generation wait to keep the page alive and interesting.
+pub async fn user_profile_observations(
+    State(state): State<AppState>,
+    Json(body): Json<ObservationsBody>,
+) -> impl IntoResponse {
+    let Some(ref anthropic) = state.anthropic else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"error": "Observation service not configured"})),
+        )
+            .into_response();
+    };
+
+    match avatar::generate_observations(anthropic, &body.user_context).await {
+        Ok(observations) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "observations": observations })),
+        )
+            .into_response(),
+        Err(e) => {
+            tracing::warn!(error = %e, "observations generation failed");
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({ "observations": [] })),
+            )
+                .into_response()
+        }
+    }
+}
+
+/// Build `avatar_urls` array from a cached profile (all 4 slots as data URIs).
+fn profile_to_avatar_urls(p: &crate::analytics::UserProfile) -> Vec<Option<String>> {
+    vec![
+        if p.avatar_png.is_empty() { None } else { Some(format!("data:image/png;base64,{}", p.avatar_png)) },
+        if p.avatar_png_2.is_empty() { None } else { Some(format!("data:image/png;base64,{}", p.avatar_png_2)) },
+        if p.avatar_png_3.is_empty() { None } else { Some(format!("data:image/png;base64,{}", p.avatar_png_3)) },
+        if p.avatar_png_4.is_empty() { None } else { Some(format!("data:image/png;base64,{}", p.avatar_png_4)) },
+    ]
 }
 
 pub async fn vercel_drain(
