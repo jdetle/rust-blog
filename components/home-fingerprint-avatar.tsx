@@ -213,6 +213,10 @@ export function HomeFingerprintAvatar() {
 		tokenRef.current = token;
 	}, []);
 
+	const handleCaptchaError = useCallback(() => {
+		setPhase("absent");
+	}, []);
+
 	const startObservationReveal = useCallback((obs: string[]) => {
 		if (!obs.length) return;
 		setObservations(obs);
@@ -383,7 +387,7 @@ export function HomeFingerprintAvatar() {
 	if (phase === "awaiting-captcha" || phase === "loading") {
 		return (
 			<>
-				<TurnstileGate onToken={handleToken} />
+				<TurnstileGate onToken={handleToken} onError={handleCaptchaError} />
 				<div
 					className="home-fingerprint-avatar home-fingerprint-avatar--loading"
 					role="status"

@@ -35,6 +35,7 @@ az webapp config appsettings set \
     NEXT_PUBLIC_PLAUSIBLE_DOMAIN="jdetle.com" \
     NEXT_PUBLIC_META_PIXEL_ID="169560873691070" \
     NEXT_PUBLIC_SITE_URL="https://jdetle.com" \
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY="0x4AAAAAAC_y5h9W44gaxQtB" \
     ANALYTICS_API_URL="https://ca-rust-blog.ashyocean-7c5b6dba.eastus2.azurecontainerapps.io" \
     RUST_API_URL="https://ca-rust-blog.ashyocean-7c5b6dba.eastus2.azurecontainerapps.io" \
     POSTHOG_PERSONAL_API_KEY="$POSTHOG_PERSONAL_API_KEY" \

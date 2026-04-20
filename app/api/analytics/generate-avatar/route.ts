@@ -47,6 +47,10 @@ export async function POST(request: NextRequest) {
 
 	const captcha = await verifyTurnstileToken(turnstileToken, remoteIp);
 	if (!captcha.ok) {
+		console.warn(
+			"[generate-avatar] Turnstile verification failed:",
+			captcha.error_codes,
+		);
 		return NextResponse.json(
 			{
 				error: "Captcha verification failed",
