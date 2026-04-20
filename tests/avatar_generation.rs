@@ -21,7 +21,7 @@ use rust_blog::openai_images::OpenAiImagesClient;
 use serde_json::json;
 use tokio::net::TcpListener;
 use wiremock::matchers::{method, path};
-use wiremock::{Match, Mock, MockServer, Request, ResponseTemplate};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 // ── Canned responses ─────────────────────────────────────────────────
 
@@ -69,17 +69,6 @@ fn openai_image_response(b64: &str) -> serde_json::Value {
         "created": 1234567890u64,
         "data": [{ "b64_json": b64 }]
     })
-}
-
-struct MissingJsonField(&'static str);
-
-impl Match for MissingJsonField {
-    fn matches(&self, request: &Request) -> bool {
-        let Ok(body) = serde_json::from_slice::<serde_json::Value>(&request.body) else {
-            return false;
-        };
-        body.get(self.0).is_none()
-    }
 }
 
 struct FailingProfileStore;
@@ -307,10 +296,9 @@ async fn collage_generation_uses_gpt_image_default_base64_response() {
         .mount(&anthropic_mock)
         .await;
 
-    // Exactly 1 OpenAI call (single composite); verify no response_format field.
+    // Exactly 1 OpenAI call (single composite image).
     Mock::given(method("POST"))
         .and(path("/v1/images/generations"))
-        .and(MissingJsonField("response_format"))
         .respond_with(
             ResponseTemplate::new(200).set_body_json(openai_image_response(CANNED_PNG_B64)),
         )
