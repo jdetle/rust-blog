@@ -604,6 +604,69 @@ a:hover {
 	max-height: min(18rem, 42vw);
 }
 
+/* ── 4-image collage grid ────────────────────────────────────────── */
+
+.home-fingerprint-avatar-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 0.25rem;
+	border-radius: 12px;
+	overflow: hidden;
+	filter: drop-shadow(0 2px 16px rgba(34, 28, 22, 0.14));
+}
+
+.home-fingerprint-avatar-img {
+	display: block;
+	width: 100%;
+	aspect-ratio: 1;
+	object-fit: cover;
+}
+
+/* ── Observation stream (shown during loading) ───────────────────── */
+
+.home-fingerprint-avatar-observations {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.3rem;
+}
+
+.home-fingerprint-avatar-observation {
+	font-size: 0.7rem;
+	color: rgba(176, 112, 80, 0.75);
+	letter-spacing: 0.02em;
+	line-height: 1.4;
+	animation: home-fp-obs-in 0.4s ease both;
+}
+
+@keyframes home-fp-obs-in {
+	from {
+		opacity: 0;
+		transform: translateY(5px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+/* ── Privacy disclosure (shown under the image grid) ────────────── */
+
+.home-fingerprint-avatar-disclosure {
+	font-size: 0.65rem;
+	color: rgba(34, 28, 22, 0.4);
+	margin: 0.4rem 0 0;
+	line-height: 1.4;
+}
+
+.home-fingerprint-avatar-disclosure a {
+	color: inherit;
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+
 @media (max-width: 720px) {
 	.home-hero-headline {
 		grid-template-columns: 1fr;

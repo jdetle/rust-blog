@@ -35,6 +35,10 @@ pub fn build_router(state: api::AppState) -> Router {
             "/user-profile/generate-avatar",
             post(api::user_profile_generate_avatar),
         )
+        .route(
+            "/user-profile/observations",
+            post(api::user_profile_observations),
+        )
         .with_state(state)
         .layer(api::cors_layer())
 }

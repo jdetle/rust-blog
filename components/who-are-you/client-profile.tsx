@@ -375,11 +375,13 @@ export function ClientProfile({
 	const [userEventsError, setUserEventsError] = useState<string | null>(null);
 	const [llmSummary, setLlmSummary] = useState<string | null>(null);
 	const [personaGuess, setPersonaGuess] = useState<string | null>(null);
-	const [avatarSvg, setAvatarSvg] = useState<string | null>(null);
-	const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+	const [avatarUrls, setAvatarUrls] = useState<string[]>([]);
+	const [observations, setObservations] = useState<string[]>([]);
+	const [visibleObs, setVisibleObs] = useState(0);
 	const [avatarGenerating, setAvatarGenerating] = useState(false);
 	const avatarRequestedRef = useRef(false);
 	const turnstileTokenRef = useRef<string | null>(null);
+	const obsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const [thirdPartyHostCount, setThirdPartyHostCount] = useState(0);
 	const [gtmPresent, setGtmPresent] = useState(false);
 	const [distinctIdDisplay, setDistinctIdDisplay] = useState<string | null>(
@@ -915,17 +917,17 @@ export function ClientProfile({
 				const data = (await r.json()) as {
 					summary?: string | null;
 					persona_guess?: string | null;
-					avatar_svg?: string | null;
-					avatar_url?: string | null;
+					avatar_urls?: string[] | null;
 				};
 				if (cancelled) return;
 				if (data.summary) setLlmSummary(data.summary);
 				if (data.persona_guess) setPersonaGuess(data.persona_guess);
-				if (data.avatar_url) setAvatarUrl(data.avatar_url);
-				else if (data.avatar_svg) setAvatarSvg(data.avatar_svg);
+				if (data.avatar_urls?.length) {
+					setAvatarUrls(data.avatar_urls.filter(Boolean) as string[]);
+				}
 
-				const hasAvatar = data.avatar_url || data.avatar_svg;
-				if (hasAvatar || avatarRequestedRef.current || !fp) return;
+				const hasAvatars = data.avatar_urls && data.avatar_urls.length > 0;
+				if (hasAvatars || avatarRequestedRef.current || !fp) return;
 				avatarRequestedRef.current = true;
 
 				// Wait for Turnstile token (may arrive slightly after component mounts).
@@ -938,7 +940,6 @@ export function ClientProfile({
 								resolve();
 							}
 						}, 100);
-						// Give up after 10s and proceed without token (server will reject if required).
 						setTimeout(() => {
 							clearInterval(poll);
 							resolve();
@@ -978,7 +979,37 @@ export function ClientProfile({
 					vpn_verdict: vpnAssessment?.verdict ?? undefined,
 				};
 
-			if (!cancelled) setAvatarGenerating(true);
+				if (!cancelled) setAvatarGenerating(true);
+
+				// Kick off observations concurrently with image generation.
+				void fetch("/api/analytics/observations", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						fingerprint: fp,
+						distinct_id: distinctId ?? undefined,
+						user_id: distinctId ?? undefined,
+						user_context: userContext,
+					}),
+				})
+					.then(async (res) => {
+						const json = (await res.json()) as { observations?: string[] };
+						if (json.observations?.length && !cancelled) {
+							setObservations(json.observations);
+							setVisibleObs(1);
+							let idx = 1;
+							obsTimerRef.current = setInterval(() => {
+								idx += 1;
+								setVisibleObs(idx);
+								if (idx >= (json.observations?.length ?? 0) && obsTimerRef.current) {
+									clearInterval(obsTimerRef.current);
+									obsTimerRef.current = null;
+								}
+							}, 8_000);
+						}
+					})
+					.catch(() => { /* non-fatal */ });
+
 			try {
 				const gr = await fetch("/api/analytics/generate-avatar", {
 					method: "POST",
@@ -991,20 +1022,20 @@ export function ClientProfile({
 						turnstile_token: token,
 						user_context: userContext,
 					}),
-					// 45 s: slightly above the 40 s Rust-side proxy budget.
-					signal: AbortSignal.timeout(45_000),
+					signal: AbortSignal.timeout(60_000),
 				});
 				const gen = (await gr.json()) as {
 					persona_guess?: string;
-					avatar_url?: string;
-					avatar_svg?: string;
+					avatar_urls?: string[];
 				};
 				if (cancelled) return;
-				if (gen.avatar_url) {
-					setAvatarUrl(gen.avatar_url);
-					setPersonaGuess(gen.persona_guess ?? null);
-				} else if (gen.avatar_svg) {
-					setAvatarSvg(gen.avatar_svg);
+				// Stop observation ticker once images arrive.
+				if (obsTimerRef.current) {
+					clearInterval(obsTimerRef.current);
+					obsTimerRef.current = null;
+				}
+				if (gen.avatar_urls?.length) {
+					setAvatarUrls(gen.avatar_urls.filter(Boolean) as string[]);
 					setPersonaGuess(gen.persona_guess ?? null);
 				}
 			} finally {
@@ -1635,57 +1666,70 @@ export function ClientProfile({
 				<h2>The Composite Picture</h2>
 				{summary ? (
 					<>
-						{avatarGenerating && !avatarSvg && !avatarUrl && (
-							<div className="fingerprint-avatar-block">
+					{avatarGenerating && avatarUrls.length === 0 && (
+						<div className="fingerprint-avatar-block">
+							<div
+								className="avatar-generating-skeleton"
+								role="status"
+								aria-label="Generating avatar"
+							/>
+							<p className="avatar-generating-label">
+								<strong>Generating your portraits&hellip;</strong>{" "}
+								OpenAI is rendering four personalised collages from your
+								analytics signals. This usually takes 30&ndash;45 s.
+							</p>
+							{observations.length > 0 && (
+								<ul
+									className="fingerprint-avatar-observations"
+									aria-label="Observations while you wait"
+								>
+									{observations.slice(0, visibleObs).map((obs) => (
+										<li key={obs} className="fingerprint-avatar-observation">
+											{obs}
+										</li>
+									))}
+								</ul>
+							)}
+						</div>
+					)}
+					{(avatarUrls.length > 0 || personaGuess) && (
+						<div className="fingerprint-avatar-block">
+							{avatarUrls.length > 0 && (
 								<div
-									className="avatar-generating-skeleton"
-									role="status"
-									aria-label="Generating avatar"
-								/>
-								<p className="avatar-generating-label">
-									<strong>Generating your avatar&hellip;</strong>{" "}
-									Claude (Anthropic) is reading your canvas fingerprint and
-									writing a personalised SVG. This usually takes 10&ndash;20 s.
+									className="fingerprint-avatar-grid"
+									role="img"
+									aria-label="Four regional-artist collages aligned with your visitor profile"
+								>
+									{avatarUrls.map((url, i) => (
+										// biome-ignore lint/performance/noImgElement: data: URIs are not supported by next/image
+										<img
+											key={url}
+											src={url}
+											width={128}
+											height={128}
+											alt={`Collage ${i + 1} of 4`}
+											className="fingerprint-avatar-img"
+											decoding="async"
+										/>
+									))}
+								</div>
+							)}
+							{personaGuess ? (
+								<p className="summary-paragraph fingerprint-avatar-guess">
+									<strong>Wild guess:</strong> {personaGuess}
 								</p>
-							</div>
-						)}
-						{(avatarUrl || avatarSvg || personaGuess) && (
-							<div className="fingerprint-avatar-block">
-								{avatarUrl ? (
-									// biome-ignore lint/performance/noImgElement: data: URIs are not supported by next/image
-									<img
-										src={avatarUrl}
-										width={256}
-										height={256}
-										alt="Regional-artist collage aligned with your visitor profile — not a photograph"
-										className="fingerprint-avatar-img"
-										decoding="async"
-									/>
-								) : avatarSvg ? (
-									<div
-										className="fingerprint-avatar-svg"
-										// biome-ignore lint/security/noDangerouslySetInnerHtml: SVG from server-side Anthropic path + Rust sanitizer only
-										dangerouslySetInnerHTML={{ __html: avatarSvg }}
-										role="img"
-										aria-label="Speculative fictional avatar derived from your fingerprint hash (not a real photo)"
-									/>
-								) : null}
-								{personaGuess ? (
-									<p className="summary-paragraph fingerprint-avatar-guess">
-										<strong>Wild guess:</strong> {personaGuess}
-									</p>
-								) : null}
-								{avatarUrl ? (
-									<p
-										className="summary-paragraph"
-										style={{ fontSize: "0.75rem", opacity: 0.7 }}
-									>
-										Generated with OpenAI using your visible browser &amp; edge
-										signals.
-									</p>
-								) : null}
-							</div>
-						)}
+							) : null}
+							{avatarUrls.length > 0 ? (
+								<p
+									className="summary-paragraph"
+									style={{ fontSize: "0.75rem", opacity: 0.7 }}
+								>
+									Generated with OpenAI using your visible browser &amp; edge
+									signals.
+								</p>
+							) : null}
+						</div>
+					)}
 						<p
 							className="summary-paragraph"
 							// biome-ignore lint/security/noDangerouslySetInnerHtml: summary built from esc()escaped profile fields only

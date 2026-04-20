@@ -1,6 +1,6 @@
 /**
- * Proxies to Rust analytics service: generates a regional-artist collage PNG avatar
- * (or legacy SVG when OpenAI is not configured) and persists the result in Cosmos DB.
+ * Proxies to Rust analytics service: generates 4 × 1024×1024 regional-artist collage
+ * PNGs per visitor per calendar day (UTC) via OpenAI gpt-image-1, persisted in Cosmos DB.
  *
  * AUTH: Gated by Cloudflare Turnstile token verification before proxying upstream.
  *       The token is verified server-side and is NOT forwarded to the Rust service.
@@ -67,10 +67,6 @@ export async function POST(request: NextRequest) {
 		);
 	}
 
-	// ── Feature flag: only forward to Rust when collage mode is enabled ──
-	// Controlled by the AVATAR_COLLAGE_ENABLED env var on the Rust service side.
-	// The Next.js proxy always forwards; the Rust side decides which path to use.
-
 	try {
 		const url = new URL("/user-profile/generate-avatar", ANALYTICS_API_URL);
 		const res = await fetch(url.href, {
@@ -86,8 +82,9 @@ export async function POST(request: NextRequest) {
 				session_id: body.session_id ?? "",
 				user_context: body.user_context ?? {},
 			}),
-			// gpt-image-1 p95 ≈ 20–30 s; give 40 s to the Rust service.
-			signal: AbortSignal.timeout(40_000),
+			// 4 parallel gpt-image-1 calls; p95 per call ≈ 20–30 s, all run in parallel.
+			// Give 55 s total to accommodate variance across all four slots.
+			signal: AbortSignal.timeout(55_000),
 		});
 
 		const data = (await res.json()) as Record<string, unknown>;

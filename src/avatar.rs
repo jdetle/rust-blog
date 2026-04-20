@@ -1,27 +1,26 @@
-//! Avatar generation — two modes:
+//! Avatar generation via Anthropic + OpenAI.
 //!
-//! **New (regional collage):** Claude Haiku derives a persona + art-direction from the visitor's
-//! browser/geo signals, then OpenAI gpt-image-1 renders a 1024×1024 regional-artist collage
-//! that "aligns spiritually" with that guess. PNG stored as base64 in `user_profiles.avatar_png`.
+//! **4-image collage (production):** One Claude Haiku call derives a persona and four distinct
+//! art-direction strings (region/culture, device era, network-mood, persona archetype).
+//! Four OpenAI gpt-image-1 calls then fire in parallel — one per art direction — returning
+//! four 1024×1024 PNGs stored in `user_profiles.avatar_png[1-4]`.
 //!
-//! **Legacy (SVG):** Claude Haiku emits an inline SVG directly. Still used when OpenAI is not
-//! configured (`openai: None` in `AppState`). Kept for backward compatibility.
+//! **Observations:** A separate Claude Haiku call reads UserContext + recent events and emits
+//! 6 one-sentence factual observations about the visitor's signals. Returned as a JSON array;
+//! the client reveals them one-by-one during the ~40s image-generation wait.
 
 use crate::anthropic::AnthropicClient;
 use crate::openai_images::OpenAiImagesClient;
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use serde::{Deserialize, Serialize};
 
-// ── Legacy SVG constants ─────────────────────────────────────────────
 const MODEL: &str = "claude-haiku-4-5-20251001";
 const MAX_TOKENS: u32 = 2048;
-const MAX_SVG_CHARS: usize = 48_000;
 const MAX_PNG_B64_BYTES: usize = 3 * 1024 * 1024; // 3 MB encoded
 
 // ── UserContext ──────────────────────────────────────────────────────
 
-/// All browser/edge signals collected by the client, forwarded verbatim into the prompt so both
-/// the persona guess and the image generation have as much context as possible.
+/// All browser/edge signals collected by the client.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UserContext {
     // Geo (from Vercel Edge / ipapi)
@@ -61,7 +60,7 @@ pub struct UserContext {
 
 impl UserContext {
     /// Render all fields into a labelled block for inclusion in prompts.
-    fn to_prompt_block(&self) -> String {
+    pub fn to_prompt_block(&self) -> String {
         let mut lines: Vec<String> = Vec::new();
         let push = |lines: &mut Vec<String>, label: &str, val: &Option<String>| {
             if let Some(v) = val {
@@ -109,7 +108,7 @@ impl UserContext {
         lines.join("\n")
     }
 
-    fn region_or_country(&self) -> String {
+    pub fn region_or_country(&self) -> String {
         [
             self.city.as_deref(),
             self.region.as_deref(),
@@ -121,11 +120,35 @@ impl UserContext {
         .collect::<Vec<_>>()
         .join(", ")
     }
+
+    fn device_desc(&self) -> String {
+        match (self.gpu.as_deref(), self.os.as_deref(), self.device_type.as_deref()) {
+            (Some(gpu), Some(os), _) if !gpu.is_empty() => format!("{os} with {gpu}"),
+            (_, Some(os), Some(dev)) => format!("{os} ({dev})"),
+            (_, Some(os), _) => os.to_string(),
+            _ => "unknown device".to_string(),
+        }
+    }
+
+    fn connection_mood(&self) -> String {
+        let conn = self.connection_type.as_deref().unwrap_or("unknown");
+        let tz = self.timezone_browser.as_deref().unwrap_or("");
+        if tz.is_empty() {
+            format!("browsing on a {conn} connection")
+        } else {
+            format!("browsing on a {conn} connection in the {tz} timezone")
+        }
+    }
 }
 
-// ── Regional collage flow (new) ──────────────────────────────────────
+// ── Four-image collage prompt ────────────────────────────────────────
 
-/// Build the Claude Haiku prompt for deriving a persona + art-direction string.
+/// Ask Claude Haiku for PERSONA + ART_1 through ART_4.
+///
+/// ART_1 — regional/cultural anchor
+/// ART_2 — device-era visual language
+/// ART_3 — network/time-of-day mood
+/// ART_4 — abstract persona archetype
 pub fn build_regional_collage_prompt(
     fingerprint: &str,
     ctx: &UserContext,
@@ -136,7 +159,7 @@ pub fn build_regional_collage_prompt(
     let location_str = if location.is_empty() {
         "an unknown location".to_string()
     } else {
-        location
+        location.clone()
     };
     let prior_hint = prior_persona
         .filter(|s| !s.is_empty())
@@ -144,94 +167,197 @@ pub fn build_regional_collage_prompt(
         .unwrap_or_default();
 
     format!(
-        r#"You are an AI helping a privacy-education blog create a personalised avatar for a visitor.
+        r#"You are an AI helping a privacy-education blog create four personalised avatar images for a visitor.
 
 Canvas fingerprint (a browser rendering hash, not PII): `{fp}`
 {prior_hint}
 Visitor signals:
 {signals}
 
-Based on the signals above — especially the location ({location}) — do two things:
+Based on the signals — especially the location ({location}) — produce exactly five labelled lines:
 
-1. PERSONA: Write ONE short, clearly **fictional and speculative** sentence about what kind of person this visitor might be. Tone: warm and playful, never creepy. Start with "Probably" or "Maybe". Do not claim to identify a real person.
+PERSONA: ONE short, clearly fictional and speculative sentence about what kind of person this visitor might be. Tone: warm and playful, never creepy. Start with "Probably" or "Maybe".
 
-2. ART_DIRECTION: Write ONE sentence describing the visual style for a 1024×1024 image collage that "aligns spiritually" with your persona guess and the visitor's geographic and cultural context. Reference artistic traditions, colour palettes, or motifs historically associated with artists **from {location}** (not living individuals). Be specific about style: e.g. "Ukiyo-e woodblock waves and indigo gradients", "Austin psychedelic concert-poster geometry in turquoise and burnt orange", "Lagos Afrobeats album-art brightness with batik textile patterns".
+ART_1: ONE sentence describing an abstract art style evoking motifs, colour palettes, and visual traditions historically associated with art movements **from {location}** (not living individuals). Be specific: e.g. "Ukiyo-e woodblock indigo washes and diagonal wave forms".
 
-Format (no markdown, no extra lines):
-PERSONA: <one sentence>
-ART_DIRECTION: <one sentence>"#,
+ART_2: ONE sentence describing a visual language fitting the visitor's device era and capabilities ({device}). E.g. "Pixelated 8-bit dithering in warm amber tones" for old hardware, "Crisp vector geometry and glass morphism" for a modern M-series machine.
+
+ART_3: ONE sentence capturing the mood of someone {connection}. Palette and texture should evoke that state: e.g. "Slow-dissolve watercolour washes in deep indigo for a late-night mobile scroll".
+
+ART_4: ONE sentence as an abstract visual metaphor for the persona archetype. E.g. "Geometric data-stream circuits in teal and copper, evoking an engineer's mind".
+
+Format — no markdown, no extra lines:
+PERSONA: <sentence>
+ART_1: <sentence>
+ART_2: <sentence>
+ART_3: <sentence>
+ART_4: <sentence>"#,
         fp = fingerprint,
         signals = signal_block,
         location = location_str,
         prior_hint = prior_hint,
+        device = ctx.device_desc(),
+        connection = ctx.connection_mood(),
     )
 }
 
-/// Build the OpenAI image-generation prompt from the persona + art-direction.
-fn build_image_prompt(
-    ctx: &UserContext,
-    persona: &str,
-    art_direction: &str,
-) -> String {
-    let location = ctx.region_or_country();
-    let location_str = if location.is_empty() {
-        "the visitor's home region".to_string()
-    } else {
-        location
-    };
-
+fn build_slot_prompt(_location: &str, persona: &str, art: &str, slot_desc: &str) -> String {
     format!(
-        "Generate a collage 1000px×1000px of artists' work from {location}. \
-After each unique visit, update the avatar to align spiritually with our guess of who the user is.\n\n\
-Visitor: {persona}\n\
-Visual style: {art}.\n\n\
-Render as a rich, layered collage evoking motifs, colour palettes, and artistic heritage historically associated with artists from {location}. \
-Abstract and expressive — not a photograph of a real person. No text, no logos.",
-        location = location_str,
+        "Generate a 1024×1024 abstract collage image. {slot_desc}\n\n\
+Visitor persona (fictional guess): {persona}\n\
+Visual style: {art}\n\n\
+Render as a rich, layered abstract composition — not a photograph or portrait of a real person. \
+No text, no logos, no faces. Evoke the spirit of the visitor's data through colour, texture, and form.",
+        slot_desc = slot_desc,
         persona = persona,
-        art = art_direction,
+        art = art,
     )
 }
 
-/// Full collage generation pipeline.
+fn slot1_prompt(ctx: &UserContext, persona: &str, art: &str) -> String {
+    let location = ctx.region_or_country();
+    let loc = if location.is_empty() { "the visitor's region".to_string() } else { location };
+    build_slot_prompt(
+        &loc,
+        persona,
+        art,
+        &format!("Theme: cultural and artistic heritage of {loc}."),
+    )
+}
+
+fn slot2_prompt(ctx: &UserContext, persona: &str, art: &str) -> String {
+    let device = ctx.device_desc();
+    build_slot_prompt(
+        "",
+        persona,
+        art,
+        &format!("Theme: the visual language of a visitor using {device}."),
+    )
+}
+
+fn slot3_prompt(ctx: &UserContext, persona: &str, art: &str) -> String {
+    let mood = ctx.connection_mood();
+    build_slot_prompt(
+        "",
+        persona,
+        art,
+        &format!("Theme: the mood and texture of someone {mood}."),
+    )
+}
+
+fn slot4_prompt(persona: &str, art: &str) -> String {
+    build_slot_prompt(
+        "",
+        persona,
+        art,
+        "Theme: an abstract visual metaphor for this visitor's persona archetype.",
+    )
+}
+
+// ── Generation ────────────────────────────────────────────────────────
+
+/// Full 4-image pipeline:
+/// 1. Claude Haiku → PERSONA + ART_1..4
+/// 2. Four parallel OpenAI gpt-image-1 calls
 ///
-/// 1. Claude Haiku: persona + art-direction from visitor signals.
-/// 2. OpenAI gpt-image-1: 1024×1024 PNG collage.
-///
-/// Returns `(persona_line, data_uri)` where `data_uri` starts with `data:image/png;base64,`.
+/// Returns `(persona_line, [b64_1, b64_2, b64_3, b64_4])` where each b64 is raw
+/// (no `data:` prefix) and encodes a 1024×1024 PNG.
 pub async fn generate_regional_collage(
     openai: &OpenAiImagesClient,
     anthropic: &AnthropicClient,
     fingerprint: &str,
     ctx: &UserContext,
     prior_persona: Option<&str>,
-) -> Result<(String, String), Box<dyn std::error::Error + Send + Sync>> {
-    // Step 1: Claude derives persona + art-direction.
+) -> Result<(String, [String; 4]), Box<dyn std::error::Error + Send + Sync>> {
+    // Step 1: Claude derives persona + 4 art-directions.
     let claude_prompt = build_regional_collage_prompt(fingerprint, ctx, prior_persona);
     let claude_raw = anthropic.messages(MODEL, MAX_TOKENS, &claude_prompt).await?;
 
     let persona = extract_labeled_line(&claude_raw, "PERSONA");
-    let art_direction = extract_labeled_line(&claude_raw, "ART_DIRECTION");
+    let art_1 = extract_labeled_line(&claude_raw, "ART_1");
+    let art_2 = extract_labeled_line(&claude_raw, "ART_2");
+    let art_3 = extract_labeled_line(&claude_raw, "ART_3");
+    let art_4 = extract_labeled_line(&claude_raw, "ART_4");
 
     let persona = if persona.is_empty() {
         "A speculative, fictional visitor sketch — not a real identification.".to_string()
     } else {
         persona
     };
-    let art_direction = if art_direction.is_empty() {
-        "An abstract collage of regional art motifs in vibrant colours.".to_string()
-    } else {
-        art_direction
-    };
+    let art_1 = if art_1.is_empty() { "Abstract regional art motifs in vibrant colours.".to_string() } else { art_1 };
+    let art_2 = if art_2.is_empty() { "Clean geometric forms in neutral tones.".to_string() } else { art_2 };
+    let art_3 = if art_3.is_empty() { "Flowing organic shapes in muted blues.".to_string() } else { art_3 };
+    let art_4 = if art_4.is_empty() { "Data-stream circuits in teal and copper.".to_string() } else { art_4 };
 
-    // Step 2: OpenAI renders the collage.
-    let image_prompt = build_image_prompt(ctx, &persona, &art_direction);
-    let b64 = openai.generate(&image_prompt).await?;
-    validate_png_b64(&b64)?;
+    // Step 2: Four parallel OpenAI image calls.
+    let p1 = slot1_prompt(ctx, &persona, &art_1);
+    let p2 = slot2_prompt(ctx, &persona, &art_2);
+    let p3 = slot3_prompt(ctx, &persona, &art_3);
+    let p4 = slot4_prompt(&persona, &art_4);
 
-    let data_uri = format!("data:image/png;base64,{b64}");
-    Ok((persona, data_uri))
+    let (r1, r2, r3, r4) = tokio::join!(
+        openai.generate(&p1),
+        openai.generate(&p2),
+        openai.generate(&p3),
+        openai.generate(&p4),
+    );
+
+    let b1 = r1.map_err(|e| format!("OpenAI slot 1 failed: {e}"))?;
+    let b2 = r2.map_err(|e| format!("OpenAI slot 2 failed: {e}"))?;
+    let b3 = r3.map_err(|e| format!("OpenAI slot 3 failed: {e}"))?;
+    let b4 = r4.map_err(|e| format!("OpenAI slot 4 failed: {e}"))?;
+
+    validate_png_b64(&b1)?;
+    validate_png_b64(&b2)?;
+    validate_png_b64(&b3)?;
+    validate_png_b64(&b4)?;
+
+    Ok((persona, [b1, b2, b3, b4]))
 }
+
+// ── Observations ─────────────────────────────────────────────────────
+
+/// Generate 6 factual one-sentence observations about the visitor's analytics signals.
+///
+/// Each observation starts with "•". The list is returned as a `Vec<String>` of individual
+/// sentences for the client to reveal one-by-one during the image-generation wait.
+pub async fn generate_observations(
+    anthropic: &AnthropicClient,
+    ctx: &UserContext,
+) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
+    let signal_block = ctx.to_prompt_block();
+    let prompt = format!(
+        r#"You are a data analyst reading a web visitor's browser signals for a privacy-education page.
+
+Write exactly 6 specific, factual observations about this visitor's signals.
+
+Rules:
+- Each observation is one complete sentence
+- Start every observation on its own line beginning with "•"
+- Use specific values from the data: exact city, browser version, GPU model, etc.
+- State observable facts only — describe what the data shows, not advice or judgements
+- Do not greet the visitor, do not add a preamble or conclusion
+
+Signals:
+{signals}"#,
+        signals = signal_block,
+    );
+
+    let raw = anthropic.messages(MODEL, MAX_TOKENS, &prompt).await?;
+    let observations = parse_observations(&raw);
+    Ok(observations)
+}
+
+fn parse_observations(raw: &str) -> Vec<String> {
+    raw.lines()
+        .map(|l| l.trim())
+        .filter(|l| l.starts_with('•'))
+        .map(|l| l.trim_start_matches('•').trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+// ── Validation ────────────────────────────────────────────────────────
 
 /// Validate that a base64 string decodes to a PNG and is within the size limit.
 pub fn validate_png_b64(b64: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -259,145 +385,14 @@ fn extract_labeled_line(text: &str, label: &str) -> String {
     String::new()
 }
 
-// ── Legacy SVG flow ───────────────────────────────────────────────────
-
-fn build_prompt(fingerprint: &str, summary_hint: Option<&str>) -> String {
-    let hint = summary_hint
-        .filter(|s| !s.is_empty())
-        .map(|s| format!("\nOptional context (browsing summary, may be empty):\n{s}\n"))
-        .unwrap_or_default();
-
-    format!(
-        r#"You are helping a privacy-education page on a personal tech blog.
-
-Given this **canvas fingerprint hash** (a browser rendering id, not a name or PII):
-`{fp}`
-{hint}
-
-1) Write **PERSONA:** followed by ONE short sentence — a clearly **fictional, speculative** guess about what *kind* of visitor they might be (tone: playful, not creepy). Say it is a guess. Do not claim to identify a real person.
-
-2) On the next lines, output **SVG:** then a single complete **inline SVG** document: abstract or mascot-style, **not** a photorealistic human face. viewBox="0 0 128 128", width="128" height="128". Use a stable palette derived from the fingerprint string (hash the chars mentally for hue choices). No text inside the SVG.
-
-3) No markdown code fences. No XML declaration. The SVG must start with `<svg` and end with `</svg>`.
-
-Example shape (your content must differ):
-PERSONA: Probably a curious builder who reads long posts — just a guess.
-SVG: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">...</svg>"#,
-        fp = fingerprint,
-        hint = hint,
-    )
-}
-
-/// Legacy: Returns `(persona_guess, svg_markup)`. Used when OpenAI is not configured.
-pub async fn generate_fake_avatar(
-    client: &AnthropicClient,
-    fingerprint: &str,
-    summary_hint: Option<&str>,
-) -> Result<(String, String), Box<dyn std::error::Error + Send + Sync>> {
-    let prompt = build_prompt(fingerprint, summary_hint);
-    let raw = client.messages(MODEL, MAX_TOKENS, &prompt).await?;
-    parse_and_sanitize(&raw)
-}
-
-fn parse_and_sanitize(
-    raw: &str,
-) -> Result<(String, String), Box<dyn std::error::Error + Send + Sync>> {
-    let stripped = strip_markdown_fences(raw);
-    let persona = extract_persona(&stripped);
-    let svg = extract_svg(&stripped)?;
-    let svg = sanitize_svg(&svg)?;
-    Ok((persona, svg))
-}
-
-fn strip_markdown_fences(s: &str) -> String {
-    let mut out = s.to_string();
-    if let Some(i) = out.find("```") {
-        out = out[i + 3..].to_string();
-        if let Some(j) = out.find("```") {
-            out = out[..j].to_string();
-        }
-    }
-    out
-}
-
-fn extract_persona(s: &str) -> String {
-    for line in s.lines() {
-        let t = line.trim();
-        if t.len() >= 8 && t[..8].eq_ignore_ascii_case("PERSONA:") {
-            return t[8..].trim().to_string();
-        }
-    }
-    "A speculative, fictional visitor sketch — not a real identification.".to_string()
-}
-
-fn extract_svg(s: &str) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    let lower = s.to_ascii_lowercase();
-    let start = lower.find("<svg").ok_or("no <svg in model output")?;
-    let after = &s[start..];
-    let after_lower = after.to_ascii_lowercase();
-    let end = after_lower
-        .rfind("</svg>")
-        .map(|i| i + "</svg>".len())
-        .ok_or("no </svg> in model output")?;
-    Ok(after[..end].to_string())
-}
-
-/// Drop obvious script/event vectors; cap size.
-///
-/// # Known gap
-/// `<use>` cross-document references are not rejected here. The prompt constraints
-/// make them unlikely, but a future pass should handle `href` values with scheme+path.
-pub fn sanitize_svg(svg: &str) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    if svg.len() > MAX_SVG_CHARS {
-        return Err("SVG too large".into());
-    }
-    let lower = svg.to_ascii_lowercase();
-    if lower.contains("<script") || lower.contains("</script") {
-        return Err("SVG contains script".into());
-    }
-    if lower.contains("javascript:") || lower.contains("onload=") || lower.contains("onerror=") {
-        return Err("SVG contains unsafe handlers".into());
-    }
-    if lower.contains("<foreignobject") {
-        return Err("SVG contains foreignObject".into());
-    }
-    if reject_data_uris(svg) {
-        return Err("SVG contains data: URI in attribute".into());
-    }
-    if !lower.contains("xmlns=") {
-        let with_ns = svg.replacen("<svg", "<svg xmlns=\"http://www.w3.org/2000/svg\"", 1);
-        return Ok(with_ns);
-    }
-    Ok(svg.to_string())
-}
-
-/// Returns true if any `href` or `xlink:href` attribute value starts with `data:`.
-fn reject_data_uris(svg: &str) -> bool {
-    let lower = svg.to_ascii_lowercase();
-    for attr in ["href=", "xlink:href="] {
-        let mut search = lower.as_str();
-        while let Some(pos) = search.find(attr) {
-            let after = search[pos + attr.len()..].trim_start();
-            let value = after.trim_start_matches('"').trim_start_matches('\'');
-            if value.starts_with("data:") {
-                return true;
-            }
-            search = &search[pos + attr.len()..];
-        }
-    }
-    false
-}
-
 // ── Tests ─────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // ── Regional collage prompt tests ─────────────────────────────────
-
     #[test]
-    fn regional_prompt_contains_fingerprint() {
+    fn regional_prompt_contains_fingerprint_and_all_labels() {
         let ctx = UserContext {
             city: Some("Austin".to_string()),
             country: Some("United States".to_string()),
@@ -405,12 +400,12 @@ mod tests {
             ..Default::default()
         };
         let prompt = build_regional_collage_prompt("deadbeef", &ctx, None);
-        assert!(prompt.contains("deadbeef"), "prompt must contain fingerprint");
-        assert!(prompt.contains("PERSONA:"), "prompt must request PERSONA label");
-        assert!(
-            prompt.contains("ART_DIRECTION:"),
-            "prompt must request ART_DIRECTION label"
-        );
+        assert!(prompt.contains("deadbeef"));
+        assert!(prompt.contains("PERSONA:"));
+        assert!(prompt.contains("ART_1:"));
+        assert!(prompt.contains("ART_2:"));
+        assert!(prompt.contains("ART_3:"));
+        assert!(prompt.contains("ART_4:"));
     }
 
     #[test]
@@ -448,79 +443,34 @@ mod tests {
     }
 
     #[test]
-    fn image_prompt_contains_required_phrase() {
-        let ctx = UserContext {
-            city: Some("Lagos".to_string()),
-            country: Some("Nigeria".to_string()),
-            ..Default::default()
-        };
-        let p = build_image_prompt(&ctx, "Probably a creative", "Afrobeats album art");
-        assert!(
-            p.contains("Generate a collage 1000px×1000px"),
-            "prompt must contain the required phrase"
-        );
-        assert!(p.contains("align spiritually"));
-        assert!(p.contains("Afrobeats album art"));
-        assert!(p.contains("Lagos") || p.contains("Nigeria"));
-    }
-
-    #[test]
     fn validate_png_b64_rejects_oversized() {
         let huge = "A".repeat(MAX_PNG_B64_BYTES + 1);
         assert!(validate_png_b64(&huge).is_err());
     }
 
     #[test]
-    fn extract_labeled_line_parses_both_labels() {
-        let text = "PERSONA: Probably a builder.\nART_DIRECTION: Ukiyo-e waves in indigo.";
-        assert_eq!(
-            extract_labeled_line(text, "PERSONA"),
-            "Probably a builder."
-        );
-        assert_eq!(
-            extract_labeled_line(text, "ART_DIRECTION"),
-            "Ukiyo-e waves in indigo."
-        );
-    }
-
-    // ── Legacy SVG tests ──────────────────────────────────────────────
-
-    #[test]
-    fn extract_svg_finds_tag() {
-        let raw = r#"PERSONA: Hello
-SVG: <svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg>"#;
-        let svg = extract_svg(raw).unwrap();
-        assert!(svg.starts_with("<svg"));
-        assert!(svg.ends_with("</svg>"));
+    fn extract_labeled_line_parses_all_four_art_labels() {
+        let text = "PERSONA: Probably a builder.\nART_1: Ukiyo-e waves.\nART_2: Bauhaus geometry.\nART_3: Midnight washes.\nART_4: Circuit diagrams.";
+        assert_eq!(extract_labeled_line(text, "PERSONA"), "Probably a builder.");
+        assert_eq!(extract_labeled_line(text, "ART_1"), "Ukiyo-e waves.");
+        assert_eq!(extract_labeled_line(text, "ART_2"), "Bauhaus geometry.");
+        assert_eq!(extract_labeled_line(text, "ART_3"), "Midnight washes.");
+        assert_eq!(extract_labeled_line(text, "ART_4"), "Circuit diagrams.");
     }
 
     #[test]
-    fn sanitize_rejects_script() {
-        let bad = r#"<svg><script>x</script></svg>"#;
-        assert!(sanitize_svg(bad).is_err());
+    fn parse_observations_extracts_bullet_lines() {
+        let raw = "Here are some observations:\n• You are browsing from Tokyo, Japan.\n• Your browser is Firefox 124 on macOS.\n• Your GPU is Apple M3 Pro.\n• You are on a residential connection.\n• Dark mode is enabled.\n• Your screen resolution is 2560x1664.";
+        let obs = parse_observations(raw);
+        assert_eq!(obs.len(), 6);
+        assert!(obs[0].contains("Tokyo"));
+        assert!(obs[1].contains("Firefox"));
+        assert!(obs[5].contains("2560"));
     }
 
     #[test]
-    fn sanitize_rejects_data_uri_in_href() {
-        let bad = r#"<svg xmlns="http://www.w3.org/2000/svg"><image href="data:text/html,<h1>xss</h1>"/></svg>"#;
-        assert!(sanitize_svg(bad).is_err());
-    }
-
-    #[test]
-    fn sanitize_rejects_data_uri_in_xlink_href() {
-        let bad = r#"<svg xmlns="http://www.w3.org/2000/svg"><use xlink:href="data:image/svg+xml,<svg/>"/></svg>"#;
-        assert!(sanitize_svg(bad).is_err());
-    }
-
-    #[test]
-    fn sanitize_allows_clean_svg() {
-        let ok = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><circle cx="64" cy="64" r="50"/></svg>"#;
-        assert!(sanitize_svg(ok).is_ok());
-    }
-
-    #[test]
-    fn sanitize_rejects_javascript_href() {
-        let bad = r#"<svg xmlns="http://www.w3.org/2000/svg"><a href="javascript:alert(1)"><rect/></a></svg>"#;
-        assert!(sanitize_svg(bad).is_err());
+    fn parse_observations_handles_empty_input() {
+        let obs = parse_observations("No bullet points here.");
+        assert!(obs.is_empty());
     }
 }

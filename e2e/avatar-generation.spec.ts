@@ -1,22 +1,12 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * E2E test: avatar generation via the /who-are-you page and the home-page hero.
+ * E2E test: 4-image avatar generation via the /who-are-you page and home-page hero.
  *
- * Requires three services running (started by playwright.config.ts webServer array):
- *   1. Next.js dev server  (BLOG_SERVICE_URL pointing at blog-service)
- *   2. blog-service binary (BLOG_SERVICE_DB=memory, ANTHROPIC_BASE_URL=mock sidecar)
- *   3. mock-anthropic      (scripts/e2e/mock-anthropic.ts)
- *
- * The blog-service binary must be pre-compiled with --features test-support before
- * Playwright starts; see ci.yml "Build blog-service (test-support)" step.
- *
- * For the new PNG collage flow, the generate-avatar API route is mocked at the
- * network level so we don't need a live OpenAI key in CI.
+ * The generate-avatar and observations routes are mocked at the network level so tests
+ * run without a live OpenAI key or a full blog-service in CI.
  */
 
-const MOCK_ANTHROPIC_URL =
-	process.env.MOCK_ANTHROPIC_URL ?? "http://127.0.0.1:9090";
 const BLOG_SERVICE_URL =
 	process.env.BLOG_SERVICE_URL ?? "http://127.0.0.1:8090";
 
@@ -24,166 +14,157 @@ const BLOG_SERVICE_URL =
 const FIXTURE_PNG_DATA_URI =
 	"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
-async function resetMockCalls() {
-	await fetch(`${MOCK_ANTHROPIC_URL}/__reset`, { method: "POST" }).catch(
-		() => {},
-	);
+const FIXTURE_AVATAR_URLS = [
+	FIXTURE_PNG_DATA_URI,
+	FIXTURE_PNG_DATA_URI,
+	FIXTURE_PNG_DATA_URI,
+	FIXTURE_PNG_DATA_URI,
+];
+
+const FIXTURE_OBSERVATIONS = [
+	"You are browsing from Tokyo, Japan.",
+	"Your browser is Firefox 124 on macOS.",
+	"Your GPU is Apple M3.",
+	"Dark mode is enabled.",
+	"You are on a residential connection.",
+	"Your screen resolution is 2560x1664.",
+];
+
+// ── Helper: stub Turnstile ────────────────────────────────────────────
+
+async function stubTurnstile(
+	page: import("@playwright/test").Page,
+	token = "test-turnstile-token",
+) {
+	await page.addInitScript((t) => {
+		window.turnstile = {
+			render: (
+				_container: HTMLElement | string,
+				options: { callback?: (tok: string) => void },
+			) => {
+				setTimeout(() => options.callback?.(t), 50);
+				return "widget-id";
+			},
+			reset: () => {},
+			remove: () => {},
+		};
+	}, token);
 }
 
-async function getMockCallCount(): Promise<number> {
-	try {
-		const res = await fetch(`${MOCK_ANTHROPIC_URL}/__calls`);
-		const json = (await res.json()) as { calls: number };
-		return json.calls;
-	} catch {
-		return -1;
+// ── Helper: stub analytics routes ────────────────────────────────────
+
+async function stubAnalyticsRoutes(
+	page: import("@playwright/test").Page,
+	options: { hasCache?: boolean; generateFails?: boolean } = {},
+) {
+	const cachedUrls = options.hasCache ? FIXTURE_AVATAR_URLS : null;
+
+	await page.route("**/api/analytics/user-profile**", async (route) => {
+		await route.fulfill({
+			status: 200,
+			contentType: "application/json",
+			body: JSON.stringify({
+				summary: null,
+				updated_at: null,
+				persona_guess: null,
+				avatar_urls: cachedUrls,
+			}),
+		});
+	});
+
+	if (!options.hasCache) {
+		await page.route("**/api/analytics/generate-avatar", async (route) => {
+			if (options.generateFails) {
+				await route.fulfill({
+					status: 403,
+					contentType: "application/json",
+					body: JSON.stringify({ error: "Captcha verification failed" }),
+				});
+			} else {
+				await route.fulfill({
+					status: 200,
+					contentType: "application/json",
+					body: JSON.stringify({
+						persona_guess: "Probably a curious builder — just a guess.",
+						avatar_urls: FIXTURE_AVATAR_URLS,
+						cached: false,
+					}),
+				});
+			}
+		});
+
+		await page.route("**/api/analytics/observations", async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: JSON.stringify({ observations: FIXTURE_OBSERVATIONS }),
+			});
+		});
 	}
 }
 
-test.beforeEach(async () => {
-	await resetMockCalls();
-});
+// ── Home hero tests ───────────────────────────────────────────────────
 
-// ── Legacy SVG path ────────────────────────────────────────────────────
-
-test("avatar SVG renders on /who-are-you (legacy path)", async ({ page }) => {
-	await page.goto("/who-are-you");
-
-	const avatarContainer = page.locator(
-		".fingerprint-avatar-svg, .fingerprint-avatar-img",
-	);
-	await expect(avatarContainer).toBeVisible({ timeout: 45_000 });
-});
-
-test("avatar is served from cache on reload without a second Anthropic call", async ({
+test("home hero renders 4-image grid when generate-avatar returns avatar_urls", async ({
 	page,
 }) => {
-	await page.goto("/who-are-you");
-
-	const avatarContainer = page.locator(
-		".fingerprint-avatar-svg, .fingerprint-avatar-img",
-	);
-	await expect(avatarContainer).toBeVisible({ timeout: 45_000 });
-	const callsAfterFirst = await getMockCallCount();
-
-	await page.reload();
-	await expect(
-		page.locator(".fingerprint-avatar-svg, .fingerprint-avatar-img"),
-	).toBeVisible({ timeout: 30_000 });
-
-	const callsAfterReload = await getMockCallCount();
-	expect(callsAfterReload).toBe(callsAfterFirst);
-});
-
-// ── PNG collage path (mocked generate-avatar route) ───────────────────
-
-test("home hero renders PNG avatar when generate-avatar returns avatar_url", async ({
-	page,
-}) => {
-	// Stub Turnstile so widget fires immediately without a real challenge.
-	await page.addInitScript(() => {
-		window.turnstile = {
-			render: (
-				container: HTMLElement | string,
-				options: { callback?: (token: string) => void },
-			) => {
-				setTimeout(() => options.callback?.("test-turnstile-token"), 50);
-				return "widget-id";
-			},
-			reset: () => {},
-			remove: () => {},
-		};
-	});
-
-	// Mock /api/analytics/user-profile to return no existing avatar.
-	await page.route("**/api/analytics/user-profile**", async (route) => {
-		await route.fulfill({
-			status: 200,
-			contentType: "application/json",
-			body: JSON.stringify({
-				summary: null,
-				updated_at: null,
-				persona_guess: null,
-				avatar_svg: null,
-				avatar_url: null,
-			}),
-		});
-	});
-
-	// Mock /api/analytics/generate-avatar to return a fixture PNG.
-	await page.route("**/api/analytics/generate-avatar", async (route) => {
-		await route.fulfill({
-			status: 200,
-			contentType: "application/json",
-			body: JSON.stringify({
-				persona_guess: "Probably a curious builder — just a guess.",
-				avatar_url: FIXTURE_PNG_DATA_URI,
-				avatar_svg: null,
-				cached: false,
-			}),
-		});
-	});
-
+	await stubTurnstile(page);
+	await stubAnalyticsRoutes(page);
 	await page.goto("/");
 
-	// The home-fingerprint-avatar component renders <img class="home-fingerprint-avatar-img">.
-	const img = page.locator("img.home-fingerprint-avatar-img");
-	await expect(img).toBeVisible({ timeout: 30_000 });
+	// The component renders multiple <img class="home-fingerprint-avatar-img"> elements.
+	const imgs = page.locator("img.home-fingerprint-avatar-img");
+	await expect(imgs).toHaveCount(4, { timeout: 30_000 });
 
-	const src = await img.getAttribute("src");
+	const src = await imgs.first().getAttribute("src");
 	expect(src).toMatch(/^data:image\/png;base64,/);
 });
 
-test("home hero falls back gracefully when generate-avatar returns 403 (captcha failure)", async ({
+test("home hero loads from cache without calling generate-avatar", async ({
 	page,
 }) => {
-	// No Turnstile stub — widget never fires (simulating blocked challenge).
-	// Also stub generate-avatar to return 403 immediately.
-	await page.route("**/api/analytics/user-profile**", async (route) => {
-		await route.fulfill({
-			status: 200,
-			contentType: "application/json",
-			body: JSON.stringify({
-				summary: null,
-				updated_at: null,
-				persona_guess: null,
-				avatar_svg: null,
-				avatar_url: null,
-			}),
-		});
-	});
+	await stubTurnstile(page);
+	await stubAnalyticsRoutes(page, { hasCache: true });
 
+	// Track whether generate-avatar was called (should not be).
+	let generateCalled = false;
 	await page.route("**/api/analytics/generate-avatar", async (route) => {
-		await route.fulfill({
-			status: 403,
-			contentType: "application/json",
-			body: JSON.stringify({ error: "Captcha verification failed" }),
-		});
-	});
-
-	// Stub Turnstile to fire a token quickly so the flow runs but 403 is returned.
-	await page.addInitScript(() => {
-		window.turnstile = {
-			render: (
-				container: HTMLElement | string,
-				options: { callback?: (token: string) => void },
-			) => {
-				setTimeout(() => options.callback?.("bad-token"), 50);
-				return "widget-id";
-			},
-			reset: () => {},
-			remove: () => {},
-		};
+		generateCalled = true;
+		await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
 	});
 
 	await page.goto("/");
 
-	// Avatar should be absent (no img, no svg container, no skeleton) after 5s.
+	const imgs = page.locator("img.home-fingerprint-avatar-img");
+	await expect(imgs).toHaveCount(4, { timeout: 15_000 });
+	expect(generateCalled).toBe(false);
+});
+
+test("home hero is absent when generate-avatar fails", async ({ page }) => {
+	await stubTurnstile(page, "bad-token");
+	await stubAnalyticsRoutes(page, { generateFails: true });
+	await page.goto("/");
+
+	// Avatar container should disappear after the failed call.
 	await page.waitForTimeout(5_000);
-	const img = page.locator("img.home-fingerprint-avatar-img");
-	const svg = page.locator(".home-fingerprint-avatar-svg");
-	await expect(img).toBeHidden();
-	await expect(svg).toBeHidden();
+	const imgs = page.locator("img.home-fingerprint-avatar-img");
+	await expect(imgs).toHaveCount(0);
+});
+
+// ── Who-are-you page tests ────────────────────────────────────────────
+
+test("who-are-you page renders avatar grid in composite picture section", async ({
+	page,
+}) => {
+	await stubTurnstile(page);
+	await stubAnalyticsRoutes(page);
+	await page.goto("/who-are-you");
+
+	const grid = page.locator(".fingerprint-avatar-grid");
+	await expect(grid).toBeVisible({ timeout: 45_000 });
+
+	const imgs = grid.locator("img.fingerprint-avatar-img");
+	await expect(imgs).toHaveCount(4, { timeout: 5_000 });
 });
 
 // ── Service health ─────────────────────────────────────────────────────
