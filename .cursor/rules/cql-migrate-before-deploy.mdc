@@ -1,0 +1,40 @@
+---
+description: CQL migrations must be applied before Rust code that depends on new columns is deployed. Applies when editing migrations/ or src/analytics.rs.
+globs: ["migrations/**/*.cql", "src/analytics.rs"]
+alwaysApply: false
+---
+
+# CQL Schema Must Lead Deployment
+
+## The Rule
+
+New CQL columns must exist in production **before** the Rust binary that reads or writes them is deployed. Schema changes are additive (Cassandra `ADD` is idempotent); code changes are not — a missing column causes `InvalidRequest` at startup and puts `blog-service` in **degraded mode**.
+
+## Checklist When Adding a Column
+
+- [ ] `ALTER TABLE … ADD <col> <type>;` is in `migrations/<NNN>_<description>.cql`
+- [ ] `scripts/run-analytics-migrations.sh` references the new migration file
+- [ ] `deploy-azure.yml` "Run CQL migrations" step will fire (it runs on every deploy to `main` that touches `src/**` or `migrations/**`)
+- [ ] Do **not** merge Rust code that `INSERT`s or `SELECT`s the new column until the migration file is also committed in the same PR (so the workflow applies schema before the image is updated)
+
+## Why degraded mode is silent
+
+`blog-service` catches the Cosmos `InvalidRequest` at startup and logs a `WARN` but continues serving. Users see request timeouts, not an error page — making this failure mode easy to miss without log monitoring.
+
+## Bad pattern
+
+```
+feat/my-branch
+  src/analytics.rs  ← references avatar_png_2 (NEW)
+  # migrations/ NOT updated → deploy succeeds → container degraded
+```
+
+## Good pattern
+
+```
+feat/my-branch
+  src/analytics.rs              ← references avatar_png_2 (NEW)
+  migrations/004_4images.cql   ← ADD avatar_png_2 text; (NEW)
+  scripts/run-analytics-migrations.sh ← 004 step added (NEW)
+  # deploy-azure.yml runs migration step BEFORE image update ✓
+```
