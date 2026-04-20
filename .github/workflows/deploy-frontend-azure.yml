@@ -1,9 +1,14 @@
-# Builds the Next.js frontend via ACR Tasks and deploys it to Azure Container Apps
-# as ca-rust-blog-web in the existing cae-rust-blog environment.
+# Builds the Next.js frontend with bun on the CI runner and deploys it to
+# Azure Container Apps as ca-rust-blog-web in cae-rust-blog.
 #
-# NEXT_PUBLIC_* vars are baked into the JS bundle at build time via --build-arg;
-# runtime secrets (TURNSTILE_SECRET_KEY, POSTHOG_PERSONAL_API_KEY) are injected
-# directly by the Container App using secretref.
+# Build flow:
+#   1. bun install + bun run build  (NEXT_PUBLIC_* baked into bundle here)
+#   2. Assemble minimal Docker context from .next/standalone + .next/static
+#   3. docker build Dockerfile.frontend (runtime-only node:22-alpine image)
+#   4. docker push to ACR, then az containerapp create/update
+#
+# Runtime secrets (TURNSTILE_SECRET_KEY, POSTHOG_PERSONAL_API_KEY) are
+# injected by the Container App via secretref — never needed at build time.
 #
 # Required secrets (shared with deploy-azure.yml):
 #   AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AZURE_CLIENT_ID
@@ -114,29 +119,55 @@ jobs:
             echo "tag=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build and push via ACR Tasks
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.12"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build Next.js
+        env:
+          NEXT_PUBLIC_POSTHOG_KEY: "phc_sOf9IR0gRco70ZVGBwuP8ZNTlbJkw1on9FNeVV1xNtp"
+          NEXT_PUBLIC_POSTHOG_HOST: "https://us.posthog.com"
+          NEXT_PUBLIC_GA4_ID: "G-S217MS7QDZ"
+          NEXT_PUBLIC_CLARITY_ID: "vx6vutcs1m"
+          NEXT_PUBLIC_PLAUSIBLE_DOMAIN: "jdetle.com"
+          NEXT_PUBLIC_PLAUSIBLE_SCRIPT_ID: "pa-HRDk6uSQvdeP6j3mL0toe"
+          NEXT_PUBLIC_META_PIXEL_ID: "169560873691070"
+          NEXT_PUBLIC_SITE_URL: "https://jdetle.com"
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: "0x4AAAAAAC_y5h9W44gaxQtB"
+        run: bun run build
+
+      - name: Assemble Docker context
+        run: |
+          # Collect only the files the runtime image needs — avoids sending
+          # the full repo to the Docker daemon and sidesteps .dockerignore issues.
+          mkdir -p _deploy/.next
+          cp -r .next/standalone/. _deploy/
+          cp -r .next/static     _deploy/.next/static
+          # public/ is optional; create an empty dir if the project has none.
+          mkdir -p _deploy/public
+          [ -d public ] && cp -r public/. _deploy/public/ || true
+
+      - name: Login to ACR
         env:
           PLATFORM_ACR: ${{ secrets.PLATFORM_ACR }}
           PLATFORM_SUB_ID: ${{ secrets.PLATFORM_SUB_ID }}
-          TAG: ${{ steps.meta.outputs.tag }}
         run: |
           ACR_NAME="${PLATFORM_ACR%%.*}"
-          az acr build \
-            --registry "$ACR_NAME" \
-            --subscription "$PLATFORM_SUB_ID" \
-            --image "${FRONTEND_IMAGE}:${TAG}" \
-            --file Dockerfile.frontend \
-            --build-arg NEXT_PUBLIC_POSTHOG_KEY="phc_sOf9IR0gRco70ZVGBwuP8ZNTlbJkw1on9FNeVV1xNtp" \
-            --build-arg NEXT_PUBLIC_POSTHOG_HOST="https://us.posthog.com" \
-            --build-arg NEXT_PUBLIC_GA4_ID="G-S217MS7QDZ" \
-            --build-arg NEXT_PUBLIC_CLARITY_ID="vx6vutcs1m" \
-            --build-arg NEXT_PUBLIC_PLAUSIBLE_DOMAIN="jdetle.com" \
-            --build-arg NEXT_PUBLIC_PLAUSIBLE_SCRIPT_ID="pa-HRDk6uSQvdeP6j3mL0toe" \
-            --build-arg NEXT_PUBLIC_META_PIXEL_ID="169560873691070" \
-            --build-arg NEXT_PUBLIC_SITE_URL="https://jdetle.com" \
-            --build-arg NEXT_PUBLIC_TURNSTILE_SITE_KEY="0x4AAAAAAC_y5h9W44gaxQtB" \
-            .
-          echo "IMAGE=${PLATFORM_ACR}/${FRONTEND_IMAGE}:${TAG}" >> "$GITHUB_ENV"
+          az acr login --name "$ACR_NAME" --subscription "$PLATFORM_SUB_ID"
+
+      - name: Build and push Docker image
+        env:
+          PLATFORM_ACR: ${{ secrets.PLATFORM_ACR }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          IMAGE="${PLATFORM_ACR}/${FRONTEND_IMAGE}:${TAG}"
+          docker build --file Dockerfile.frontend --tag "$IMAGE" _deploy/
+          docker push "$IMAGE"
+          echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
 
       - name: Resolve backend URL
         env:
@@ -152,7 +183,7 @@ jobs:
         env:
           RG: ${{ secrets.AZURE_RESOURCE_GROUP }}
           PLATFORM_ACR: ${{ secrets.PLATFORM_ACR }}
-          # TURNSTILE_SECRET_KEY, POSTHOG_PERSONAL_API_KEY, BACKEND_URL set above
+          # TURNSTILE_SECRET_KEY, POSTHOG_PERSONAL_API_KEY, BACKEND_URL, IMAGE set above
         run: |
           IDENTITY_ID=$(az identity show \
             --name "id-rust-blog" \

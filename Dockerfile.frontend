@@ -1,48 +1,13 @@
-# Multi-stage Next.js frontend image for jdetle.com.
+# Runtime-only image — Next.js is built by bun in CI (deploy-frontend-azure.yml).
+# The build context passed to this Dockerfile contains only the assembled
+# standalone output; no source files or node_modules are needed here.
 #
-# NEXT_PUBLIC_* vars are baked into the JS bundle at build time — pass them
-# as --build-arg flags to `az acr build` (see deploy-frontend-azure.yml).
-# Runtime-only secrets (TURNSTILE_SECRET_KEY, POSTHOG_PERSONAL_API_KEY, etc.)
-# are injected by the Container App and never needed here.
+# Context layout expected by CI:
+#   .next/standalone/   → Next.js standalone server + traced deps + posts/
+#   .next/static/       → Static assets (JS/CSS chunks)
+#   public/             → Public directory (created empty by CI if absent)
 
-# ── Stage 1: install dependencies ─────────────────────────────────────────────
-FROM oven/bun:1.3.12-alpine AS deps
-WORKDIR /app
-COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
-
-# ── Stage 2: build ────────────────────────────────────────────────────────────
-FROM oven/bun:1.3.12-alpine AS builder
-WORKDIR /app
-
-# Public env vars — must be provided at build time; baked into the JS bundle.
-ARG NEXT_PUBLIC_POSTHOG_KEY
-ARG NEXT_PUBLIC_POSTHOG_HOST=https://us.posthog.com
-ARG NEXT_PUBLIC_GA4_ID
-ARG NEXT_PUBLIC_CLARITY_ID
-ARG NEXT_PUBLIC_PLAUSIBLE_DOMAIN=jdetle.com
-ARG NEXT_PUBLIC_PLAUSIBLE_SCRIPT_ID
-ARG NEXT_PUBLIC_META_PIXEL_ID=169560873691070
-ARG NEXT_PUBLIC_SITE_URL=https://jdetle.com
-ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY
-
-ENV NEXT_PUBLIC_POSTHOG_KEY=$NEXT_PUBLIC_POSTHOG_KEY \
-    NEXT_PUBLIC_POSTHOG_HOST=$NEXT_PUBLIC_POSTHOG_HOST \
-    NEXT_PUBLIC_GA4_ID=$NEXT_PUBLIC_GA4_ID \
-    NEXT_PUBLIC_CLARITY_ID=$NEXT_PUBLIC_CLARITY_ID \
-    NEXT_PUBLIC_PLAUSIBLE_DOMAIN=$NEXT_PUBLIC_PLAUSIBLE_DOMAIN \
-    NEXT_PUBLIC_PLAUSIBLE_SCRIPT_ID=$NEXT_PUBLIC_PLAUSIBLE_SCRIPT_ID \
-    NEXT_PUBLIC_META_PIXEL_ID=$NEXT_PUBLIC_META_PIXEL_ID \
-    NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
-    NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY
-
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-
-RUN bun run build
-
-# ── Stage 3: minimal runtime image ────────────────────────────────────────────
-FROM node:22-alpine AS runner
+FROM node:22-alpine
 WORKDIR /app
 
 ENV NODE_ENV=production \
@@ -52,11 +17,7 @@ ENV NODE_ENV=production \
 RUN addgroup --system --gid 1001 nodejs \
  && adduser --system --uid 1001 nextjs
 
-# standalone server + static assets + public dir
-# posts/ is pulled in automatically via outputFileTracingIncludes in next.config.ts
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --chown=nextjs:nodejs . .
 
 USER nextjs
 EXPOSE 3000
