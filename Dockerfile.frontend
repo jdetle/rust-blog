@@ -7,18 +7,18 @@
 #   .next/static/       → Static assets (JS/CSS chunks)
 #   public/             → Public directory (created empty by CI if absent)
 
-FROM node:22-alpine
+FROM oven/bun:1.3.12-alpine
 WORKDIR /app
 
 ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0
 
-RUN addgroup --system --gid 1001 nodejs \
- && adduser --system --uid 1001 nextjs
+RUN addgroup --system --gid 1001 bungroup \
+ && adduser --system --uid 1001 bunuser
 
-COPY --chown=nextjs:nodejs . .
+COPY --chown=bunuser:bungroup . .
 
-USER nextjs
+USER bunuser
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["bun", "run", "server.js"]
