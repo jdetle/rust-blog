@@ -45,3 +45,5 @@ test-results/
 tsconfig.tsbuildinfo
 tsconfig.tsbuildinfo
 .rust-blog-anthropic-key
+# Claude agent internal worktrees (full repo checkouts — never commit)
+.claude/worktrees/
