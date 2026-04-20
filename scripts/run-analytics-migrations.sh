@@ -6,6 +6,10 @@
 #   export COSMOS_PASSWORD=xxx
 #   bash scripts/run-analytics-migrations.sh
 #
+# SSL: Cosmos DB port 10350 is TLS-only. The script always passes --ssl.
+#   Set SSL_CERTFILE to override the cert bundle path (defaults to system bundle).
+#   On macOS: /etc/ssl/cert.pem  On ubuntu-latest: /etc/ssl/certs/ca-certificates.crt
+#
 # Or: source your .env.local first (set -a; source .env.local; set +a).
 
 set -euo pipefail
@@ -15,7 +19,16 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 : "${COSMOS_USERNAME:?Set COSMOS_USERNAME}"
 : "${COSMOS_PASSWORD:?Set COSMOS_PASSWORD}"
 
-CQLSH=(cqlsh "$COSMOS_CONTACT_POINT" 10350 -u "$COSMOS_USERNAME" -p "$COSMOS_PASSWORD")
+# Resolve cert bundle: prefer SSL_CERTFILE env var, then OS-specific defaults.
+if [[ -z "${SSL_CERTFILE:-}" ]]; then
+  if [[ -f /etc/ssl/certs/ca-certificates.crt ]]; then
+    export SSL_CERTFILE=/etc/ssl/certs/ca-certificates.crt   # ubuntu/debian
+  elif [[ -f /etc/ssl/cert.pem ]]; then
+    export SSL_CERTFILE=/etc/ssl/cert.pem                    # macOS
+  fi
+fi
+
+CQLSH=(cqlsh "$COSMOS_CONTACT_POINT" 10350 -u "$COSMOS_USERNAME" -p "$COSMOS_PASSWORD" --ssl)
 
 echo "Applying migrations from ${ROOT}/migrations ..."
 

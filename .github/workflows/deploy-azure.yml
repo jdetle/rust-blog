@@ -9,6 +9,9 @@
 #   AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AZURE_CLIENT_ID
 #   AZURE_RESOURCE_GROUP (rg-rust-blog), PLATFORM_ACR, S10_INGEST_URL, S10_INGEST_KEY
 #   KEY_VAULT_NAME  — Key Vault that holds 'anthropic-api-key' (fetched at deploy time)
+#
+# Migration policy: CQL migrations in migrations/ run BEFORE the container image is updated.
+# This ensures the schema is always ahead of the code, never behind it.
 
 name: deploy-azure
 
@@ -20,8 +23,8 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "Dockerfile"
+      - "migrations/**"
       - ".github/workflows/deploy-azure.yml"
-      # rust-api/ was removed; its routes now live in src/info.rs
   workflow_dispatch:
     inputs:
       tag:
@@ -93,6 +96,18 @@ jobs:
           [ -n "$kv_val" ] && POSTHOG_API_KEY="$kv_val"
           echo "::add-mask::${POSTHOG_API_KEY}"
           echo "POSTHOG_API_KEY=${POSTHOG_API_KEY}" >> "$GITHUB_ENV"
+
+      - name: Run CQL migrations (schema-before-code)
+        env:
+          COSMOS_CONTACT_POINT: jd-analytics.cassandra.cosmos.azure.com
+          COSMOS_USERNAME: jd-analytics
+          # COSMOS_PASSWORD set in GITHUB_ENV by "Fetch secrets" step above.
+          # SSL_CERTFILE auto-resolved by the script (ubuntu: /etc/ssl/certs/ca-certificates.crt).
+        run: |
+          pip install cqlsh --quiet
+          COSMOS_CONTACT_POINT="$COSMOS_CONTACT_POINT" \
+          COSMOS_USERNAME="$COSMOS_USERNAME" \
+          bash scripts/run-analytics-migrations.sh
 
       - name: Install containerapp extension
         run: az extension add --name containerapp --upgrade --yes 2>/dev/null || true
