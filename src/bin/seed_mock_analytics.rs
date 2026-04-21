@@ -4,7 +4,7 @@
 
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
-use rust_blog::mock::{generate_all_incoming_events, generate_all_vercel_drain_payloads};
+use rust_blog::mock::{generate_all_incoming_events, generate_all_web_analytics_drain_payloads};
 
 const DEFAULT_DAYS_BACK: i64 = 14;
 
@@ -26,7 +26,9 @@ async fn main() -> anyhow::Result<()> {
     println!("Seeding mock analytics to {} (events over last {} days)", base_url, days_back);
 
     let use_custom = std::env::var("SEED_USE_CUSTOM").unwrap_or_else(|_| "true".into()) != "false";
-    let use_vercel = std::env::var("SEED_USE_VERCEL").unwrap_or_else(|_| "true".into()) != "false";
+    let use_web_analytics_drain = std::env::var("SEED_USE_WEB_ANALYTICS_DRAIN")
+        .unwrap_or_else(|_| "true".into())
+        != "false";
 
     if use_custom {
         let events = generate_all_incoming_events(days_back, &mut rng);
@@ -47,9 +49,9 @@ async fn main() -> anyhow::Result<()> {
         println!("  Custom /api/events: {} events sent", stored);
     }
 
-    if use_vercel {
-        let payloads = generate_all_vercel_drain_payloads(days_back, &mut rng);
-        let drain_url = format!("{}/api/drain/vercel", base_url);
+    if use_web_analytics_drain {
+        let payloads = generate_all_web_analytics_drain_payloads(days_back, &mut rng);
+        let drain_url = format!("{}/api/drain/web-analytics", base_url);
         let mut total_stored = 0;
         for payload in &payloads {
             let res = client
@@ -65,7 +67,7 @@ async fn main() -> anyhow::Result<()> {
                 eprintln!("POST {} failed: {}", drain_url, res.status());
             }
         }
-        println!("  Vercel drain: {} events stored", total_stored);
+        println!("  Web analytics drain: {} events stored", total_stored);
     }
 
     println!("Done.");

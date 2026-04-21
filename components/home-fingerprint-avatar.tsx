@@ -453,16 +453,13 @@ export function HomeFingerprintAvatar() {
 
 	if (phase === "absent") return null;
 
-	if (
-		phase === "prefetching" ||
-		phase === "awaiting-captcha" ||
-		phase === "loading"
-	) {
+	// Avoid a loading skeleton while we fetch the server profile; cached visitors resolve to `ready` quickly.
+	if (phase === "prefetching") return null;
+
+	if (phase === "awaiting-captcha" || phase === "loading") {
 		return (
 			<>
-				{phase !== "prefetching" ? (
-					<TurnstileGate onToken={handleToken} onError={handleCaptchaError} />
-				) : null}
+				<TurnstileGate onToken={handleToken} onError={handleCaptchaError} />
 				<div
 					className="home-fingerprint-avatar home-fingerprint-avatar--loading"
 					role="status"
@@ -475,15 +472,13 @@ export function HomeFingerprintAvatar() {
 							<div className="home-fingerprint-avatar-shimmer-line home-fingerprint-avatar-shimmer-line--narrow" />
 						</div>
 					</div>
-					{(phase === "loading" || phase === "prefetching") && (
+					{phase === "loading" && (
 						<p
-							key={phase === "prefetching" ? "prefetch" : loadingStep}
+							key={loadingStep}
 							className="home-fingerprint-avatar-status"
 							aria-live="polite"
 						>
-							{phase === "prefetching"
-								? "Loading your portrait…"
-								: STEP_MESSAGES[loadingStep]}
+							{STEP_MESSAGES[loadingStep]}
 						</p>
 					)}
 					{observations.length > 0 && (

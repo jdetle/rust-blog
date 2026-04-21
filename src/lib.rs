@@ -12,7 +12,7 @@ pub mod info;
 pub mod mock;
 pub mod openai_images;
 pub mod summarize;
-pub mod vercel_drain;
+pub mod web_analytics_drain;
 
 use axum::{routing::{get, post}, Router};
 
@@ -28,7 +28,7 @@ pub fn build_router(state: api::AppState) -> Router {
         .route("/ready", get(info::ready))
         .route("/v1/info", get(info::info))
         .route("/api/events", post(api::ingest_event))
-        .route("/api/drain/vercel", post(api::vercel_drain))
+        .route("/api/drain/web-analytics", post(api::web_analytics_drain))
         .route("/user-events", get(api::user_events))
         .route("/user-profile", get(api::user_profile))
         .route(

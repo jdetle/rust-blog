@@ -15,6 +15,6 @@
 
 ## Synthesis
 
-- **Decision:** Proceed with push; fixes 503 when only `ANALYTICS_API_URL` is set (e.g. Vercel aligned with `.env.example`).
+- **Decision:** Proceed with push; fixes 503 when only `ANALYTICS_API_URL` is set (e.g. production aligned with `.env.example`).
 - **Unresolved risk:** none blocking.
-- **Follow-up:** Remove `NEXT_PUBLIC_ANALYTICS_API_URL` from Vercel after confirming production uses `ANALYTICS_API_URL`.
+- **Follow-up:** Remove `NEXT_PUBLIC_ANALYTICS_API_URL` from production env after confirming production uses `ANALYTICS_API_URL`.

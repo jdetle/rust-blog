@@ -74,7 +74,7 @@ fi
 # ---------------------------------------------------------------------------
 if [ -n "$KEY_VAULT_NAME" ]; then
   log "Fetching secrets from Key Vault ${KEY_VAULT_NAME}..."
-  for key in POSTHOG_API_KEY CLARITY_EXPORT_TOKEN VERCEL_TOKEN META_ACCESS_TOKEN; do
+  for key in POSTHOG_API_KEY CLARITY_EXPORT_TOKEN WEB_ANALYTICS_DRAIN_TOKEN META_ACCESS_TOKEN; do
     val="$(az keyvault secret show \
       --vault-name "$KEY_VAULT_NAME" \
       --name "$key" \
@@ -90,7 +90,7 @@ if [ -n "$KEY_VAULT_NAME" ]; then
   [ -n "$val" ] && echo "ANTHROPIC_API_KEY=${val}"
 else
   log "KEY_VAULT_NAME not set. Provider keys must be provided via .env or manual setup."
-  echo "# Add to .env manually: POSTHOG_API_KEY (required), CLARITY_EXPORT_TOKEN, VERCEL_TOKEN, META_ACCESS_TOKEN (optional)"
+  echo "# Add to .env manually: POSTHOG_API_KEY (required), CLARITY_EXPORT_TOKEN, WEB_ANALYTICS_DRAIN_TOKEN, META_ACCESS_TOKEN (optional)"
   echo "# Add to .env manually: ANTHROPIC_API_KEY (required for SVG avatar generation)"
   echo "# For GA4 BigQuery: GOOGLE_APPLICATION_CREDENTIALS (path to service account JSON)"
 fi

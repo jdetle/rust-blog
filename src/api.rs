@@ -1,4 +1,4 @@
-//! HTTP API for the blog service: health check, event ingestion, user event queries, and Vercel drain.
+//! HTTP API for the blog service: health check, event ingestion, user event queries, and web analytics drain.
 
 use std::sync::Arc;
 
@@ -15,7 +15,7 @@ use crate::anthropic::AnthropicClient;
 use crate::avatar::{self, UserContext};
 use crate::forward::PostHogForwarder;
 use crate::openai_images::OpenAiImagesClient;
-use crate::vercel_drain::VercelDrainPayload;
+use crate::web_analytics_drain::WebAnalyticsDrainPayload;
 use serde::Serialize;
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 
@@ -129,13 +129,13 @@ async fn resolve_stored_profile(
     if !fp.is_empty() {
         let by_fp = store.get_profile(fp).await?;
         if let Some(ref p) = by_fp {
-            if !p.avatar_png.is_empty() {
+            if p.latest_avatar_png().is_some() {
                 return Ok(by_fp);
             }
         }
         if let Some(leg) = legacy.filter(|l| *l != fp) {
             if let Some(p) = store.get_profile(leg).await? {
-                if !p.avatar_png.is_empty() {
+                if p.latest_avatar_png().is_some() {
                     return Ok(Some(p));
                 }
             }
@@ -288,11 +288,8 @@ pub async fn user_profile(
 
     match resolved {
         Ok(Some(profile)) => {
-            let avatar_url = if !profile.avatar_png.is_empty() {
-                serde_json::Value::String(format!(
-                    "data:image/png;base64,{}",
-                    profile.avatar_png
-                ))
+            let avatar_url = if let Some(b64) = profile.latest_avatar_png() {
+                serde_json::Value::String(format!("data:image/png;base64,{b64}"))
             } else {
                 serde_json::Value::Null
             };
@@ -334,8 +331,8 @@ pub async fn user_profile(
 /// via gpt-image-1 with persona + fused art-direction derived from Claude Haiku.
 /// The image is stored and returned as a data URI.
 ///
-/// Cache: hit when `avatar_png` is non-empty AND `avatar_session_id == today_utc`.
-/// One image is generated per calendar day (UTC).
+/// Cache: hit when a latest portrait exists AND `avatar_session_id == today_utc`.
+/// One new image is generated per calendar day (UTC); history is kept in `avatar_pngs`.
 pub async fn user_profile_generate_avatar(
     State(state): State<AppState>,
     Json(body): Json<GenerateAvatarBody>,
@@ -389,8 +386,8 @@ pub async fn user_profile_generate_avatar(
 
     if let Ok(Some(existing)) = &prior {
         let same_day = existing.avatar_session_id == today_utc;
-        if !existing.avatar_png.is_empty() && same_day {
-            let url = format!("data:image/png;base64,{}", existing.avatar_png);
+        if let (true, Some(latest)) = (same_day, existing.latest_avatar_png()) {
+            let url = format!("data:image/png;base64,{latest}");
             return (
                 StatusCode::OK,
                 Json(serde_json::json!({
@@ -403,11 +400,9 @@ pub async fn user_profile_generate_avatar(
         }
     }
 
-    let prior_png_for_edit: Option<String> = match &prior {
-        Ok(Some(p)) if p.avatar_session_id != today_utc && !p.avatar_png.is_empty() => {
-            Some(p.avatar_png.clone())
-        }
-        _ => None,
+    let prior_pngs: Vec<String> = match &prior {
+        Ok(Some(p)) => p.prior_pngs_for_evolution(),
+        _ => Vec::new(),
     };
 
     // ── Activity enrichment (best-effort, 2s timeout) ──────────────────
@@ -474,7 +469,7 @@ pub async fn user_profile_generate_avatar(
         fp,
         &ctx,
         prior_persona.as_deref(),
-        prior_png_for_edit.as_deref(),
+        &prior_pngs,
     )
     .await
     {
@@ -590,9 +585,9 @@ pub async fn user_profile_observations(
 }
 
 
-pub async fn vercel_drain(
+pub async fn web_analytics_drain(
     State(state): State<AppState>,
-    Json(payload): Json<VercelDrainPayload>,
+    Json(payload): Json<WebAnalyticsDrainPayload>,
 ) -> impl IntoResponse {
     let db = require_db!(state);
     let events = payload.events();
@@ -600,7 +595,7 @@ pub async fn vercel_drain(
     for ev in events {
         let analytics_ev = ev.to_analytics_event();
         if let Err(e) = db.insert_event(&analytics_ev).await {
-            tracing::error!(error = %e, "failed to store Vercel drain event");
+            tracing::error!(error = %e, "failed to store web analytics drain event");
         } else {
             stored += 1;
         }

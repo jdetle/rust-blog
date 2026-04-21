@@ -275,6 +275,8 @@ async fn single_composite_image_generated() {
     // Verify PNG stored in the profile.
     let stored = store.get_stored("collage-fp-001").await.unwrap();
     assert!(!stored.avatar_png.is_empty(), "avatar_png must be stored");
+    assert_eq!(stored.avatar_pngs.len(), 1, "history must record one generation");
+    assert_eq!(stored.avatar_pngs[0], stored.avatar_png);
 
     let today_utc = Utc::now().format("%Y-%m-%d").to_string();
     assert_eq!(stored.avatar_session_id, today_utc, "session date must be today");

@@ -1,7 +1,8 @@
 import Image from "next/image";
 
+/** Third-party contribution streak SVG (demolab-hosted). */
 const GITHUB_ACTIVITY_GRAPH_SRC =
-	"https://github-readme-activity-graph.vercel.app/graph?username=jdetle&hide_border=true";
+	"https://streak-stats.demolab.com/?user=jdetle&theme=dark&hide_border=true";
 
 export function HomeGithubPanel() {
 	return (
@@ -17,13 +18,13 @@ export function HomeGithubPanel() {
 					unoptimized
 					className="contrib-chart-img"
 					src={GITHUB_ACTIVITY_GRAPH_SRC}
-					alt="GitHub commit activity over the last year"
+					alt="GitHub contribution streak and stats"
 					width={1200}
 					height={420}
 				/>
 			</a>
 			<p className="work-copy contrib-chart-caption">
-				Recent public commit activity.{" "}
+				Recent public contribution streak (third-party chart).{" "}
 				<a href="https://github.com/jdetle">github.com/jdetle</a>
 			</p>
 

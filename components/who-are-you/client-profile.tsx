@@ -407,7 +407,7 @@ export function ClientProfile({
 			/* edge API unavailable */
 		}
 
-		// ── 2. Network (combine Vercel headers + edge API) ─────────────
+		// ── 2. Network (edge API + SSR IP hint) ───────────────────────
 		const geoSource = edgeApi?.edge ?? serverGeo;
 		const ip = geoSource.ip ? maskIP(geoSource.ip) : "hidden";
 		const net: Record<string, string | null> = {
@@ -430,7 +430,7 @@ export function ClientProfile({
 		// Edge metadata
 		const pop = edgeApi?.edge.pop ?? edgeInfo.pop;
 		const provider =
-			edgeApi?.edge.provider ?? (edgeInfo.pop ? "vercel-edge" : "local");
+			edgeApi?.edge.provider ?? (edgeInfo.pop ? "edge" : "local");
 		setEdgeDetail({
 			pop: pop ?? "local",
 			provider,
@@ -553,7 +553,7 @@ export function ClientProfile({
 		const fp = canvasFingerprint();
 		setFingerprint(fp);
 		track("fingerprint", fp);
-		// biome-ignore lint/suspicious/noDocumentCookie: Cookie Store API not widely supported; needed for Vercel drain fingerprint
+		// biome-ignore lint/suspicious/noDocumentCookie: Cookie Store API not widely supported; needed for analytics drain fingerprint
 		document.cookie = `fingerprint=${encodeURIComponent(fp)}; path=/; max-age=31536000; SameSite=Lax`;
 
 		// ── 6. Referral ────────────────────────────────────────────────
@@ -654,10 +654,6 @@ export function ClientProfile({
 				{
 					name: "PostHog",
 					active: isPostHogSdkReady(),
-				},
-				{
-					name: "Vercel Analytics",
-					active: !!document.querySelector('script[src*="_vercel/insights"]'),
 				},
 			]);
 		}, 1600);
@@ -1361,9 +1357,8 @@ export function ClientProfile({
 			<section id="network-location" className="detect-section">
 				<h2>Network &amp; Location</h2>
 				<p className="detect-note">
-					{serverGeo.city
-						? "Via Vercel Edge geo headers (server-side)"
-						: "Via IP geolocation lookup"}
+					Visitor IP from CF-Connecting-IP, True-Client-IP, or X-Forwarded-For;
+					city and region from ipapi.co using that IP (not the CDN edge POP).
 				</p>
 				<dl className="detect-grid">
 					<DetectRow id="ip" label="IP address" value={network.ip ?? null} />

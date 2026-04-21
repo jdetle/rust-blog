@@ -91,14 +91,32 @@ impl OpenAiImagesClient {
         prompt: &str,
         png_b64_raw: &str,
     ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-        let data_uri = format!("data:image/png;base64,{png_b64_raw}");
+        self.edit_with_references(prompt, &[png_b64_raw]).await
+    }
+
+    /// Same as [`Self::edit_with_reference`], but passes every prior portrait (oldest → newest).
+    pub async fn edit_with_references(
+        &self,
+        prompt: &str,
+        png_b64_raws: &[&str],
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        if png_b64_raws.is_empty() {
+            return Err("edit_with_references requires at least one image".into());
+        }
+        let images: Vec<serde_json::Value> = png_b64_raws
+            .iter()
+            .map(|raw| {
+                let data_uri = format!("data:image/png;base64,{raw}");
+                serde_json::json!({ "image_url": data_uri })
+            })
+            .collect();
         let body = serde_json::json!({
             "model": "gpt-image-1",
             "prompt": prompt,
             "n": 1,
             "size": "1024x1024",
             "quality": "medium",
-            "images": [{ "image_url": data_uri }],
+            "images": images,
         });
 
         let url = self.edits_endpoint();

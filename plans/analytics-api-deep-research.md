@@ -21,7 +21,7 @@ Create the **largest possible dataset** by aggregating (union) all event-level a
 |----------|------------------------|-----------------|---------------------|----------------|
 | **PostHog** | Yes (Events API, Query API) | Yes (HogQL) | 50k rows/query; 1-year range | distinct_id |
 | **Warehouse (ScyllaDB)** | Yes | Yes | Our control | session_id (fp/user_id/distinct_id) |
-| **Vercel Drain** | Yes (push) | N/A | All events pushed | deviceId (map to fp) |
+| **Web analytics drain** | Yes (push) | N/A | All events pushed | deviceId (map to fp) |
 | **GA4 BigQuery** | Yes (export) | Yes (Data API) | Full export | user_id, user_pseudo_id |
 | **GA4 Data API** | Partial (aggregate reports) | Yes | 9 dimensions, 10 metrics/request | eventName, but no per-user in reports |
 | **Clarity** | No | Yes (1–3 days) | 10 req/day, 1k rows, 3 dimensions | N/A — aggregate only |
@@ -68,25 +68,25 @@ LIMIT 50000
 
 ---
 
-## 2. Vercel Web Analytics Drain
+## 2. Host web analytics drain
 
 ### Mechanism
 
 - **Push only** — no pull/query API
-- Configure drain destination (HTTPS endpoint) in Vercel dashboard
+- Configure drain destination (HTTPS endpoint) in your analytics host dashboard
 - Events sent as JSON array or NDJSON
 - `beforeSend` can augment payload (e.g. add `fingerprint`)
 
-### Full Payload Schema (vercel.analytics.v1)
+### Example payload schema (vendor-specific; illustrative)
 
 | Field | Type | Description |
 |-------|------|-------------|
-| schema | string | `vercel.analytics.v1` |
+| schema | string | e.g. `host.analytics.v1` (vendor-defined) |
 | eventType | string | `pageview` \| `event` |
 | eventName | string | Custom event name |
 | eventData | string | JSON string of custom data |
 | timestamp | number | Unix ms |
-| projectId | string | Vercel project ID |
+| projectId | string | Analytics project ID |
 | ownerId | string | Project owner |
 | sessionId | number | Session ID (often 0 in prod) |
 | deviceId | number | Persistent device ID |
@@ -259,7 +259,7 @@ visitors, visits, pageviews, bounce_rate, visit_duration, events, scroll_depth, 
 
 Normalize all sources into a common event row:
 
-| Column | Type | PostHog | Vercel Drain | GA4 BQ | Warehouse |
+| Column | Type | PostHog | Web analytics drain | GA4 BQ | Warehouse |
 |--------|------|---------|--------------|--------|-----------|
 | event_id | TEXT | id | generate | generate | event_id |
 | event_type | TEXT | event | eventType/eventName | event_name | event_type |
@@ -268,7 +268,7 @@ Normalize all sources into a common event row:
 | page_url | TEXT | $current_url | origin+path | page_location | page_url |
 | referrer | TEXT | $referrer | referrer | (event_params) | referrer |
 | user_agent | TEXT | $user_agent | — | — | user_agent |
-| source | TEXT | posthog | vercel | ga4 | warehouse |
+| source | TEXT | posthog | web_analytics | ga4 | warehouse |
 | fingerprint | TEXT | distinct_id | fingerprint/deviceId | user_id | session_id |
 | country | TEXT | — | country | geo.country | — |
 | region | TEXT | — | region | geo.region | — |
@@ -280,7 +280,7 @@ Normalize all sources into a common event row:
 
 ### Deduplication Key
 
-Use `(source, event_type, page_url, event_date, event_time)` — or include a hash of fingerprint when available — to deduplicate across providers. Same real-world event may appear in PostHog and Vercel; keep one canonical row.
+Use `(source, event_type, page_url, event_date, event_time)` — or include a hash of fingerprint when available — to deduplicate across providers. Same real-world event may appear in PostHog and the web-analytics drain; keep one canonical row.
 
 ---
 
@@ -290,7 +290,7 @@ Use `(source, event_type, page_url, event_date, event_time)` — or include a ha
 
 1. **PostHog** — Query API by fingerprint, user_id, distinct_id (3 queries, merge)
 2. **Warehouse** — Query by fingerprint, user_id, distinct_id (3 queries, merge)
-3. **Vercel Drain** — Ingest endpoint stores events; query by fingerprint/deviceId when available
+3. **Web analytics drain** — Ingest endpoint stores events; query by fingerprint/deviceId when available
 4. **GA4 BigQuery** — Scheduled job queries by user_id and user_pseudo_id; insert into warehouse
 
 ### Tier 2: Aggregate Enrichment (Attach to Site/Time)
@@ -309,7 +309,7 @@ Use `(source, event_type, page_url, event_date, event_time)` — or include a ha
 
 - [x] PostHog: Migrate to Query API (HogQL) with `distinct_id IN (...)` for 3-identifier fetch
 - [ ] PostHog: Add timestamp pagination for >50k events
-- [x] Vercel: Configure drain → `POST /api/drain/vercel`; add `beforeSend` fingerprint injection
+- [x] Web analytics: Configure drain → `POST /api/drain/web-analytics`; add `beforeSend` fingerprint injection
 - [ ] GA4: Enable BigQuery export; schedule job to query by user_id/user_pseudo_id
 - [ ] GA4: Add `gtag('set', 'user_id', fingerprint)` on client
 - [x] Clarity: Already pulling aggregate (10 req/day)
@@ -322,7 +322,7 @@ Use `(source, event_type, page_url, event_date, event_time)` — or include a ha
 
 - [PostHog Query API](https://posthog.com/docs/api/queries)
 - [PostHog Batch Exports](https://posthog.com/docs/cdp/batch-exports)
-- [Vercel Drain Schema](https://vercel.com/docs/drains/reference/analytics)
+- Web analytics drain schema (vendor documentation for your host)
 - [GA4 BigQuery Schema](https://support.google.com/analytics/answer/7029846)
 - [GA4 Data API Schema](https://developers.google.com/analytics/devguides/reporting/data/v1/api-schema)
 - [Clarity Data Export API](https://learn.microsoft.com/en-us/clarity/setup-and-installation/clarity-data-export-api)

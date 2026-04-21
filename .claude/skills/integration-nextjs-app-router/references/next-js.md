@@ -57,7 +57,7 @@ pnpm add posthog-js
 bun add posthog-js
 ```
 
-Add your environment variables to your `.env.local` file and to your hosting provider (e.g. Vercel, Netlify, AWS). You can find your project token in your [project settings](https://app.posthog.com/project/settings).
+Add your environment variables to your `.env.local` file and to your hosting provider (e.g. Azure App Service, Netlify, AWS). You can find your project token in your [project settings](https://app.posthog.com/project/settings).
 
 .env.local
 
@@ -121,7 +121,7 @@ We recommend [setting up a reverse proxy](/docs/advanced/proxy.md), so that even
 
 We have our [own managed reverse proxy service](/docs/advanced/proxy/managed-reverse-proxy.md), which is free for all PostHog Cloud users, routes through our infrastructure, and makes setting up your proxy easy.
 
-If you don't want to use our managed service then there are several other options for creating a reverse proxy, including using [Cloudflare](/docs/advanced/proxy/cloudflare.md), [AWS Cloudfront](/docs/advanced/proxy/cloudfront.md), and [Vercel](/docs/advanced/proxy/vercel.md).
+If you don't want to use our managed service then there are several other options for creating a reverse proxy, including using [Cloudflare](/docs/advanced/proxy/cloudflare.md) and [AWS Cloudfront](/docs/advanced/proxy/cloudfront.md). Your hosting provider’s docs may describe additional proxy patterns.
 
 Grouping products in one project (recommended)
 
@@ -368,7 +368,7 @@ posthog.init(process.env.NEXT_PUBLIC_POSTHOG_TOKEN, {
 
 ## Configuring a reverse proxy to PostHog
 
-To improve the reliability of client-side tracking and make requests less likely to be intercepted by tracking blockers, you can setup a reverse proxy in Next.js. Read more about deploying a reverse proxy using [Next.js rewrites](/docs/advanced/proxy/nextjs.md), [Next.js middleware](/docs/advanced/proxy/nextjs-middleware.md), and [Vercel rewrites](/docs/advanced/proxy/vercel.md).
+To improve the reliability of client-side tracking and make requests less likely to be intercepted by tracking blockers, you can setup a reverse proxy in Next.js. Read more about deploying a reverse proxy using [Next.js rewrites](/docs/advanced/proxy/nextjs.md) and [Next.js middleware](/docs/advanced/proxy/nextjs-middleware.md). Configure CDN or platform rewrites per your host (e.g. Cloudflare, Azure Front Door).
 
 ## Further reading
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Ingest Clarity Project ID. Prompts for value, appends to .env.local, optionally adds to Vercel.
+ * Ingest Clarity Project ID. Prompts for value, appends to .env.local.
  * Sign up: https://clarity.microsoft.com → New project → Settings → Project ID
  */
 
@@ -18,22 +18,9 @@ if (!value?.trim()) {
 
 await appendEnv(KEY, value.trim());
 console.log(`Added ${KEY} to ${ENV_FILE}`);
-const skipVercel = process.argv.includes("--no-vercel") || !process.stdin.isTTY;
-if (!skipVercel && (await confirm("Add to Vercel? (requires vercel CLI)"))) {
-	for (const env of ["production", "preview", "development"]) {
-		await run(
-			"vercel",
-			"env",
-			"add",
-			KEY,
-			env,
-			"--value",
-			value.trim(),
-			"--yes",
-		);
-	}
-	console.log("Added to Vercel (production, preview, development)");
-}
+console.log(
+	`Production: set ${KEY} in Azure Portal → App Service → Environment variables.`,
+);
 
 async function prompt(msg: string): Promise<string> {
 	const input = await new Promise<string>((resolve) => {
@@ -41,11 +28,6 @@ async function prompt(msg: string): Promise<string> {
 		process.stdin.once("data", (d) => resolve(d.toString().trim()));
 	});
 	return input;
-}
-
-async function confirm(msg: string): Promise<boolean> {
-	const r = await prompt(`${msg} [y/N]: `);
-	return /^y/i.test(r);
 }
 
 async function appendEnv(key: string, value: string) {
@@ -56,12 +38,3 @@ async function appendEnv(key: string, value: string) {
 	writeFileSync(ENV_FILE, `${lines.join("\n")}\n`);
 }
 
-async function run(...args: string[]) {
-	const p = Bun.spawn(args, {
-		stdin: "inherit",
-		stdout: "inherit",
-		stderr: "inherit",
-	});
-	await p.exited;
-	if (p.exitCode !== 0) throw new Error(`Command failed: ${args.join(" ")}`);
-}

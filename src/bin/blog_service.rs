@@ -54,7 +54,7 @@ async fn main() -> anyhow::Result<()> {
 
     let posthog_api_key = std::env::var("POSTHOG_API_KEY").ok();
     let clarity_token = std::env::var("CLARITY_EXPORT_TOKEN").ok();
-    let vercel_token = std::env::var("VERCEL_TOKEN").ok();
+    let web_analytics_drain_token = std::env::var("WEB_ANALYTICS_DRAIN_TOKEN").ok();
     let google_creds_path = std::env::var("GOOGLE_APPLICATION_CREDENTIALS").ok();
     let meta_token = std::env::var("META_ACCESS_TOKEN").ok();
 
@@ -90,7 +90,7 @@ async fn main() -> anyhow::Result<()> {
                         db.clone(),
                         k,
                         clarity_token,
-                        vercel_token,
+                        web_analytics_drain_token,
                         google_creds_path,
                         meta_token,
                     ))

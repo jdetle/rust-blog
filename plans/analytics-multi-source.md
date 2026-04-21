@@ -13,7 +13,7 @@ supersedes: ""
 
 ## Goal
 
-Associate every fingerprinted browser session with data from analytics providers (GA, Clarity, Plausible, PostHog, Vercel Analytics) and share that data with returning visitors.
+Associate every fingerprinted browser session with data from analytics providers (GA, Clarity, Plausible, PostHog, host web analytics) and share that data with returning visitors.
 
 ## Provider API Feasibility
 
@@ -23,7 +23,7 @@ Associate every fingerprinted browser session with data from analytics providers
 | **Google Analytics 4** | No (Data API); Yes via BigQuery | user_id = fingerprint in gtag | Data API is aggregate. BigQuery export has user_pseudo_id. Requires GA4→BigQuery setup. |
 | **Microsoft Clarity** | Partial | clarity("identify", fingerprint, sessionId) | Data Export API is aggregate. Identify tags sessions for dashboard filtering. No API to fetch "sessions for user X". |
 | **Plausible** | No | N/A | Stats API returns aggregate metrics only. Privacy-focused; no per-visitor API. |
-| **Vercel Analytics** | No query API | Web Analytics Drain | Configure drain to receive events. Must include fingerprint in custom props. Store ourselves, query by fingerprint. |
+| **Host web analytics** | No query API | Web analytics drain | Configure drain to receive events. Must include fingerprint in custom props. Store ourselves, query by fingerprint. |
 
 ## Phased Approach
 
@@ -33,10 +33,10 @@ Associate every fingerprinted browser session with data from analytics providers
 - Merge PostHog events with existing ScyllaDB user-events in the who-are-you UI.
 - Source attribution: "PostHog" vs "warehouse" (ScyllaDB).
 
-### Phase 2: Clarity identity + Vercel drain (optional)
+### Phase 2: Clarity identity + web analytics drain (optional)
 - Client: call clarity("identify", fingerprint, posthog.get_distinct_id()) when fingerprint ready.
 - Clarity dashboard can filter by custom user id; no programmatic fetch of per-session data.
-- Vercel: configure Web Analytics Drain → our ingest endpoint. beforeSend to add fingerprint. Store in ScyllaDB.
+- Configure the host analytics drain → our ingest endpoint (`/api/drain/web-analytics`). beforeSend to add fingerprint. Store in ScyllaDB.
 
 ### Phase 3: GA4 + Plausible (aggregate only)
 - GA4: Send user_id via gtag if we want future BigQuery queries. Heavy setup.
@@ -51,13 +51,13 @@ Associate every fingerprinted browser session with data from analytics providers
 
 | Provider | Env var | Purpose | Pull? |
 |----------|---------|---------|-------|
-| **Vercel** | `VERCEL_TOKEN` | Drain config via API; drains PUSH to /api/events | No pull — receive |
+| **Web analytics drain** | `WEB_ANALYTICS_DRAIN_TOKEN` | Drain config via API; drains POST to `/api/drain/web-analytics` | No pull — receive |
 | **Google** | `GOOGLE_APPLICATION_CREDENTIALS` | BigQuery query by user_pseudo_id (fingerprint) | Yes (BigQuery) |
 | **Meta** | `META_ACCESS_TOKEN` | Conversion API (send server-side events) | No pull |
 | **PostHog** | `POSTHOG_API_KEY`, `POSTHOG_PERSONAL_API_KEY` | Pull events by distinct_id | Yes |
 | **Clarity** | `CLARITY_EXPORT_TOKEN` | Export API (aggregate) | Partial |
 
-Ingest scripts: `bun run ingest:vercel-token`, `ingest:google-bigquery`, `ingest:meta-token`.
+Ingest scripts: `bun run ingest:analytics-api`, `ingest:google-bigquery`, `ingest:meta-token`.
 
 ## Security & Privacy
 

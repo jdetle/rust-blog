@@ -3,7 +3,7 @@
 //! **Single composite image (production):** One Claude Haiku call derives a persona and one
 //! fused `ART_DIRECTION` string synthesising regional palette, device texture, connection mood,
 //! and persona archetype. One OpenAI gpt-image-1 call then renders a 1024×1024 PNG stored in
-//! `user_profiles.avatar_png`. Cost: ~$0.04 per visitor/day vs ~$0.17 for the old 4-image path.
+//! `user_profiles.avatar_png` / `avatar_pngs`. Cost: ~$0.04 per visitor/day vs ~$0.17 for the old 4-image path.
 //!
 //! **Observations:** A separate Claude Haiku call reads UserContext + recent events and emits
 //! 6 one-sentence factual observations about the visitor's signals. Returned as a JSON array;
@@ -25,7 +25,7 @@ const MAX_PNG_B64_BYTES: usize = 3 * 1024 * 1024; // 3 MB encoded
 /// the client — they are injected by the avatar handler before calling generate_regional_collage.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UserContext {
-    // Geo (from Vercel Edge / ipapi)
+    // Geo (from edge headers / ipapi)
     pub city: Option<String>,
     pub region: Option<String>,
     pub country: Option<String>,
@@ -275,6 +275,20 @@ Rules: abstract composition only — not a photograph or portrait of a real pers
     )
 }
 
+fn build_evolution_prompt_multi(prior_count: usize, persona: &str, art_direction: &str) -> String {
+    format!(
+        "You are given {prior_count} prior abstract digital-identity portrait(s) of the same visitor, in chronological order (oldest first). \
+Use the full visual lineage as continuity context — colour families, compositional rhythm, and emotional through-line — while evolving toward today's brief. \
+The output should feel like the next chapter of the same evolving portrait, not an unrelated image.\n\n\
+Today's visitor persona (fictional guess): {persona}\n\
+Today's art direction: {art_direction}\n\n\
+Rules: abstract composition only — not a photograph or portrait of a real person. No text, no logos, no faces.",
+        prior_count = prior_count,
+        persona = persona,
+        art_direction = art_direction,
+    )
+}
+
 // ── Generation ────────────────────────────────────────────────────────
 
 /// Single composite image pipeline:
@@ -284,25 +298,46 @@ Rules: abstract composition only — not a photograph or portrait of a real pers
 /// Returns a persona guess and, when image generation succeeds, a single PNG as a raw
 /// base64 string (no `data:` prefix). Cost: ~$0.04 per visitor/day.
 ///
-/// When `prior_png_b64` is set (previous calendar day's image), uses image **edits** so the new
-/// image builds on the last; otherwise uses **generations** from the text prompt alone.
+/// When `prior_png_b64s` is non-empty (stored history), uses image **edits** with all prior images
+/// as reference context; otherwise uses **generations** from the text prompt alone.
 pub async fn generate_regional_collage(
     openai: &OpenAiImagesClient,
     anthropic: &AnthropicClient,
     fingerprint: &str,
     ctx: &UserContext,
     prior_persona: Option<&str>,
-    prior_png_b64: Option<&str>,
+    prior_png_b64s: &[String],
 ) -> Result<RegionalCollageResult, Box<dyn std::error::Error + Send + Sync>> {
     // Step 1: Claude derives persona + fused art direction.
     let (persona, art_direction) =
         derive_regional_collage_brief(anthropic, fingerprint, ctx, prior_persona).await?;
 
-    // Step 2: OpenAI — edit from prior image when present, else generate fresh.
+    // Step 2: OpenAI — edit from prior image(s) when present, else generate fresh.
     let fresh_prompt = build_composite_prompt(&persona, &art_direction);
-    let png_b64 = if let Some(prior) = prior_png_b64 {
-        let evolution = build_evolution_prompt(&persona, &art_direction);
-        match openai.edit_with_reference(&evolution, prior).await {
+    let png_b64 = if !prior_png_b64s.is_empty() {
+        let evolution = if prior_png_b64s.len() == 1 {
+            build_evolution_prompt(&persona, &art_direction)
+        } else {
+            build_evolution_prompt_multi(prior_png_b64s.len(), &persona, &art_direction)
+        };
+        let refs: Vec<&str> = prior_png_b64s.iter().map(|s| s.as_str()).collect();
+        let edit_result = openai.edit_with_references(&evolution, &refs).await;
+        let edit_result = match edit_result {
+            Ok(b64) => Ok(b64),
+            Err(e) if prior_png_b64s.len() > 1 => {
+                tracing::warn!(error = %e, "OpenAI multi-reference edit failed; retrying with latest image only");
+                openai
+                    .edit_with_reference(
+                        &evolution,
+                        prior_png_b64s
+                            .last()
+                            .expect("prior_png_b64s.len() > 1 implies non-empty"),
+                    )
+                    .await
+            }
+            Err(e) => Err(e),
+        };
+        match edit_result {
             Ok(b64) => b64,
             Err(e) => {
                 tracing::warn!(error = %e, "OpenAI image edit failed; falling back to text generation");

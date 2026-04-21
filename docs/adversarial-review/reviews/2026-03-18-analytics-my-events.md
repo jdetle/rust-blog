@@ -4,7 +4,7 @@
 - decision: merge completed; feature adds multi-source analytics aggregation
 - key reason: /api/analytics/my-events consolidates warehouse + PostHog events; client-profile uses fingerprint fallback; AUTH comment documents public access
 - top unresolved risk: Personal API key in env — ensure never exposed to client; rate-limit API if abuse observed
-- immediate next step: configure POSTHOG_PERSONAL_API_KEY and POSTHOG_PROJECT_ID in Vercel for production
+- immediate next step: configure POSTHOG_PERSONAL_API_KEY and POSTHOG_PROJECT_ID in Azure App Service application settings for production
 
 ## Debate Config
 - chaos_mode: high
@@ -32,5 +32,5 @@
 ## Decision Memo
 - recommended option: merge (completed)
 - unresolved risks: PostHog API deprecation; rate-limit if abuse observed
-- rollout gates: Set POSTHOG_PERSONAL_API_KEY, POSTHOG_PROJECT_ID in Vercel production env
+- rollout gates: Set POSTHOG_PERSONAL_API_KEY, POSTHOG_PROJECT_ID in production env
 - rollback trigger: if Events API breaks, revert and use warehouse-only until batch export ready

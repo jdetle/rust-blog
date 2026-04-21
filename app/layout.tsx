@@ -1,8 +1,6 @@
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { AnalyticsProvider } from "@/components/analytics-provider";
-import { VercelAnalyticsWithFingerprint } from "@/components/vercel-analytics-with-fingerprint";
 
 import "@/posts/blog.css";
 
@@ -37,8 +35,6 @@ export default function RootLayout({
 			<body>
 				<NuqsAdapter>{children}</NuqsAdapter>
 				<AnalyticsProvider />
-				<VercelAnalyticsWithFingerprint />
-				<SpeedInsights />
 			</body>
 		</html>
 	);

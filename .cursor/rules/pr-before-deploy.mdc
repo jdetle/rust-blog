@@ -5,7 +5,7 @@ alwaysApply: true
 
 # PR Before Deploy
 
-Deploy workflows (`deploy-azure`, Vercel) are gated on merging a green PR. They MUST NOT be triggered by pushing directly to `main`.
+Deploy workflows (`deploy-azure`, frontend Azure/Cloudflare) are gated on merging a green PR. They MUST NOT be triggered by pushing directly to `main`.
 
 ## Deploy gate
 
@@ -14,8 +14,8 @@ branch → PR → CI green → merge → deploy workflows auto-trigger
 ```
 
 `deploy-azure` runs on `src/**`, `Cargo.toml`, or `Dockerfile` changes.  
-Vercel runs on every merge to `main`.  
-Both are triggered automatically — never run them manually ahead of a merge.
+Frontend deploy workflows run on merges to `main` when configured.  
+They are triggered automatically — never run them manually ahead of a merge.
 
 ## Why this matters
 

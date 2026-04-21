@@ -1,8 +1,8 @@
 /**
- * Server-side proxy to the `rust-api` Container App (health, ready, /v1/info, etc.).
- * Configure `RUST_API_URL` in Vercel (Production / Preview) to the app FQDN.
+ * Server-side proxy to the blog-service Container App (health, ready, /v1/info, etc.).
+ * Set `BLOG_SERVICE_URL` or `RUST_API_URL` to the app FQDN (e.g. Azure).
  *
- * Example: GET /api/rust/health → GET ${RUST_API_URL}/health
+ * Example: GET /api/rust/health → GET ${BLOG_SERVICE_URL}/health
  */
 
 import { type NextRequest, NextResponse } from "next/server";

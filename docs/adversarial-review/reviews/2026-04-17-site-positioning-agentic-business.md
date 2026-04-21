@@ -58,7 +58,7 @@ Each persona identifies the strongest reasons the site **fails** the "competent 
 
 - **"Ninety-odd rules" is repeated verbatim three times** across `/work-with-me`, "The breakthrough I've had", and "Rules that make quality sites easy". It starts to sound like a slogan rather than a specific claim. A peer will want a count, a link, and one concrete rule-to-production-bug story surfaced.
 - **The multi-version (human vs AI) gimmick is load-bearing but inconsistently executed.** When it works (`the-breakthrough-ive-had` / `what-i-actually-do`, `rules-that-make-quality-sites-easy`) it's a differentiator. When it fails (`agentic-engineering-explained` human = 1 line; `jdetle-guardian` human = "Placeholder for the human-reviewed version"), it makes the author look like he published before finishing.
-- **GitHub contrib chart is embedded as the lead of the GitHub panel** via a third-party SVG from `github-readme-activity-graph.vercel.app` (see `app/page.tsx` line 16 comment: "ghchart.rshah.io no longer resolves (dead domain)"). It's a visible external dep; a peer will notice it breaks the "I own my stack" narrative the rules corpus argues for.
+- **GitHub contrib chart is embedded as the lead of the GitHub panel** via a third-party SVG from `streak-stats.demolab.com` (see `components/home-github-panel.tsx`). It's a visible external dep; a peer will notice it breaks the "I own my stack" narrative the rules corpus argues for.
 - **Claim inflation risk on home.** "shipping customer-facing software where downtime costs real money" + "$200M+ in annual revenue" + "millions of sessions" + "nine-figure consulting engagements." Each is plausible on its own; stacked in one lede they read as a pitch deck.
 
 ### Buyer-side Compliance

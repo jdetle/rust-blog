@@ -5,8 +5,6 @@ const EMAIL: &str = "jdetle@gmail.com";
 const POSTHOG_SIGNUP_URL: &str = "https://us.posthog.com/api/signup/";
 const POSTHOG_PROJECTS_URL: &str = "https://us.posthog.com/api/projects/";
 const CLARITY_DASHBOARD: &str = "https://clarity.microsoft.com";
-const VERCEL_ANALYTICS_DASHBOARD: &str =
-    "https://vercel.com/team_Ck3ad18uLxElobWvm26xCIw4/jd-site/analytics";
 
 const COSMOS_ACCOUNT: &str = "jd-analytics";
 const COSMOS_KEYSPACE: &str = "analytics";
@@ -20,7 +18,7 @@ async fn main() -> anyhow::Result<()> {
 
     let posthog_key = setup_posthog(&password).await;
     let clarity_id = setup_clarity();
-    setup_vercel();
+    setup_web_analytics_drain_hint();
     let cosmos = setup_cosmos_db(&resource_group).await;
 
     write_env(&posthog_key, &clarity_id, &cosmos);
@@ -148,16 +146,15 @@ fn setup_clarity() -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Vercel Analytics
+// Web analytics drain (blog-service)
 // ---------------------------------------------------------------------------
 
-fn setup_vercel() {
-    println!("\n--- Vercel Analytics ---");
-    println!("Enable Web Analytics in the Vercel dashboard:");
-    println!("  1. Opening {VERCEL_ANALYTICS_DASHBOARD}");
-    println!("  2. Click 'Enable' if not already enabled");
-    let _ = open_url(VERCEL_ANALYTICS_DASHBOARD);
-    prompt("  Press Enter once Vercel Analytics is enabled");
+fn setup_web_analytics_drain_hint() {
+    println!("\n--- Web analytics drain ---");
+    println!("Optional: configure any hosted web analytics product to POST batches to");
+    println!("  POST https://<BLOG_SERVICE_URL>/api/drain/web-analytics");
+    println!("(same JSON shape as common hosted analytics drains).");
+    prompt("  Press Enter to continue");
 }
 
 // ---------------------------------------------------------------------------

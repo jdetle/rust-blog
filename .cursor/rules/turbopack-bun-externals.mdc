@@ -56,7 +56,7 @@ If any of these are added to the project as server-side runtime dependencies, ap
 
 ## Upstream tracking
 
-- Next.js issue: https://github.com/vercel/next.js/issues/86866
+- Next.js: upstream Turbopack issue #86866 (external package hashing)
 - Bun issue: https://github.com/oven-sh/bun/issues/25370
 - Status: Open as of March 2026, no permanent fix
 

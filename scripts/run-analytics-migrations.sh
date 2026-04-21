@@ -47,4 +47,7 @@ echo "004a (avatar_session_id + avatar_png slot 1)"
 echo "004b (avatar_png_2..4 for 4-image collage)"
 "${CQLSH[@]}" -f "${ROOT}/migrations/004_user_profiles_4images.cql" || true
 
+echo "005 (avatar_pngs list — generation history)"
+"${CQLSH[@]}" -f "${ROOT}/migrations/005_user_profiles_avatar_pngs.cql" || true
+
 echo "Done."

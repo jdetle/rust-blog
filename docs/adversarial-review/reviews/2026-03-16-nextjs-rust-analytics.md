@@ -26,7 +26,7 @@
 ## Phase 2 - Defense
 - Backend: migration file documents index creation; README notes manual CQL run. Acceptable for initial deploy.
 - SRE: workflow fails fast with clear error if secrets missing; no production impact until env configured.
-- Security: API designed for internal/Vercel-to-Container-App calls; document that it must not be publicly exposed.
+- Security: API designed for internal frontend-to-Container-App calls; document that it must not be publicly exposed.
 - Frontend: `client-profile` likely has error handling for fetch; config defaults empty string if unset.
 
 ## Phase 3 - Synthesis
