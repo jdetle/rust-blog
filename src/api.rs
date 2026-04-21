@@ -10,7 +10,7 @@ use axum::{
 };
 use chrono::Utc;
 use tokio::time::{Duration, timeout};
-use crate::analytics::{AnalyticsDb, AnalyticsEvent, IncomingEvent, ProfileStore};
+use crate::analytics::{AnalyticsDb, AnalyticsEvent, IncomingEvent, ProfileStore, UserProfile};
 use crate::anthropic::AnthropicClient;
 use crate::avatar::{self, UserContext};
 use crate::forward::PostHogForwarder;
@@ -93,6 +93,78 @@ pub struct GenerateAvatarBody {
 
 fn default_limit() -> u32 {
     50
+}
+
+/// Canonical storage key for avatar rows — fingerprint when present, else PostHog ids.
+fn avatar_storage_key(fp: &str, user_id: &str, distinct_id: &str) -> Option<String> {
+    if !fp.is_empty() {
+        Some(fp.to_string())
+    } else if !user_id.is_empty() {
+        Some(user_id.to_string())
+    } else if !distinct_id.is_empty() {
+        Some(distinct_id.to_string())
+    } else {
+        None
+    }
+}
+
+fn legacy_profile_key<'a>(user_id: &'a str, distinct_id: &'a str) -> Option<&'a str> {
+    if !user_id.is_empty() {
+        Some(user_id)
+    } else if !distinct_id.is_empty() {
+        Some(distinct_id)
+    } else {
+        None
+    }
+}
+
+/// Profile for reads: prefer fingerprint row; if it has no PNG, fall back to PostHog-keyed legacy row.
+async fn resolve_stored_profile(
+    store: &dyn ProfileStore,
+    fp: &str,
+    user_id: &str,
+    distinct_id: &str,
+) -> Result<Option<UserProfile>, Box<dyn std::error::Error + Send + Sync>> {
+    let legacy = legacy_profile_key(user_id, distinct_id);
+    if !fp.is_empty() {
+        let by_fp = store.get_profile(fp).await?;
+        if let Some(ref p) = by_fp {
+            if !p.avatar_png.is_empty() {
+                return Ok(by_fp);
+            }
+        }
+        if let Some(leg) = legacy.filter(|l| *l != fp) {
+            if let Some(p) = store.get_profile(leg).await? {
+                if !p.avatar_png.is_empty() {
+                    return Ok(Some(p));
+                }
+            }
+        }
+        if by_fp.is_some() {
+            return Ok(by_fp);
+        }
+        if let Some(leg) = legacy.filter(|l| *l != fp) {
+            return store.get_profile(leg).await;
+        }
+        return Ok(None);
+    }
+    if let Some(leg) = legacy {
+        return store.get_profile(leg).await;
+    }
+    Ok(None)
+}
+
+/// PostHog / analytics event query key — distinct id when present, else fingerprint.
+fn activity_lookup_id(fp: &str, user_id: &str, distinct_id: &str) -> Option<String> {
+    if !user_id.is_empty() {
+        Some(user_id.to_string())
+    } else if !distinct_id.is_empty() {
+        Some(distinct_id.to_string())
+    } else if !fp.is_empty() {
+        Some(fp.to_string())
+    } else {
+        None
+    }
 }
 
 #[derive(Serialize)]
@@ -186,22 +258,35 @@ pub async fn user_profile(
     State(state): State<AppState>,
     Query(params): Query<UserProfileQuery>,
 ) -> impl IntoResponse {
-    let db = require_db!(state);
-    let lookup_id = if !params.user_id.is_empty() {
-        params.user_id.clone()
-    } else if !params.distinct_id.is_empty() {
-        params.distinct_id.clone()
-    } else if !params.fingerprint.is_empty() {
-        params.fingerprint.clone()
-    } else {
+    let fp = params.fingerprint.as_str();
+    let uid = params.user_id.as_str();
+    let did = params.distinct_id.as_str();
+    if avatar_storage_key(fp, uid, did).is_none() {
         return (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({"error": "Provide user_id, distinct_id, or fingerprint"})),
         )
             .into_response();
+    }
+
+    let resolved = match timeout(
+        PROFILE_STORE_TIMEOUT,
+        resolve_stored_profile(state.profile_store.as_ref(), fp, uid, did),
+    )
+    .await
+    {
+        Ok(r) => r,
+        Err(_) => {
+            tracing::warn!("user profile lookup timed out");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Failed to query profile"})),
+            )
+                .into_response();
+        }
     };
 
-    match db.get_user_profile(&lookup_id).await {
+    match resolved {
         Ok(Some(profile)) => {
             let avatar_url = if !profile.avatar_png.is_empty() {
                 serde_json::Value::String(format!(
@@ -255,13 +340,10 @@ pub async fn user_profile_generate_avatar(
     State(state): State<AppState>,
     Json(body): Json<GenerateAvatarBody>,
 ) -> impl IntoResponse {
-    let lookup_id = if !body.user_id.is_empty() {
-        body.user_id.clone()
-    } else if !body.distinct_id.is_empty() {
-        body.distinct_id.clone()
-    } else if !body.fingerprint.is_empty() {
-        body.fingerprint.clone()
-    } else {
+    let fp = body.fingerprint.as_str();
+    let uid = body.user_id.as_str();
+    let did = body.distinct_id.as_str();
+    let Some(storage_key) = avatar_storage_key(fp, uid, did) else {
         return (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({"error": "Provide user_id, distinct_id, or fingerprint"})),
@@ -285,10 +367,15 @@ pub async fn user_profile_generate_avatar(
             .into_response();
     };
 
-    let prior = match timeout(PROFILE_STORE_TIMEOUT, state.profile_store.get_profile(&lookup_id)).await {
+    let prior = match timeout(
+        PROFILE_STORE_TIMEOUT,
+        resolve_stored_profile(state.profile_store.as_ref(), fp, uid, did),
+    )
+    .await
+    {
         Ok(result) => result,
         Err(_) => {
-            tracing::warn!(lookup_id = %lookup_id, "profile lookup timed out; continuing without cache");
+            tracing::warn!(storage_key = %storage_key, "profile lookup timed out; continuing without cache");
             Ok(None)
         }
     };
@@ -316,12 +403,20 @@ pub async fn user_profile_generate_avatar(
         }
     }
 
+    let prior_png_for_edit: Option<String> = match &prior {
+        Ok(Some(p)) if p.avatar_session_id != today_utc && !p.avatar_png.is_empty() => {
+            Some(p.avatar_png.clone())
+        }
+        _ => None,
+    };
+
     // ── Activity enrichment (best-effort, 2s timeout) ──────────────────
+    let activity_lookup = activity_lookup_id(fp, uid, did).unwrap_or_else(|| storage_key.clone());
     let mut ctx = body.user_context.clone();
     if let Some(ref db) = state.db {
         match timeout(
             PROFILE_STORE_TIMEOUT,
-            db.query_events_by_user(&lookup_id, 20),
+            db.query_events_by_user(&activity_lookup, 20),
         )
         .await
         {
@@ -363,7 +458,7 @@ pub async fn user_profile_generate_avatar(
             }
             Err(_) => {
                 tracing::warn!(
-                    lookup_id = %lookup_id,
+                    activity_lookup = %activity_lookup,
                     "activity query timed out; continuing without enrichment"
                 );
             }
@@ -373,8 +468,15 @@ pub async fn user_profile_generate_avatar(
 
     // ── Generate composite image ──────────────────────────────────────
     let fp = body.fingerprint.as_str();
-    match avatar::generate_regional_collage(openai, anthropic, fp, &ctx, prior_persona.as_deref())
-        .await
+    match avatar::generate_regional_collage(
+        openai,
+        anthropic,
+        fp,
+        &ctx,
+        prior_persona.as_deref(),
+        prior_png_for_edit.as_deref(),
+    )
+    .await
     {
         Ok(result) => {
             if result.image_generation_failed {
@@ -405,7 +507,7 @@ pub async fn user_profile_generate_avatar(
                 PROFILE_STORE_TIMEOUT,
                 state
                     .profile_store
-                    .upsert_persona_avatar(&lookup_id, &today_utc, &result.persona, &png),
+                    .upsert_persona_avatar(&storage_key, &today_utc, &result.persona, &png),
             )
             .await
             {
@@ -415,7 +517,7 @@ pub async fn user_profile_generate_avatar(
                 }
                 Err(_) => {
                     tracing::warn!(
-                        lookup_id = %lookup_id,
+                        storage_key = %storage_key,
                         "avatar upsert timed out; returning uncached result"
                     );
                 }

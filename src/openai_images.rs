@@ -4,6 +4,7 @@ use reqwest::Client;
 use std::time::Duration;
 
 const OPENAI_IMAGES_URL: &str = "https://api.openai.com/v1/images/generations";
+const OPENAI_IMAGES_EDITS_URL: &str = "https://api.openai.com/v1/images/edits";
 const REQUEST_TIMEOUT_SECS: u64 = 40;
 
 #[derive(Clone)]
@@ -26,6 +27,27 @@ impl OpenAiImagesClient {
             base_url: base_url
                 .unwrap_or_else(|| OPENAI_IMAGES_URL.to_string()),
         }
+    }
+
+    fn edits_endpoint(&self) -> String {
+        if self.base_url.contains("/images/generations") {
+            self.base_url
+                .replace("/images/generations", "/images/edits")
+        } else {
+            OPENAI_IMAGES_EDITS_URL.to_string()
+        }
+    }
+
+    fn parse_b64_response(json: serde_json::Value) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        let b64 = json
+            .get("data")
+            .and_then(|d| d.as_array())
+            .and_then(|arr| arr.first())
+            .and_then(|item| item.get("b64_json"))
+            .and_then(|v| v.as_str())
+            .ok_or("no b64_json in OpenAI response")?
+            .to_string();
+        Ok(b64)
     }
 
     /// Generate one image and return the raw base64-encoded PNG string.
@@ -58,16 +80,44 @@ impl OpenAiImagesClient {
         }
 
         let json: serde_json::Value = res.json().await?;
-        let b64 = json
-            .get("data")
-            .and_then(|d| d.as_array())
-            .and_then(|arr| arr.first())
-            .and_then(|item| item.get("b64_json"))
-            .and_then(|v| v.as_str())
-            .ok_or("no b64_json in OpenAI response")?
-            .to_string();
+        Self::parse_b64_response(json)
+    }
 
-        Ok(b64)
+    /// Evolve an existing PNG using gpt-image-1 image edits (reference input).
+    ///
+    /// `png_b64_raw` is raw base64 bytes without a `data:` prefix.
+    pub async fn edit_with_reference(
+        &self,
+        prompt: &str,
+        png_b64_raw: &str,
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+        let data_uri = format!("data:image/png;base64,{png_b64_raw}");
+        let body = serde_json::json!({
+            "model": "gpt-image-1",
+            "prompt": prompt,
+            "n": 1,
+            "size": "1024x1024",
+            "quality": "medium",
+            "images": [{ "image_url": data_uri }],
+        });
+
+        let url = self.edits_endpoint();
+        let res = self
+            .http
+            .post(&url)
+            .bearer_auth(&self.api_key)
+            .json(&body)
+            .send()
+            .await?;
+
+        if !res.status().is_success() {
+            let status = res.status();
+            let text = res.text().await.unwrap_or_default();
+            return Err(format!("OpenAI Images edits API error {status}: {text}").into());
+        }
+
+        let json: serde_json::Value = res.json().await?;
+        Self::parse_b64_response(json)
     }
 }
 

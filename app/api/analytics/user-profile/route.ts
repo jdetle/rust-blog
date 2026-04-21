@@ -3,10 +3,14 @@
  * Returns the LLM-generated summary, persona guess, and avatar for the given fingerprint/distinct_id.
  *
  * AUTH: Public — user requests own profile by fingerprint or distinct_id.
+ *
+ * Must not be cached: personalized responses would serve stale "no avatar" after generation.
  */
 
 import { type NextRequest, NextResponse } from "next/server";
 import { getAnalyticsIngestionBaseUrl } from "@/lib/analytics-ingestion-url";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
 	const ANALYTICS_API_URL = getAnalyticsIngestionBaseUrl();
@@ -43,7 +47,7 @@ export async function GET(request: NextRequest) {
 
 		const res = await fetch(url.href, {
 			headers: { Accept: "application/json" },
-			next: { revalidate: 60 },
+			cache: "no-store",
 			signal: AbortSignal.timeout(5_000),
 		});
 
@@ -64,13 +68,21 @@ export async function GET(request: NextRequest) {
 			avatar_svg?: string | null;
 			avatar_url?: string | null;
 		};
-		return NextResponse.json({
-			summary: data.summary ?? null,
-			updated_at: data.updated_at ?? null,
-			persona_guess: data.persona_guess ?? null,
-			avatar_svg: data.avatar_svg ?? null,
-			avatar_url: data.avatar_url ?? null,
-		});
+		return NextResponse.json(
+			{
+				summary: data.summary ?? null,
+				updated_at: data.updated_at ?? null,
+				persona_guess: data.persona_guess ?? null,
+				avatar_svg: data.avatar_svg ?? null,
+				avatar_url: data.avatar_url ?? null,
+			},
+			{
+				headers: {
+					"Cache-Control":
+						"private, no-store, no-cache, must-revalidate, max-age=0",
+				},
+			},
+		);
 	} catch (err) {
 		console.warn("User profile fetch failed:", err);
 		return NextResponse.json({

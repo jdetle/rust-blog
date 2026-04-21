@@ -8,7 +8,15 @@ import { canvasFingerprint } from "@/components/who-are-you/canvas-fingerprint";
 const AVATAR_LABEL =
 	"A personalised portrait generated from regional art traditions and your browser signals. Updates each calendar day.";
 
-type Phase = "awaiting-captcha" | "loading" | "ready" | "absent";
+const LS_AVATAR_PREFIX = "jdetle.avatar.url";
+const LS_PERSONA_PREFIX = "jdetle.avatar.persona";
+
+type Phase =
+	| "prefetching"
+	| "awaiting-captcha"
+	| "loading"
+	| "ready"
+	| "absent";
 type LoadingStep = "fingerprint" | "region" | "artists" | "rendering";
 
 const STEP_MESSAGES: Record<LoadingStep, string> = {
@@ -199,20 +207,34 @@ async function buildUserContext(): Promise<UserContext> {
 
 const OBSERVATION_INTERVAL_MS = 8_000;
 
+function persistAvatarLocal(
+	fp: string,
+	avatarUrl: string,
+	persona: string | null,
+) {
+	try {
+		localStorage.setItem(`${LS_AVATAR_PREFIX}.${fp}`, avatarUrl);
+		if (persona) {
+			localStorage.setItem(`${LS_PERSONA_PREFIX}.${fp}`, persona);
+		}
+	} catch {
+		// private mode / quota — ignore
+	}
+}
+
 export function HomeFingerprintAvatar() {
 	const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 	const [personaGuess, setPersonaGuess] = useState<string | null>(null);
-	const [phase, setPhase] = useState<Phase>("awaiting-captcha");
+	const [phase, setPhase] = useState<Phase>("prefetching");
 	const [loadingStep, setLoadingStep] = useState<LoadingStep>("fingerprint");
 	const [observations, setObservations] = useState<string[]>([]);
 	const [visibleObs, setVisibleObs] = useState(0);
 	const requestedRef = useRef(false);
 	const tokenRef = useRef<string | null>(null);
 	const obsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-	const handleToken = useCallback((token: string) => {
-		tokenRef.current = token;
-	}, []);
+	const needsGenerationRef = useRef(false);
+	/** True after reading a valid data URI from localStorage this session (for fetch error fallback). */
+	const hadLocalAvatarRef = useRef(false);
 
 	const handleCaptchaError = useCallback(() => {
 		setPhase("absent");
@@ -240,7 +262,7 @@ export function HomeFingerprintAvatar() {
 		}
 	}, []);
 
-	const runAvatarFlow = useCallback(
+	const runGeneration = useCallback(
 		async (turnstileToken: string) => {
 			const fp = canvasFingerprint();
 			const distinctId = posthog.get_distinct_id?.();
@@ -249,32 +271,140 @@ export function HomeFingerprintAvatar() {
 					posthog as { get_session_id?: () => string | null }
 				).get_session_id?.() ?? null;
 
-			setPhase("loading");
-			setLoadingStep("fingerprint");
+			if (!fp || fp === "Canvas blocked" || requestedRef.current) {
+				setPhase("absent");
+				return;
+			}
+			requestedRef.current = true;
 
-			let cancelled = false;
-			const profileController = new AbortController();
+			setPhase("loading");
+			setLoadingStep("artists");
+			const userContext = await buildUserContext();
+			setLoadingStep("rendering");
+
 			const generateController = new AbortController();
-			const profileTimeoutId = setTimeout(
-				() => profileController.abort(),
-				6_000,
+			const generateTimeoutId = setTimeout(
+				() => generateController.abort(),
+				90_000,
 			);
-			let generateTimeoutId: ReturnType<typeof setTimeout> | undefined;
+
+			const obsPayload = {
+				fingerprint: fp,
+				distinct_id: distinctId ?? undefined,
+				user_id: distinctId ?? undefined,
+				user_context: userContext,
+			};
+
+			const obsPromise = fetch("/api/analytics/observations", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(obsPayload),
+			})
+				.then(async (res) => {
+					const json = (await res.json()) as { observations?: string[] };
+					if (json.observations?.length) {
+						startObservationReveal(json.observations);
+					}
+				})
+				.catch(() => {
+					/* non-fatal */
+				});
+
+			const genPromise = fetch("/api/analytics/generate-avatar", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					fingerprint: fp,
+					distinct_id: distinctId ?? undefined,
+					user_id: distinctId ?? undefined,
+					session_id: sessionId ?? undefined,
+					turnstile_token: turnstileToken,
+					user_context: userContext,
+				}),
+				signal: generateController.signal,
+			});
 
 			try {
-				// ── Step 1: check if cached avatars exist ─────────────────────
-				setLoadingStep("region");
-				const profileUrl = new URL(
-					"/api/analytics/user-profile",
-					window.location.origin,
-				);
-				profileUrl.searchParams.set("fingerprint", fp);
-				if (distinctId) {
-					profileUrl.searchParams.set("distinct_id", distinctId);
-					profileUrl.searchParams.set("user_id", distinctId);
-				}
-				if (sessionId) profileUrl.searchParams.set("session_id", sessionId);
+				const [gr] = await Promise.all([genPromise, obsPromise]);
+				const gen = (await gr.json()) as {
+					avatar_url?: string | null;
+					persona_guess?: string | null;
+				};
 
+				stopObservationReveal();
+
+				if (gen.avatar_url) {
+					setAvatarUrl(gen.avatar_url);
+					if (gen.persona_guess) setPersonaGuess(gen.persona_guess);
+					persistAvatarLocal(fp, gen.avatar_url, gen.persona_guess ?? null);
+					setPhase("ready");
+				} else {
+					setPhase("absent");
+				}
+			} catch {
+				setPhase("absent");
+			} finally {
+				clearTimeout(generateTimeoutId);
+			}
+		},
+		[startObservationReveal, stopObservationReveal],
+	);
+
+	const handleToken = useCallback(
+		(token: string) => {
+			tokenRef.current = token;
+			if (needsGenerationRef.current) {
+				needsGenerationRef.current = false;
+				void runGeneration(token);
+			}
+		},
+		[runGeneration],
+	);
+
+	// Instant path: local cache + server profile before captcha.
+	useEffect(() => {
+		let cancelled = false;
+		const profileController = new AbortController();
+		const profileTimeoutId = setTimeout(() => profileController.abort(), 6_000);
+
+		void (async () => {
+			const fp = canvasFingerprint();
+			if (!fp || fp === "Canvas blocked") {
+				if (!cancelled) setPhase("absent");
+				return;
+			}
+
+			try {
+				const lsUrl = localStorage.getItem(`${LS_AVATAR_PREFIX}.${fp}`);
+				const lsPersona = localStorage.getItem(`${LS_PERSONA_PREFIX}.${fp}`);
+				if (lsUrl?.startsWith("data:image/png;base64,") && !cancelled) {
+					hadLocalAvatarRef.current = true;
+					setAvatarUrl(lsUrl);
+					if (lsPersona) setPersonaGuess(lsPersona);
+					setPhase("ready");
+				}
+			} catch {
+				/* ignore */
+			}
+
+			const distinctId = posthog.get_distinct_id?.();
+			const sessionId =
+				(
+					posthog as { get_session_id?: () => string | null }
+				).get_session_id?.() ?? null;
+
+			const profileUrl = new URL(
+				"/api/analytics/user-profile",
+				window.location.origin,
+			);
+			profileUrl.searchParams.set("fingerprint", fp);
+			if (distinctId) {
+				profileUrl.searchParams.set("distinct_id", distinctId);
+				profileUrl.searchParams.set("user_id", distinctId);
+			}
+			if (sessionId) profileUrl.searchParams.set("session_id", sessionId);
+
+			try {
 				const r = await fetch(profileUrl.href, {
 					signal: profileController.signal,
 				});
@@ -287,101 +417,32 @@ export function HomeFingerprintAvatar() {
 				if (data.avatar_url) {
 					setAvatarUrl(data.avatar_url);
 					if (data.persona_guess) setPersonaGuess(data.persona_guess);
+					persistAvatarLocal(fp, data.avatar_url, data.persona_guess ?? null);
 					setPhase("ready");
 					return;
 				}
 
-				// ── Step 2: generate new avatars ──────────────────────────────
-				if (!fp || fp === "Canvas blocked" || requestedRef.current) {
-					setPhase("absent");
-					return;
-				}
-				requestedRef.current = true;
-
-				setLoadingStep("artists");
-				const userContext = await buildUserContext();
-
-				// Fire observations + image generation concurrently.
-				setLoadingStep("rendering");
-				generateTimeoutId = setTimeout(
-					() => generateController.abort(),
-					90_000,
-				);
-
-				const obsPayload = {
-					fingerprint: fp,
-					distinct_id: distinctId ?? undefined,
-					user_id: distinctId ?? undefined,
-					user_context: userContext,
-				};
-
-				// Kick off observations (fast, ~3s) while waiting for images (~40s).
-				const obsPromise = fetch("/api/analytics/observations", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify(obsPayload),
-				})
-					.then(async (res) => {
-						const json = (await res.json()) as { observations?: string[] };
-						if (json.observations?.length) {
-							startObservationReveal(json.observations);
-						}
-					})
-					.catch(() => {
-						/* non-fatal */
-					});
-
-				const genPromise = fetch("/api/analytics/generate-avatar", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						fingerprint: fp,
-						distinct_id: distinctId ?? undefined,
-						user_id: distinctId ?? undefined,
-						session_id: sessionId ?? undefined,
-						turnstile_token: turnstileToken,
-						user_context: userContext,
-					}),
-					signal: generateController.signal,
-				});
-
-				const [gr] = await Promise.all([genPromise, obsPromise]);
-				const gen = (await gr.json()) as {
-					avatar_url?: string | null;
-					persona_guess?: string | null;
-				};
-				if (cancelled) return;
-
-				stopObservationReveal();
-
-				if (gen.avatar_url) {
-					setAvatarUrl(gen.avatar_url);
-					if (gen.persona_guess) setPersonaGuess(gen.persona_guess);
-					setPhase("ready");
-				} else {
-					setPhase("absent");
-				}
+				setAvatarUrl(null);
+				setPersonaGuess(null);
+				needsGenerationRef.current = true;
+				setPhase("awaiting-captcha");
 			} catch {
-				if (!cancelled) setPhase("absent");
-			} finally {
-				clearTimeout(profileTimeoutId);
-				if (generateTimeoutId !== undefined) clearTimeout(generateTimeoutId);
-				cancelled = true;
+				if (cancelled) return;
+				if (hadLocalAvatarRef.current) {
+					setPhase("ready");
+					return;
+				}
+				needsGenerationRef.current = true;
+				setPhase("awaiting-captcha");
 			}
-		},
-		[startObservationReveal, stopObservationReveal],
-	);
+		})();
 
-	useEffect(() => {
-		const checkToken = () => {
-			if (!tokenRef.current) {
-				setTimeout(checkToken, 100);
-				return;
-			}
-			runAvatarFlow(tokenRef.current);
+		return () => {
+			cancelled = true;
+			clearTimeout(profileTimeoutId);
+			profileController.abort();
 		};
-		checkToken();
-	}, [runAvatarFlow]);
+	}, []);
 
 	// Clean up interval on unmount.
 	useEffect(() => {
@@ -392,10 +453,16 @@ export function HomeFingerprintAvatar() {
 
 	if (phase === "absent") return null;
 
-	if (phase === "awaiting-captcha" || phase === "loading") {
+	if (
+		phase === "prefetching" ||
+		phase === "awaiting-captcha" ||
+		phase === "loading"
+	) {
 		return (
 			<>
-				<TurnstileGate onToken={handleToken} onError={handleCaptchaError} />
+				{phase !== "prefetching" ? (
+					<TurnstileGate onToken={handleToken} onError={handleCaptchaError} />
+				) : null}
 				<div
 					className="home-fingerprint-avatar home-fingerprint-avatar--loading"
 					role="status"
@@ -408,13 +475,15 @@ export function HomeFingerprintAvatar() {
 							<div className="home-fingerprint-avatar-shimmer-line home-fingerprint-avatar-shimmer-line--narrow" />
 						</div>
 					</div>
-					{phase === "loading" && (
+					{(phase === "loading" || phase === "prefetching") && (
 						<p
-							key={loadingStep}
+							key={phase === "prefetching" ? "prefetch" : loadingStep}
 							className="home-fingerprint-avatar-status"
 							aria-live="polite"
 						>
-							{STEP_MESSAGES[loadingStep]}
+							{phase === "prefetching"
+								? "Loading your portrait…"
+								: STEP_MESSAGES[loadingStep]}
 						</p>
 					)}
 					{observations.length > 0 && (

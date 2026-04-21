@@ -595,6 +595,88 @@ async fn collage_generation_succeeds_when_profile_store_errors() {
     openai_mock.verify().await;
 }
 
+#[tokio::test]
+async fn collage_new_calendar_day_uses_image_edits_when_prior_png_exists() {
+    let store = Arc::new(MemoryProfileStore::new());
+    ProfileStore::upsert_persona_avatar(
+        store.as_ref(),
+        "fp-edit-day",
+        "2000-01-01",
+        "Prior persona",
+        CANNED_PNG_B64,
+    )
+    .await
+    .unwrap();
+    let profile_store: Arc<dyn ProfileStore> = store.clone();
+
+    let anthropic_mock = MockServer::start().await;
+    let openai_mock = MockServer::start().await;
+
+    let anthropic = Arc::new(AnthropicClient::new(
+        "test-key".to_string(),
+        Some(anthropic_mock.uri()),
+    ));
+    let openai_gen_url = format!("{}/v1/images/generations", openai_mock.uri());
+    let openai = Arc::new(OpenAiImagesClient::new("oai-test-key".to_string(), Some(openai_gen_url)));
+
+    let state = AppState {
+        db: None,
+        posthog: None,
+        anthropic: Some(anthropic),
+        openai: Some(openai),
+        profile_store,
+    };
+
+    let app: Router = rust_blog::build_router(state);
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    let base = format!("http://{addr}");
+
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(anthropic_collage_response()),
+        )
+        .expect(1)
+        .mount(&anthropic_mock)
+        .await;
+
+    Mock::given(method("POST"))
+        .and(path("/v1/images/edits"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(openai_image_response(CANNED_PNG_B64)),
+        )
+        .expect(1)
+        .mount(&openai_mock)
+        .await;
+
+    let client = reqwest::Client::new();
+    let res = client
+        .post(format!("{base}/user-profile/generate-avatar"))
+        .json(&json!({
+            "fingerprint": "fp-edit-day",
+            "session_id": "session-edit-day",
+            "user_context": { "city": "Oslo", "country": "Norway" }
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(res.status(), 200);
+    let body: serde_json::Value = res.json().await.unwrap();
+    assert_eq!(body["cached"], false);
+    assert!(
+        body["avatar_url"].as_str().unwrap().starts_with("data:image/png;base64,"),
+        "must be a data URI"
+    );
+
+    anthropic_mock.verify().await;
+    openai_mock.verify().await;
+}
+
 // ── Observations tests ────────────────────────────────────────────────
 
 #[tokio::test]
