@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
 			persona_guess: null,
 			avatar_svg: null,
 			avatar_url: null,
+			avatar_history_len: 0,
 		});
 	}
 
@@ -58,6 +59,7 @@ export async function GET(request: NextRequest) {
 				persona_guess: null,
 				avatar_svg: null,
 				avatar_url: null,
+				avatar_history_len: 0,
 			});
 		}
 
@@ -67,6 +69,7 @@ export async function GET(request: NextRequest) {
 			persona_guess?: string | null;
 			avatar_svg?: string | null;
 			avatar_url?: string | null;
+			avatar_history_len?: number | null;
 		};
 		return NextResponse.json(
 			{
@@ -75,6 +78,7 @@ export async function GET(request: NextRequest) {
 				persona_guess: data.persona_guess ?? null,
 				avatar_svg: data.avatar_svg ?? null,
 				avatar_url: data.avatar_url ?? null,
+				avatar_history_len: data.avatar_history_len ?? 0,
 			},
 			{
 				headers: {
@@ -91,6 +95,7 @@ export async function GET(request: NextRequest) {
 			persona_guess: null,
 			avatar_svg: null,
 			avatar_url: null,
+			avatar_history_len: 0,
 		});
 	}
 }

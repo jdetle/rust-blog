@@ -607,6 +607,7 @@ a:hover {
 /* ── Single composite portrait frame ────────────────────────────── */
 
 .home-fingerprint-avatar-frame {
+	position: relative;
 	border-radius: 12px;
 	overflow: hidden;
 	filter: drop-shadow(0 2px 16px rgba(34, 28, 22, 0.14));
@@ -618,6 +619,77 @@ a:hover {
 	width: 100%;
 	aspect-ratio: 1;
 	object-fit: cover;
+}
+
+/* ── Local portrait history carousel (client cache) ─────────────── */
+
+.home-fingerprint-avatar-carousel-btns {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	pointer-events: none;
+	padding: 0.25rem;
+}
+
+.home-fingerprint-avatar-carousel-btn {
+	pointer-events: auto;
+	margin: 0;
+	width: 2rem;
+	height: 2.25rem;
+	border-radius: 6px;
+	border: 1px solid rgba(176, 112, 80, 0.3);
+	background: rgba(34, 28, 22, 0.45);
+	color: rgba(255, 255, 255, 0.92);
+	font-size: 1.1rem;
+	line-height: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	backdrop-filter: blur(4px);
+}
+
+.home-fingerprint-avatar-carousel-btn:hover,
+.home-fingerprint-avatar-carousel-btn:focus-visible {
+	background: rgba(34, 28, 22, 0.62);
+	outline: 2px solid rgba(255, 255, 255, 0.4);
+	outline-offset: 1px;
+}
+
+.home-fingerprint-avatar-dots {
+	display: flex;
+	justify-content: center;
+	gap: 0.4rem;
+	margin-top: 0.4rem;
+	flex-wrap: wrap;
+}
+
+.home-fingerprint-avatar-dot {
+	width: 0.45rem;
+	height: 0.45rem;
+	border-radius: 50%;
+	border: none;
+	padding: 0;
+	background: rgba(176, 112, 80, 0.35);
+	cursor: pointer;
+}
+
+.home-fingerprint-avatar-dot--active {
+	background: rgba(176, 112, 80, 0.85);
+}
+
+.home-fingerprint-avatar--with-cache {
+	min-height: 0;
+}
+
+.home-fingerprint-avatar-refresh-hint {
+	font-size: 0.7rem;
+	color: rgba(34, 28, 22, 0.55);
+	margin: 0.35rem 0 0;
+	line-height: 1.4;
+	letter-spacing: 0.02em;
 }
 
 .home-fingerprint-avatar-persona {

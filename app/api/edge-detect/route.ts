@@ -1,7 +1,11 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { getClientIpFromHeaders } from "@/lib/client-ip";
-import { analyzeServerSignals, type EdgeSignals } from "@/lib/vpn-detect";
+import {
+	analyzeServerSignals,
+	computeVpnExitLocationHeuristic,
+	type EdgeSignals,
+} from "@/lib/vpn-detect";
 
 /**
  * Returns server-side IP intelligence (geo, ASN) the browser cannot infer alone.
@@ -98,6 +102,7 @@ export async function GET(request: NextRequest) {
 	};
 
 	const serverVpnSignals = analyzeServerSignals(edgeSignals);
+	const vpnExitLocationHeuristic = computeVpnExitLocationHeuristic(edgeSignals);
 
 	const edgePop =
 		request.headers.get("x-edge-pop") ?? request.headers.get("cf-ray") ?? null;
@@ -111,6 +116,7 @@ export async function GET(request: NextRequest) {
 			provider,
 		},
 		vpnSignals: serverVpnSignals,
+		vpnExitLocationHeuristic,
 		ipapi: ipapiRaw
 			? {
 					version: ipapiRaw.version ?? null,

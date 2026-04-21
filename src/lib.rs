@@ -11,6 +11,8 @@ pub mod forward;
 pub mod info;
 pub mod mock;
 pub mod openai_images;
+pub mod origin_enrichment;
+pub mod user_context;
 pub mod summarize;
 pub mod web_analytics_drain;
 
