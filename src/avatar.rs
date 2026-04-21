@@ -1,9 +1,11 @@
 //! Avatar generation via Anthropic + OpenAI.
 //!
-//! **Single composite image (production):** One Claude Haiku call derives a persona and one
-//! fused `ART_DIRECTION` string synthesising regional palette, device texture, connection mood,
-//! and persona archetype. One OpenAI gpt-image-1 call then renders a 1024×1024 PNG stored in
-//! `user_profiles.avatar_png` / `avatar_pngs`. Cost: ~$0.04 per visitor/day vs ~$0.17 for the old 4-image path.
+//! **Single composite image (production):** Server-side [`crate::origin_enrichment`] fetches
+//! public facts (Open-Meteo, REST Countries, World Bank employment mix, optional Wikipedia,
+//! place image context via Google Custom Search when configured or Wikimedia Commons). One Claude
+//! Sonnet call derives a persona and fused `ART_DIRECTION` grounded in those facts plus browser
+//! signals. One OpenAI gpt-image-1 call renders a 1024×1024 PNG stored in `user_profiles.avatar_png`
+//! / `avatar_pngs`.
 //!
 //! **Observations:** A separate Claude Haiku call reads UserContext + recent events and emits
 //! 6 one-sentence factual observations about the visitor's signals. Returned as a JSON array;
@@ -11,162 +13,21 @@
 
 use crate::anthropic::AnthropicClient;
 use crate::openai_images::OpenAiImagesClient;
+use crate::origin_enrichment::{self, OriginEnrichment};
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
-use serde::{Deserialize, Serialize};
+use chrono::Utc;
 
-const MODEL: &str = "claude-haiku-4-5-20251001";
-const MAX_TOKENS: u32 = 2048;
+pub use crate::user_context::UserContext;
+
+const MODEL_OBSERVATIONS: &str = "claude-haiku-4-5-20251001";
+/// Collage brief: Sonnet for richer synthesis grounded in origin API facts.
+const MODEL_COLLAGE: &str = "claude-sonnet-4-5-20250929";
+const MAX_TOKENS: u32 = 4096;
 const MAX_PNG_B64_BYTES: usize = 3 * 1024 * 1024; // 3 MB encoded
-
-// ── UserContext ──────────────────────────────────────────────────────
-
-/// All browser/edge signals collected by the client, plus optional activity signals
-/// populated server-side from AnalyticsDb. Activity fields are never round-tripped to
-/// the client — they are injected by the avatar handler before calling generate_regional_collage.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct UserContext {
-    // Geo (from edge headers / ipapi)
-    pub city: Option<String>,
-    pub region: Option<String>,
-    pub country: Option<String>,
-    pub latitude: Option<String>,
-    pub longitude: Option<String>,
-    pub timezone_ip: Option<String>,
-    pub asn: Option<String>,
-    pub org: Option<String>,
-    pub is_eu: Option<bool>,
-    pub currency: Option<String>,
-    pub calling_code: Option<String>,
-    // Device
-    pub browser: Option<String>,
-    pub os: Option<String>,
-    pub device_type: Option<String>,
-    pub screen: Option<String>,
-    pub gpu: Option<String>,
-    pub cores: Option<String>,
-    pub ram: Option<String>,
-    // Capabilities
-    pub timezone_browser: Option<String>,
-    pub languages: Option<String>,
-    pub dark_mode: Option<bool>,
-    pub reduced_motion: Option<bool>,
-    pub connection_type: Option<String>,
-    // Referral
-    pub referrer_type: Option<String>,
-    pub utm: Option<String>,
-    // VPN assessment
-    pub vpn_verdict: Option<String>,
-    // PostHog session (for cache key only — not included in prompt)
-    pub posthog_session_id: Option<String>,
-    // Activity (server-side only — populated from AnalyticsDb, not sent by client)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub recent_event_count: Option<u32>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub recent_paths: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub session_minutes: Option<u32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub last_event_type: Option<String>,
-}
-
-impl UserContext {
-    /// Render all fields into a labelled block for inclusion in prompts.
-    pub fn to_prompt_block(&self) -> String {
-        let mut lines: Vec<String> = Vec::new();
-        let push = |lines: &mut Vec<String>, label: &str, val: &Option<String>| {
-            if let Some(v) = val {
-                if !v.is_empty() {
-                    lines.push(format!("- {label}: {v}"));
-                }
-            }
-        };
-        let push_bool = |lines: &mut Vec<String>, label: &str, val: Option<bool>| {
-            if let Some(v) = val {
-                lines.push(format!("- {label}: {}", if v { "yes" } else { "no" }));
-            }
-        };
-
-        push(&mut lines, "City", &self.city);
-        push(&mut lines, "Region", &self.region);
-        push(&mut lines, "Country", &self.country);
-        push(&mut lines, "Latitude", &self.latitude);
-        push(&mut lines, "Longitude", &self.longitude);
-        push(&mut lines, "IP timezone", &self.timezone_ip);
-        push(&mut lines, "ASN", &self.asn);
-        push(&mut lines, "Network org", &self.org);
-        push_bool(&mut lines, "EU member", self.is_eu);
-        push(&mut lines, "Currency", &self.currency);
-        push(&mut lines, "Calling code", &self.calling_code);
-        push(&mut lines, "Browser", &self.browser);
-        push(&mut lines, "OS", &self.os);
-        push(&mut lines, "Device type", &self.device_type);
-        push(&mut lines, "Screen", &self.screen);
-        push(&mut lines, "GPU", &self.gpu);
-        push(&mut lines, "CPU cores", &self.cores);
-        push(&mut lines, "RAM", &self.ram);
-        push(&mut lines, "Browser timezone", &self.timezone_browser);
-        push(&mut lines, "Languages", &self.languages);
-        push_bool(&mut lines, "Dark mode preferred", self.dark_mode);
-        push_bool(&mut lines, "Reduced motion", self.reduced_motion);
-        push(&mut lines, "Connection type", &self.connection_type);
-        push(&mut lines, "Referrer type", &self.referrer_type);
-        push(&mut lines, "UTM tags", &self.utm);
-        push(&mut lines, "VPN verdict", &self.vpn_verdict);
-
-        // Activity signals (server-side enrichment)
-        if let Some(count) = self.recent_event_count {
-            lines.push(format!("- Recent page views: {count}"));
-        }
-        if !self.recent_paths.is_empty() {
-            lines.push(format!("- Recently visited: {}", self.recent_paths.join(", ")));
-        }
-        if let Some(mins) = self.session_minutes {
-            lines.push(format!("- Session duration: {mins} min"));
-        }
-        push(&mut lines, "Last event type", &self.last_event_type);
-
-        if lines.is_empty() {
-            return "(no signals available)".to_string();
-        }
-        lines.join("\n")
-    }
-
-    pub fn region_or_country(&self) -> String {
-        [
-            self.city.as_deref(),
-            self.region.as_deref(),
-            self.country.as_deref(),
-        ]
-        .iter()
-        .filter_map(|x| *x)
-        .filter(|s| !s.is_empty())
-        .collect::<Vec<_>>()
-        .join(", ")
-    }
-
-    fn device_desc(&self) -> String {
-        match (self.gpu.as_deref(), self.os.as_deref(), self.device_type.as_deref()) {
-            (Some(gpu), Some(os), _) if !gpu.is_empty() => format!("{os} with {gpu}"),
-            (_, Some(os), Some(dev)) => format!("{os} ({dev})"),
-            (_, Some(os), _) => os.to_string(),
-            _ => "unknown device".to_string(),
-        }
-    }
-
-    fn connection_mood(&self) -> String {
-        let conn = self.connection_type.as_deref().unwrap_or("unknown");
-        let tz = self.timezone_browser.as_deref().unwrap_or("");
-        if tz.is_empty() {
-            format!("browsing on a {conn} connection")
-        } else {
-            format!("browsing on a {conn} connection in the {tz} timezone")
-        }
-    }
-}
 
 // ── Single composite image brief ────────────────────────────────────
 
-/// Ask Claude Haiku for PERSONA + ART_DIRECTION.
+/// Ask Claude Sonnet for PERSONA + ART_DIRECTION (grounded in optional public API enrichment).
 ///
 /// ART_DIRECTION is a single fused art-direction sentence synthesising:
 ///   1. Regional/cultural colour palette and motifs from the visitor's location
@@ -177,6 +38,7 @@ pub fn build_regional_collage_prompt(
     fingerprint: &str,
     ctx: &UserContext,
     prior_persona: Option<&str>,
+    enrichment: &OriginEnrichment,
 ) -> String {
     let signal_block = ctx.to_prompt_block();
     let location = ctx.region_or_country();
@@ -190,25 +52,49 @@ pub fn build_regional_collage_prompt(
         .map(|p| format!("\nPrevious persona guess (refine, don't repeat verbatim): {p}\n"))
         .unwrap_or_default();
 
+    let origin_facts = enrichment.to_prompt_block();
+    let cc = ctx
+        .country
+        .as_deref()
+        .and_then(origin_enrichment::sanitize_country_code)
+        .unwrap_or_default();
+    let date_utc = Utc::now().format("%Y-%m-%d").to_string();
+    let axes = origin_enrichment::composition_axes(
+        fingerprint,
+        &cc,
+        enrichment.weather_code,
+        &date_utc,
+    );
+
     format!(
-        r#"You are an AI helping a privacy-education blog create a personalised avatar image for a visitor.
+        r#"You are an AI helping a privacy-education blog create a personalised abstract avatar image for a visitor.
 
 Canvas fingerprint (a browser rendering hash, not PII): `{fp}`
 {prior_hint}
-Visitor signals:
+Visitor signals (browser and network hints, not identity):
 {signals}
 
-Based on the signals — especially the location ({location}), device ({device}), and browsing context ({connection}) — produce exactly two labelled lines:
+Public origin enrichment (from lat/lon and country code via public APIs — use for atmosphere only, not to claim this is the real person):
+{origin_facts}
 
-PERSONA: ONE short, clearly fictional and speculative sentence about what kind of person this visitor might be. Tone: warm and playful, never creepy. Start with "Probably" or "Maybe".
+Composition variety (deterministic abstract axes — honour in the visual brief, not literally):
+{axes}
 
-ART_DIRECTION: ONE rich sentence (max 40 words) synthesising all four themes into a single cohesive painterly style directive: (1) a colour palette and visual motif from {location}'s regional art traditions (not living individuals), (2) a surface texture fitting the visitor's device ({device}), (3) a mood and atmosphere evoking someone {connection}, (4) an abstract archetype symbol for the persona. Write as a single flowing image-generator brief.
+Ground your creative choices in the enrichment facts and signals where they help. Do NOT lean on stereotypes, caricatures, or "national character" tropes. The persona line is clearly fictional speculation — warm and playful, never creepy. Do not imply surveillance or real identification.
+
+Based on the signals — especially the location ({location}), device ({device}), browsing context ({connection}), and the origin enrichment when present — produce exactly two labelled lines:
+
+PERSONA: ONE short, clearly fictional and speculative sentence about what kind of life rhythm or mood *might* fit someone in this approximate place and context (not a real individual). Tone: warm and playful. Start with "Probably" or "Maybe".
+
+ART_DIRECTION: ONE rich sentence (max 60 words) synthesising into one cohesive painterly style directive: (1) colour palette and visual motif from {location}'s regional art traditions or craft aesthetics where relevant (not living individuals), informed by weather/time-of-day and — when present — image-search motifs (landmarks, nature, skyline) as abstract shapes only; (2) a hint of economic rhythm from employment-sector statistics when present (abstractly, not as job portraits); (3) surface texture fitting the visitor's device ({device}); (4) mood evoking someone {connection}; (5) an abstract archetype symbol; (6) the composition variety line above. No faces, no text, no logos.
 
 Format — no markdown, no extra lines:
 PERSONA: <sentence>
 ART_DIRECTION: <sentence>"#,
         fp = fingerprint,
         signals = signal_block,
+        origin_facts = origin_facts,
+        axes = axes,
         location = location_str,
         prior_hint = prior_hint,
         device = ctx.device_desc(),
@@ -222,8 +108,11 @@ async fn derive_regional_collage_brief(
     ctx: &UserContext,
     prior_persona: Option<&str>,
 ) -> Result<(String, String), Box<dyn std::error::Error + Send + Sync>> {
-    let claude_prompt = build_regional_collage_prompt(fingerprint, ctx, prior_persona);
-    let claude_raw = anthropic.messages(MODEL, MAX_TOKENS, &claude_prompt).await?;
+    let enrichment = origin_enrichment::enrich_for_avatar(ctx).await;
+    let claude_prompt = build_regional_collage_prompt(fingerprint, ctx, prior_persona, &enrichment);
+    let claude_raw = anthropic
+        .messages(MODEL_COLLAGE, MAX_TOKENS, &claude_prompt)
+        .await?;
 
     let persona = extract_labeled_line(&claude_raw, "PERSONA");
     let art_direction = extract_labeled_line(&claude_raw, "ART_DIRECTION");
@@ -413,7 +302,9 @@ Signals:
         signals = signal_block,
     );
 
-    let raw = anthropic.messages(MODEL, MAX_TOKENS, &prompt).await?;
+    let raw = anthropic
+        .messages(MODEL_OBSERVATIONS, MAX_TOKENS, &prompt)
+        .await?;
     let observations = parse_observations(&raw);
     Ok(observations)
 }
@@ -469,10 +360,31 @@ mod tests {
             languages: Some("en-US".to_string()),
             ..Default::default()
         };
-        let prompt = build_regional_collage_prompt("deadbeef", &ctx, None);
+        let prompt = build_regional_collage_prompt("deadbeef", &ctx, None, &OriginEnrichment::default());
         assert!(prompt.contains("deadbeef"));
         assert!(prompt.contains("PERSONA:"));
         assert!(prompt.contains("ART_DIRECTION:"));
+        assert!(prompt.contains("Public origin enrichment"));
+        assert!(prompt.contains("Composition variety"));
+    }
+
+    #[test]
+    fn regional_prompt_includes_origin_enrichment_facts() {
+        let ctx = UserContext {
+            city: Some("Oslo".to_string()),
+            country: Some("NO".to_string()),
+            ..Default::default()
+        };
+        let mut e = OriginEnrichment::default();
+        e.weather_temperature_c = Some(-2.0);
+        e.country_name = Some("Norway".to_string());
+        e.employment_summary = Some("~2% agriculture, ~20% industry, ~78% services".to_string());
+        e.place_photo_context = Some("Wikimedia Commons file names: File:Oslofjord.jpg".to_string());
+        let prompt = build_regional_collage_prompt("fp2", &ctx, None, &e);
+        assert!(prompt.contains("-2.0"));
+        assert!(prompt.contains("Norway"));
+        assert!(prompt.contains("agriculture"));
+        assert!(prompt.contains("Oslofjord"));
     }
 
     #[test]
@@ -490,7 +402,7 @@ mod tests {
             referrer_type: Some("search".to_string()),
             ..Default::default()
         };
-        let prompt = build_regional_collage_prompt("aabbccdd", &ctx, None);
+        let prompt = build_regional_collage_prompt("aabbccdd", &ctx, None, &OriginEnrichment::default());
         assert!(prompt.contains("Tokyo"));
         assert!(prompt.contains("Japan"));
         assert!(prompt.contains("Firefox 124"));
@@ -504,8 +416,12 @@ mod tests {
     #[test]
     fn regional_prompt_includes_prior_persona_hint() {
         let ctx = UserContext::default();
-        let prompt =
-            build_regional_collage_prompt("fp", &ctx, Some("Probably a developer who loves Rust"));
+        let prompt = build_regional_collage_prompt(
+            "fp",
+            &ctx,
+            Some("Probably a developer who loves Rust"),
+            &OriginEnrichment::default(),
+        );
         assert!(prompt.contains("Probably a developer who loves Rust"));
     }
 
@@ -519,7 +435,7 @@ mod tests {
             last_event_type: Some("pageview".to_string()),
             ..Default::default()
         };
-        let prompt = build_regional_collage_prompt("actfp", &ctx, None);
+        let prompt = build_regional_collage_prompt("actfp", &ctx, None, &OriginEnrichment::default());
         assert!(prompt.contains("Recent page views: 7"));
         assert!(prompt.contains("/posts/rust"));
         assert!(prompt.contains("Session duration: 12 min"));

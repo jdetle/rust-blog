@@ -1,7 +1,13 @@
 "use client";
 
 import posthog from "posthog-js";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { TurnstileGate } from "@/components/turnstile-gate";
 import { canvasFingerprint } from "@/components/who-are-you/canvas-fingerprint";
 
@@ -10,6 +16,8 @@ const AVATAR_LABEL =
 
 const LS_AVATAR_PREFIX = "jdetle.avatar.url";
 const LS_PERSONA_PREFIX = "jdetle.avatar.persona";
+const LS_HISTORY_PREFIX = "jdetle.avatar.history.v1";
+const MAX_CAROUSEL = 5;
 
 type Phase =
 	| "prefetching"
@@ -25,6 +33,63 @@ const STEP_MESSAGES: Record<LoadingStep, string> = {
 	artists: "Composing your art direction…",
 	rendering: "Rendering your portrait…",
 };
+
+function historyKey(fp: string): string {
+	return `${LS_HISTORY_PREFIX}.${fp}`;
+}
+
+function isPngDataUri(s: string): boolean {
+	return s.startsWith("data:image/png;base64,");
+}
+
+function loadHistory(fp: string): string[] {
+	if (typeof window === "undefined") return [];
+	try {
+		const v1 = localStorage.getItem(historyKey(fp));
+		if (v1) {
+			const parsed = JSON.parse(v1) as unknown;
+			if (Array.isArray(parsed)) {
+				return parsed.filter((u) => typeof u === "string" && isPngDataUri(u));
+			}
+		}
+		const leg = localStorage.getItem(`${LS_AVATAR_PREFIX}.${fp}`);
+		if (leg && isPngDataUri(leg)) return [leg];
+	} catch {
+		/* private mode / corrupt */
+	}
+	return [];
+}
+
+function saveHistory(
+	fp: string,
+	urls: string[],
+	persona: string | null,
+): {
+	urls: string[];
+} {
+	const next = Array.from(new Set(urls.filter((u) => isPngDataUri(u)))).slice(
+		0,
+		MAX_CAROUSEL,
+	);
+	try {
+		localStorage.setItem(historyKey(fp), JSON.stringify(next));
+		if (next[0]) localStorage.setItem(`${LS_AVATAR_PREFIX}.${fp}`, next[0]);
+		if (persona) localStorage.setItem(`${LS_PERSONA_PREFIX}.${fp}`, persona);
+	} catch {
+		// quota
+	}
+	return { urls: next };
+}
+
+function mergeWithLatest(
+	fp: string,
+	latestUrl: string,
+	persona: string | null,
+) {
+	const prior = loadHistory(fp);
+	const merged = [latestUrl, ...prior.filter((u) => u !== latestUrl)];
+	return saveHistory(fp, merged, persona);
+}
 
 interface UserContext {
 	city?: string;
@@ -207,23 +272,87 @@ async function buildUserContext(): Promise<UserContext> {
 
 const OBSERVATION_INTERVAL_MS = 8_000;
 
-function persistAvatarLocal(
-	fp: string,
-	avatarUrl: string,
-	persona: string | null,
-) {
-	try {
-		localStorage.setItem(`${LS_AVATAR_PREFIX}.${fp}`, avatarUrl);
-		if (persona) {
-			localStorage.setItem(`${LS_PERSONA_PREFIX}.${fp}`, persona);
-		}
-	} catch {
-		// private mode / quota — ignore
-	}
+function AvatarPortraitCarousel({
+	urls,
+	activeIndex,
+	setIndex,
+	bump,
+}: {
+	urls: string[];
+	activeIndex: number;
+	setIndex: (i: number) => void;
+	bump: (delta: -1 | 1) => void;
+}) {
+	const n = urls.length;
+
+	if (n === 0) return null;
+
+	return (
+		<section
+			className="home-fingerprint-avatar-carousel"
+			aria-label="Portrait history"
+		>
+			<div className="home-fingerprint-avatar-frame">
+				{/* biome-ignore lint/performance/noImgElement: data: URIs are not supported by next/image */}
+				<img
+					src={urls[activeIndex]}
+					width={256}
+					height={256}
+					alt={AVATAR_LABEL}
+					className="home-fingerprint-avatar-img"
+					decoding="async"
+				/>
+				{n > 1 && (
+					<div className="home-fingerprint-avatar-carousel-btns">
+						<button
+							type="button"
+							className="home-fingerprint-avatar-carousel-btn"
+							onClick={() => bump(-1)}
+							aria-label="Previous portrait in history"
+						>
+							‹
+						</button>
+						<button
+							type="button"
+							className="home-fingerprint-avatar-carousel-btn home-fingerprint-avatar-carousel-btn--next"
+							onClick={() => bump(1)}
+							aria-label="Next portrait in history"
+						>
+							›
+						</button>
+					</div>
+				)}
+			</div>
+			{n > 1 && (
+				<div
+					className="home-fingerprint-avatar-dots"
+					role="tablist"
+					aria-label="Portrait position"
+				>
+					{urls.map((u, i) => (
+						<button
+							key={u}
+							type="button"
+							role="tab"
+							aria-selected={i === activeIndex}
+							aria-label={`Portrait ${i + 1} of ${n}`}
+							className={
+								i === activeIndex
+									? "home-fingerprint-avatar-dot home-fingerprint-avatar-dot--active"
+									: "home-fingerprint-avatar-dot"
+							}
+							onClick={() => setIndex(i)}
+						/>
+					))}
+				</div>
+			)}
+		</section>
+	);
 }
 
 export function HomeFingerprintAvatar() {
-	const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+	const [avatarUrls, setAvatarUrls] = useState<string[]>([]);
+	const [activeIndex, setActiveIndex] = useState(0);
 	const [personaGuess, setPersonaGuess] = useState<string | null>(null);
 	const [phase, setPhase] = useState<Phase>("prefetching");
 	const [loadingStep, setLoadingStep] = useState<LoadingStep>("fingerprint");
@@ -233,8 +362,22 @@ export function HomeFingerprintAvatar() {
 	const tokenRef = useRef<string | null>(null);
 	const obsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const needsGenerationRef = useRef(false);
-	/** True after reading a valid data URI from localStorage this session (for fetch error fallback). */
-	const hadLocalAvatarRef = useRef(false);
+
+	const setIndex = useCallback(
+		(i: number) => {
+			if (avatarUrls.length === 0) return;
+			setActiveIndex(Math.max(0, Math.min(i, avatarUrls.length - 1)));
+		},
+		[avatarUrls.length],
+	);
+
+	const bumpSlide = useCallback(
+		(d: -1 | 1) => {
+			if (avatarUrls.length <= 1) return;
+			setActiveIndex((i) => (i + d + avatarUrls.length) % avatarUrls.length);
+		},
+		[avatarUrls.length],
+	);
 
 	const handleCaptchaError = useCallback(() => {
 		setPhase("absent");
@@ -324,6 +467,18 @@ export function HomeFingerprintAvatar() {
 				signal: generateController.signal,
 			});
 
+			const recoverToCached = () => {
+				const h = loadHistory(fp);
+				if (h.length > 0) {
+					setAvatarUrls(h);
+					setActiveIndex(0);
+					needsGenerationRef.current = true;
+					setPhase("awaiting-captcha");
+					return;
+				}
+				setPhase("absent");
+			};
+
 			try {
 				const [gr] = await Promise.all([genPromise, obsPromise]);
 				const gen = (await gr.json()) as {
@@ -334,16 +489,22 @@ export function HomeFingerprintAvatar() {
 				stopObservationReveal();
 
 				if (gen.avatar_url) {
-					setAvatarUrl(gen.avatar_url);
+					const { urls } = mergeWithLatest(
+						fp,
+						gen.avatar_url,
+						gen.persona_guess ?? null,
+					);
+					setAvatarUrls(urls);
+					setActiveIndex(0);
 					if (gen.persona_guess) setPersonaGuess(gen.persona_guess);
-					persistAvatarLocal(fp, gen.avatar_url, gen.persona_guess ?? null);
 					setPhase("ready");
 				} else {
-					setPhase("absent");
+					recoverToCached();
 				}
 			} catch {
-				setPhase("absent");
+				recoverToCached();
 			} finally {
+				requestedRef.current = false;
 				clearTimeout(generateTimeoutId);
 			}
 		},
@@ -361,7 +522,25 @@ export function HomeFingerprintAvatar() {
 		[runGeneration],
 	);
 
-	// Instant path: local cache + server profile before captcha.
+	useLayoutEffect(() => {
+		const fp = canvasFingerprint();
+		if (!fp || fp === "Canvas blocked") {
+			setPhase("absent");
+			return;
+		}
+		const hist = loadHistory(fp);
+		if (hist.length) {
+			setAvatarUrls(hist);
+			setActiveIndex(0);
+		}
+		try {
+			const p = localStorage.getItem(`${LS_PERSONA_PREFIX}.${fp}`);
+			if (p) setPersonaGuess(p);
+		} catch {
+			/* */
+		}
+	}, []);
+
 	useEffect(() => {
 		let cancelled = false;
 		const profileController = new AbortController();
@@ -372,19 +551,6 @@ export function HomeFingerprintAvatar() {
 			if (!fp || fp === "Canvas blocked") {
 				if (!cancelled) setPhase("absent");
 				return;
-			}
-
-			try {
-				const lsUrl = localStorage.getItem(`${LS_AVATAR_PREFIX}.${fp}`);
-				const lsPersona = localStorage.getItem(`${LS_PERSONA_PREFIX}.${fp}`);
-				if (lsUrl?.startsWith("data:image/png;base64,") && !cancelled) {
-					hadLocalAvatarRef.current = true;
-					setAvatarUrl(lsUrl);
-					if (lsPersona) setPersonaGuess(lsPersona);
-					setPhase("ready");
-				}
-			} catch {
-				/* ignore */
 			}
 
 			const distinctId = posthog.get_distinct_id?.();
@@ -415,21 +581,32 @@ export function HomeFingerprintAvatar() {
 				if (cancelled) return;
 
 				if (data.avatar_url) {
-					setAvatarUrl(data.avatar_url);
+					const { urls } = mergeWithLatest(
+						fp,
+						data.avatar_url,
+						data.persona_guess ?? null,
+					);
+					setAvatarUrls(urls);
+					setActiveIndex(0);
 					if (data.persona_guess) setPersonaGuess(data.persona_guess);
-					persistAvatarLocal(fp, data.avatar_url, data.persona_guess ?? null);
 					setPhase("ready");
 					return;
 				}
 
-				setAvatarUrl(null);
+				if (loadHistory(fp).length > 0) {
+					needsGenerationRef.current = true;
+					setPhase("awaiting-captcha");
+					return;
+				}
+
 				setPersonaGuess(null);
 				needsGenerationRef.current = true;
 				setPhase("awaiting-captcha");
 			} catch {
 				if (cancelled) return;
-				if (hadLocalAvatarRef.current) {
-					setPhase("ready");
+				if (loadHistory(fp).length > 0) {
+					needsGenerationRef.current = true;
+					setPhase("awaiting-captcha");
 					return;
 				}
 				needsGenerationRef.current = true;
@@ -444,7 +621,6 @@ export function HomeFingerprintAvatar() {
 		};
 	}, []);
 
-	// Clean up interval on unmount.
 	useEffect(() => {
 		return () => {
 			if (obsTimerRef.current) clearInterval(obsTimerRef.current);
@@ -453,10 +629,50 @@ export function HomeFingerprintAvatar() {
 
 	if (phase === "absent") return null;
 
-	// Avoid a loading skeleton while we fetch the server profile; cached visitors resolve to `ready` quickly.
-	if (phase === "prefetching") return null;
+	const hasCache = avatarUrls.length > 0;
+	const isPrefetchNoCache = phase === "prefetching" && !hasCache;
+	const isPrefetchWithCache = phase === "prefetching" && hasCache;
+	const isCaptchaNoImage = phase === "awaiting-captcha" && !hasCache;
+	const isCaptchaWithCache = phase === "awaiting-captcha" && hasCache;
+	const isLoading = phase === "loading";
 
-	if (phase === "awaiting-captcha" || phase === "loading") {
+	if (isPrefetchNoCache) {
+		return (
+			<div
+				className="home-fingerprint-avatar home-fingerprint-avatar--loading"
+				role="status"
+				aria-busy="true"
+			>
+				<div className="home-fingerprint-avatar-skeleton">
+					<div className="home-fingerprint-avatar-shimmer-lines">
+						<div className="home-fingerprint-avatar-shimmer-line home-fingerprint-avatar-shimmer-line--wide" />
+						<div className="home-fingerprint-avatar-shimmer-line home-fingerprint-avatar-shimmer-line--medium" />
+						<div className="home-fingerprint-avatar-shimmer-line home-fingerprint-avatar-shimmer-line--narrow" />
+					</div>
+				</div>
+			</div>
+		);
+	}
+
+	if (isPrefetchWithCache) {
+		return (
+			<div
+				className="home-fingerprint-avatar"
+				role="status"
+				aria-live="polite"
+				aria-label="Loading profile"
+			>
+				<AvatarPortraitCarousel
+					urls={avatarUrls}
+					activeIndex={activeIndex}
+					setIndex={setIndex}
+					bump={bumpSlide}
+				/>
+			</div>
+		);
+	}
+
+	if (isCaptchaNoImage || (isLoading && !hasCache)) {
 		return (
 			<>
 				<TurnstileGate onToken={handleToken} onError={handleCaptchaError} />
@@ -472,7 +688,7 @@ export function HomeFingerprintAvatar() {
 							<div className="home-fingerprint-avatar-shimmer-line home-fingerprint-avatar-shimmer-line--narrow" />
 						</div>
 					</div>
-					{phase === "loading" && (
+					{isLoading && (
 						<p
 							key={loadingStep}
 							className="home-fingerprint-avatar-status"
@@ -498,28 +714,82 @@ export function HomeFingerprintAvatar() {
 		);
 	}
 
-	if (!avatarUrl) return null;
+	if (isCaptchaWithCache || (isLoading && hasCache)) {
+		return (
+			<>
+				<div
+					className={
+						isLoading
+							? "home-fingerprint-avatar home-fingerprint-avatar--with-cache home-fingerprint-avatar--loading"
+							: "home-fingerprint-avatar home-fingerprint-avatar--with-cache"
+					}
+					role="status"
+					aria-busy={isLoading}
+				>
+					<AvatarPortraitCarousel
+						urls={avatarUrls}
+						activeIndex={activeIndex}
+						setIndex={setIndex}
+						bump={bumpSlide}
+					/>
+					{isLoading && (
+						<p
+							key={loadingStep}
+							className="home-fingerprint-avatar-status"
+							aria-live="polite"
+						>
+							{STEP_MESSAGES[loadingStep]}
+						</p>
+					)}
+					{isCaptchaWithCache && !isLoading && (
+						<p className="home-fingerprint-avatar-refresh-hint">
+							We’re showing your saved portraits while the profile loads. Complete
+							verification below to generate today’s portrait.
+						</p>
+					)}
+					{observations.length > 0 && (
+						<ul
+							className="home-fingerprint-avatar-observations"
+							aria-label="Observations about your browser signals"
+						>
+							{observations.slice(0, visibleObs).map((obs) => (
+								<li key={obs} className="home-fingerprint-avatar-observation">
+									{obs}
+								</li>
+							))}
+						</ul>
+					)}
+					{!isLoading && (
+						<p className="home-fingerprint-avatar-disclosure">
+							Generated with OpenAI from your browser &amp; edge signals.{" "}
+							<a href="/who-are-you">See what we know about you.</a>
+						</p>
+					)}
+				</div>
+				<TurnstileGate onToken={handleToken} onError={handleCaptchaError} />
+			</>
+		);
+	}
 
-	return (
-		<div className="home-fingerprint-avatar">
-			<div className="home-fingerprint-avatar-frame">
-				{/* biome-ignore lint/performance/noImgElement: data: URIs are not supported by next/image */}
-				<img
-					src={avatarUrl}
-					width={256}
-					height={256}
-					alt={AVATAR_LABEL}
-					className="home-fingerprint-avatar-img"
-					decoding="async"
+	if (phase === "ready" && hasCache) {
+		return (
+			<div className="home-fingerprint-avatar">
+				<AvatarPortraitCarousel
+					urls={avatarUrls}
+					activeIndex={activeIndex}
+					setIndex={setIndex}
+					bump={bumpSlide}
 				/>
+				{personaGuess && (
+					<p className="home-fingerprint-avatar-persona">{personaGuess}</p>
+				)}
+				<p className="home-fingerprint-avatar-disclosure">
+					Generated with OpenAI from your browser &amp; edge signals.{" "}
+					<a href="/who-are-you">See what we know about you.</a>
+				</p>
 			</div>
-			{personaGuess && (
-				<p className="home-fingerprint-avatar-persona">{personaGuess}</p>
-			)}
-			<p className="home-fingerprint-avatar-disclosure">
-				Generated with OpenAI from your browser &amp; edge signals.{" "}
-				<a href="/who-are-you">See what we know about you.</a>
-			</p>
-		</div>
-	);
+		);
+	}
+
+	return null;
 }

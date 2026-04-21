@@ -43,7 +43,7 @@ fn anthropic_collage_response() -> serde_json::Value {
                 CANNED_PERSONA
             )
         }],
-        "model": "claude-haiku-4-5-20251001",
+        "model": "claude-sonnet-4-5-20250929",
         "stop_reason": "end_turn",
         "usage": { "input_tokens": 20, "output_tokens": 60 }
     })

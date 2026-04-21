@@ -108,6 +108,17 @@ impl UserProfile {
         vec![]
     }
 
+    /// How many prior portraits are stored (for `GET /user-profile` metadata, no image bytes).
+    pub fn stored_portrait_count(&self) -> usize {
+        if !self.avatar_pngs.is_empty() {
+            return self.avatar_pngs.len();
+        }
+        if !self.avatar_png.is_empty() {
+            return 1;
+        }
+        0
+    }
+
     /// History after appending this generation (trimmed). Caller writes `avatar_png = new_png` and stores this list.
     pub fn appended_png_history(&self, new_png: &str) -> Vec<String> {
         let mut history = self.prior_pngs_for_evolution();
