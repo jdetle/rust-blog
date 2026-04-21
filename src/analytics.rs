@@ -56,6 +56,7 @@ impl AnalyticsEvent {
     }
 }
 
+#[derive(Clone)]
 pub struct UserProfile {
     pub session_id: String,
     pub llm_summary: String,

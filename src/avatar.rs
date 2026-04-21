@@ -262,6 +262,19 @@ The image should feel like a unified portrait of digital identity — introspect
     )
 }
 
+fn build_evolution_prompt(persona: &str, art_direction: &str) -> String {
+    format!(
+        "You are given the visitor's previous day's abstract digital-identity portrait. \
+Create a refined 1024×1024 version for today: evolve the composition — preserve mood, palette family, and continuity — \
+while incorporating today's persona and art direction. It should feel like the next chapter of the same portrait, not an unrelated image.\n\n\
+Today's visitor persona (fictional guess): {persona}\n\
+Today's art direction: {art_direction}\n\n\
+Rules: abstract composition only — not a photograph or portrait of a real person. No text, no logos, no faces.",
+        persona = persona,
+        art_direction = art_direction,
+    )
+}
+
 // ── Generation ────────────────────────────────────────────────────────
 
 /// Single composite image pipeline:
@@ -270,28 +283,53 @@ The image should feel like a unified portrait of digital identity — introspect
 ///
 /// Returns a persona guess and, when image generation succeeds, a single PNG as a raw
 /// base64 string (no `data:` prefix). Cost: ~$0.04 per visitor/day.
+///
+/// When `prior_png_b64` is set (previous calendar day's image), uses image **edits** so the new
+/// image builds on the last; otherwise uses **generations** from the text prompt alone.
 pub async fn generate_regional_collage(
     openai: &OpenAiImagesClient,
     anthropic: &AnthropicClient,
     fingerprint: &str,
     ctx: &UserContext,
     prior_persona: Option<&str>,
+    prior_png_b64: Option<&str>,
 ) -> Result<RegionalCollageResult, Box<dyn std::error::Error + Send + Sync>> {
     // Step 1: Claude derives persona + fused art direction.
     let (persona, art_direction) =
         derive_regional_collage_brief(anthropic, fingerprint, ctx, prior_persona).await?;
 
-    // Step 2: One OpenAI image call with the composite prompt.
-    let composite_prompt = build_composite_prompt(&persona, &art_direction);
-    let png_b64 = match openai.generate(&composite_prompt).await {
-        Ok(b64) => b64,
-        Err(e) => {
-            return Ok(RegionalCollageResult {
-                persona,
-                png: None,
-                image_generation_failed: true,
-                image_error: Some(format!("OpenAI composite image failed: {e}")),
-            });
+    // Step 2: OpenAI — edit from prior image when present, else generate fresh.
+    let fresh_prompt = build_composite_prompt(&persona, &art_direction);
+    let png_b64 = if let Some(prior) = prior_png_b64 {
+        let evolution = build_evolution_prompt(&persona, &art_direction);
+        match openai.edit_with_reference(&evolution, prior).await {
+            Ok(b64) => b64,
+            Err(e) => {
+                tracing::warn!(error = %e, "OpenAI image edit failed; falling back to text generation");
+                match openai.generate(&fresh_prompt).await {
+                    Ok(b64) => b64,
+                    Err(e2) => {
+                        return Ok(RegionalCollageResult {
+                            persona,
+                            png: None,
+                            image_generation_failed: true,
+                            image_error: Some(format!("OpenAI composite image failed: {e2}")),
+                        });
+                    }
+                }
+            }
+        }
+    } else {
+        match openai.generate(&fresh_prompt).await {
+            Ok(b64) => b64,
+            Err(e) => {
+                return Ok(RegionalCollageResult {
+                    persona,
+                    png: None,
+                    image_generation_failed: true,
+                    image_error: Some(format!("OpenAI composite image failed: {e}")),
+                });
+            }
         }
     };
 
