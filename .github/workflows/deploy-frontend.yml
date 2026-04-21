@@ -15,8 +15,8 @@
 #   AZUREAPPSERVICE_NAME
 name: Deploy frontend to Azure App Service
 
-# Disabled automatic push trigger — the primary frontend deployment is Vercel
-# (auto-triggered on push to main). Re-enable push trigger below when Azure
+# Disabled automatic push trigger — the primary frontend deploy is
+# deploy-frontend-azure.yml (Container Apps). Re-enable push trigger below when Azure
 # App Service infrastructure is provisioned and the required secrets are added.
 on:
   workflow_dispatch:

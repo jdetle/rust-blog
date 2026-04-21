@@ -74,12 +74,9 @@ export function middleware(request: NextRequest) {
 		}
 
 		// ── Edge intelligence headers ──────────────────────────────────────
-		// Stamp the edge POP identifier and processing timestamp so
-		// downstream pages know which edge node served the request.
-		const vercelId = request.headers.get("x-vercel-id");
-		if (vercelId) {
-			const pop = vercelId.split("::")[0];
-			response.headers.set("x-edge-pop", pop);
+		const cfRay = request.headers.get("cf-ray");
+		if (cfRay) {
+			response.headers.set("x-edge-pop", cfRay);
 		}
 		response.headers.set("x-edge-timestamp", Date.now().toString());
 

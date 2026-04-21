@@ -17,11 +17,11 @@ These paths exist on author machines only; notes there were **not** merged into 
 
 From `follow-ups.md`:
 
-- Update Vercel env to `BLOG_SERVICE_URL` after `ca-rust-blog` blog-service deploy is live.
+- Update Azure App Service application settings with `BLOG_SERVICE_URL` after `ca-rust-blog` blog-service deploy is live.
 - Rename `/v1/info` JSON field `service` from `"rust-api"` to `"blog-service"` after first full blog-service deploy.
 - Teardown orphaned Azure Container Apps: `ca-rust-api` in `rg-rust-blog`, `analytics-ingestion` in `rg-jdetle-blog` — after blog-service smoke passes (see [`docs/runbooks/teardown-legacy-container-apps.md`](docs/runbooks/teardown-legacy-container-apps.md)).
 - Wire DNS / public URL for rust-api when promoting beyond smoke test.
-- Remove legacy `NEXT_PUBLIC_ANALYTICS_API_URL` from Vercel once confirmed unused.
+- Remove legacy `NEXT_PUBLIC_ANALYTICS_API_URL` from production env once confirmed unused.
 - Verify `cqlsh` ALTER on production keyspace for avatar schema (`003_user_profiles_avatar.cql`) with analytics-ingestion/blog-service deploy.
 - Optional: narrow-mobile visual pass if nav CTA row feels crowded.
 - Optional: e2e path when analytics env absent (env-less CI).
@@ -34,7 +34,7 @@ From `follow-ups.md`:
 
 Not duplicated in `follow-ups.md` yet; still actionable:
 
-- Azure App Service cutover: provision Linux B1 web app (rust-blog subscription), configure GitHub OIDC secrets, point Cloudflare at Azure before removing Vercel domain ([`2026-04-18-azure-app-service-frontend`](docs/adversarial-review/reviews/2026-04-18-azure-app-service-frontend.md)).
+- Azure App Service cutover: provision Linux B1 web app (rust-blog subscription), configure GitHub OIDC secrets, point Cloudflare at Azure ([`2026-04-18-azure-app-service-frontend`](docs/adversarial-review/reviews/2026-04-18-azure-app-service-frontend.md)).
 - Site positioning sequence: (1) lead-post hygiene guard so flagship slot never shows draft/caveat posts, (2) hero copy + CTA swap, (3) domain-aliased contact email ([`2026-04-17-site-positioning-agentic-business`](docs/adversarial-review/reviews/2026-04-17-site-positioning-agentic-business.md)).
 - Optional PostHog CI: HogQL filter on preview URL; tune retry delays from metrics.
 - Privacy onboarding wizard: optional CI `xcodebuild`; periodic URL audit; cross-browser copy polish.
@@ -43,8 +43,8 @@ Not duplicated in `follow-ups.md` yet; still actionable:
 - Share-post: `clipboard.writeText` `.catch()` for HTTP/unfocused tabs; monitor PostHog `post_shared`.
 - LLM ticker: cost monitoring for summarization; consider `#[ignore]` on Cosmos test in CI.
 - Optional: prune empty `posts/2026-q1/` if still unused.
-- Vercel: set `POSTHOG_PERSONAL_API_KEY`, `POSTHOG_PROJECT_ID` for my-events flows.
-- Confirm “Deploy to Vercel” GitHub Action passes on next `main` push.
+- Azure App Service: set `POSTHOG_PERSONAL_API_KEY`, `POSTHOG_PROJECT_ID` for my-events flows.
+- Confirm frontend deploy GitHub Action passes on next `main` push.
 - Optional: prune duplicate `posts/` vs `content/posts/` tree after audit.
 - Optional: add `scripts/ingest-env/meta-pixel.ts` for ingest consistency.
 - Document ACR + Azure Container Apps setup for operators.

@@ -8,10 +8,7 @@
  * Or:  PRODUCTION_URL=https://custom.example.com bun run scripts/visual-regression-check.ts
  */
 
-const productionBase =
-	process.env.PRODUCTION_URL ??
-	process.env.VERCEL_PROJECT_PRODUCTION_URL ??
-	"https://jdetle.com";
+const productionBase = process.env.PRODUCTION_URL ?? "https://jdetle.com";
 
 const endpoints: Array<{
 	path: string;

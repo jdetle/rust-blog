@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * Non-destructive smoke tests against a deploy preview URL.
- * GET-only; no mutations. Used by CI to validate Vercel preview deployments.
+ * GET-only; no mutations. Used by CI to validate preview/staging deployments.
  */
 
 const url = process.env.PREVIEW_URL ?? process.argv[2];
@@ -12,11 +12,6 @@ if (!url) {
 }
 
 const base = url.replace(/\/$/, "");
-const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
-const headers: Record<string, string> = {};
-if (bypassSecret) {
-	headers["x-vercel-protection-bypass"] = bypassSecret;
-}
 
 const endpoints = [
 	{ path: "/", name: "home" },
@@ -33,7 +28,6 @@ async function main() {
 			const res = await fetch(target, {
 				method: "GET",
 				redirect: "follow",
-				headers,
 			});
 			if (!res.ok) {
 				console.error(

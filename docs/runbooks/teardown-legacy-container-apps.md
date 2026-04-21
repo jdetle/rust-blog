@@ -7,7 +7,7 @@ orphaned Container Apps that were retired as part of the blog-service consolidat
 
 1. `GET https://<ca-rust-blog-fqdn>/health` returns 200.
 2. `POST https://<ca-rust-blog-fqdn>/user-profile/generate-avatar` with a real fingerprint returns an SVG.
-3. Vercel production env has been updated: `BLOG_SERVICE_URL` is set to the `ca-rust-blog` FQDN.
+3. Frontend production env has been updated: `BLOG_SERVICE_URL` is set to the `ca-rust-blog` FQDN.
 4. You are logged in to Azure CLI with sufficient permissions (`az login`).
 
 ## Rollback trigger (stop here if triggered)
@@ -39,7 +39,7 @@ az containerapp delete \
   --yes
 ```
 
-Update or remove `RUST_API_URL` in Vercel if it still points to `ca-rust-api`.
+Update or remove `RUST_API_URL` in Azure App Service application settings if it still points to `ca-rust-api`.
 
 ## Step 2 — Delete analytics-ingestion (rg-jdetle-blog)
 
@@ -53,7 +53,7 @@ az containerapp delete \
   --yes
 ```
 
-If `ANALYTICS_API_URL` in Vercel still points to this app, update it to the
+If `ANALYTICS_API_URL` in the frontend host still points to this app, update it to the
 `ca-rust-blog` FQDN or set `BLOG_SERVICE_URL` instead.
 
 ## Step 3 — Optional: decommission jdetleblogacr

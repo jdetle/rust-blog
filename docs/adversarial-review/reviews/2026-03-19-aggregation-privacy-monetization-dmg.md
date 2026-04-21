@@ -18,7 +18,7 @@ pr: ""
 
 **Repo reality (rust-blog)**
 
-- `Aggregator` (`src/aggregate.rs`) pulls Clarity, PostHog, Vercel drains, GA4 (BigQuery), Meta into Cosmos-backed storage; `analytics_ingestion` exposes `/api/events` and a periodic aggregation loop.
+- `Aggregator` (`src/aggregate.rs`) pulls Clarity, PostHog, web-analytics drains, GA4 (BigQuery), Meta into Cosmos-backed storage; `analytics_ingestion` exposes `/api/events` and a periodic aggregation loop.
 - The aggregation pipeline is already **multi-vendor analytics consolidation** — a natural place to **explain** cross-site tracking and measurement, but also a place where **trust conflicts** with upsell if messaging is misaligned.
 
 **Assumptions (explicit)**

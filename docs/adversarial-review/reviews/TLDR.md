@@ -1,16 +1,16 @@
 # Adversarial Review TLDR
 
 - [2026-04-19 github-actions-cleanup](./2026-04-19-github-actions-cleanup.md)
-  - decision: proceed; rename frontend deploy workflow to `deploy-frontend.yml`, remove Vercel-preview `e2e-preview.yml` and doc references
+  - decision: proceed; rename frontend deploy workflow to `deploy-frontend.yml`, remove preview `e2e-preview.yml` and doc references
   - risk: no automated PR preview smoke until a replacement workflow exists
   - follow-up: none unless preview CI is needed again
 
 - [2026-04-18 dispatch-smart-tasks-doc] trivial — add `DISPATCH_NOTES.md` + `docs/dispatch-smart-tasks.md` (SMART rows from `follow-ups.md` + TLDR); external agentdds/rust-blog/guardian/platform notes remain import backlog until committed — no separate review
 
 - [2026-04-18 azure-app-service-frontend](./2026-04-18-azure-app-service-frontend.md)
-  - decision: proceed; move the Next.js frontend off Vercel onto Azure App Service while keeping Rust analytics on Container Apps
-  - risk: App Service, Cloudflare, and Vercel cutover still require manual portal work and correct runtime env parity
-  - followup: [ ] author — provision the Linux B1 web app in the rust-blog subscription, set GitHub OIDC secrets, then point Cloudflare at Azure before removing the Vercel domain
+  - decision: proceed; move the Next.js frontend onto Azure App Service while keeping Rust analytics on Container Apps
+  - risk: App Service, Cloudflare, and DNS cutover still require manual portal work and correct runtime env parity
+  - followup: [ ] author — provision the Linux B1 web app in the rust-blog subscription, set GitHub OIDC secrets, then point Cloudflare at Azure before removing the legacy domain
 
 - [2026-04-17 site positioning: competent business professional + agentic coding](./2026-04-17-site-positioning-agentic-business.md)
   - decision: proceed (5-0) with Option A — 3 targeted PRs (lead-post hygiene, home repositioning, contact hygiene); no rebuild
@@ -20,7 +20,7 @@
 - [2026-04-17 blog-service consolidation + avatar e2e](./2026-04-17-blog-service-consolidation-avatar-e2e.md)
   - decision: proceed (5-0); rust-api + analytics-ingestion merged into blog-service; two test layers added
   - unresolved risk: orphaned Azure Container Apps (ca-rust-api, analytics-ingestion in rg-jdetle-blog) need manual teardown — see docs/runbooks/teardown-legacy-container-apps.md
-  - follow-up: update Vercel env to BLOG_SERVICE_URL; rename /v1/info service field from "rust-api" to "blog-service" in follow-up PR
+  - follow-up: update Azure App Service env to BLOG_SERVICE_URL; rename /v1/info service field from "rust-api" to "blog-service" in follow-up PR
 
 - [2026-04-16 rust-api framework deploy](./2026-04-16-rust-api-framework-deploy.md)
   - decision: proceed; Axum `rust-api`, `deploy-rust-api.yml` + `scripts/deploy-rust-api.sh` mirror `deploy-azure.yml`
@@ -45,7 +45,7 @@
 - [2026-04-14 analytics ingestion URL env](./2026-04-14-analytics-ingestion-url-env.md)
   - decision: proceed with push; `ANALYTICS_API_URL` preferred over `NEXT_PUBLIC_*` for Next proxies
   - unresolved risk: two env names could diverge if both set to different values
-  - follow-up: drop legacy `NEXT_PUBLIC_ANALYTICS_API_URL` in Vercel when safe
+  - follow-up: drop legacy `NEXT_PUBLIC_ANALYTICS_API_URL` in production env when safe
 
 - [2026-04-14 home hero fingerprint avatar](./2026-04-14-home-hero-fingerprint-avatar.md)
   - decision: proceed with push; hero grid + `HomeFingerprintAvatar`; PostHog init gated on key
@@ -110,12 +110,12 @@
 - [2026-03-18 analytics-my-events](./2026-03-18-analytics-my-events.md)
   - decision: merge completed; multi-source analytics aggregation
   - unresolved risk: Personal API key; rate-limit if abuse
-  - follow-up: set POSTHOG_PERSONAL_API_KEY, POSTHOG_PROJECT_ID in Vercel
+  - follow-up: set POSTHOG_PERSONAL_API_KEY, POSTHOG_PROJECT_ID in Azure App Service application settings
 
-- [2026-03-17 vercel-deploy-prebuilt](./2026-03-17-vercel-deploy-prebuilt.md)
+- [2026-03-17 deploy-prebuilt](./2026-03-17-deploy-prebuilt.md)
   - decision: merge completed; fix correct and low-risk
   - unresolved risk: none
-  - follow-up: verify Deploy to Vercel job passes on next main push
+  - follow-up: verify frontend deploy workflow passes on next main push
 
 - [2026-03-17 analytics-cleanup-ci-ga4](./2026-03-17-analytics-cleanup-ci-ga4.md)
   - decision: proceed with push and merge

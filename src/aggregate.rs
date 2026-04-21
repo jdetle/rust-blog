@@ -18,7 +18,7 @@ pub struct Aggregator {
     posthog_events_url: String,
     clarity_token: Option<String>,
     posthog_api_key: String,
-    vercel_token: Option<String>,
+    web_analytics_drain_token: Option<String>,
     google_creds_path: Option<String>,
     meta_token: Option<String>,
 }
@@ -28,7 +28,7 @@ impl Aggregator {
         db: Arc<AnalyticsDb>,
         posthog_api_key: String,
         clarity_token: Option<String>,
-        vercel_token: Option<String>,
+        web_analytics_drain_token: Option<String>,
         google_creds_path: Option<String>,
         meta_token: Option<String>,
     ) -> Self {
@@ -46,7 +46,7 @@ impl Aggregator {
             posthog_events_url,
             posthog_api_key,
             clarity_token,
-            vercel_token,
+            web_analytics_drain_token,
             google_creds_path,
             meta_token,
         )
@@ -61,7 +61,7 @@ impl Aggregator {
         posthog_events_url: String,
         posthog_api_key: String,
         clarity_token: Option<String>,
-        vercel_token: Option<String>,
+        web_analytics_drain_token: Option<String>,
         google_creds_path: Option<String>,
         meta_token: Option<String>,
     ) -> Self {
@@ -72,7 +72,7 @@ impl Aggregator {
             posthog_events_url,
             clarity_token,
             posthog_api_key,
-            vercel_token,
+            web_analytics_drain_token,
             google_creds_path,
             meta_token,
         }
@@ -82,21 +82,21 @@ impl Aggregator {
         tracing::info!("starting aggregation cycle");
         self.pull_clarity().await;
         self.pull_posthog().await;
-        self.pull_vercel().await;
+        self.pull_web_analytics_drain().await;
         self.pull_ga4().await;
         self.pull_meta().await;
         tracing::info!("aggregation cycle complete");
     }
 
-    /// Vercel Web Analytics: no pull API. Data arrives via Vercel Drains (Pro/Enterprise)
-    /// pushing to our POST /api/events. VERCEL_TOKEN enables drain config via API.
-    async fn pull_vercel(&self) {
-        if self.vercel_token.is_some() {
+    /// Hosted web analytics: no pull API for most products — batches POST to `/api/drain/web-analytics`.
+    /// `WEB_ANALYTICS_DRAIN_TOKEN` is optional (for provider APIs that configure drains).
+    async fn pull_web_analytics_drain(&self) {
+        if self.web_analytics_drain_token.is_some() {
             tracing::debug!(
-                "Vercel token configured — drains push to /api/events; no pull needed"
+                "web analytics drain token set — inbound POST /api/drain/web-analytics; no pull needed"
             );
         } else {
-            tracing::debug!("Vercel: no token; configure drain in dashboard to receive events");
+            tracing::debug!("web analytics: no drain token; configure POST drain to blog-service if needed");
         }
     }
 

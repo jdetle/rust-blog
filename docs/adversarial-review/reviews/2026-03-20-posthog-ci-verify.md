@@ -12,7 +12,7 @@
 
 ## Defense
 
-1. Retries and configurable `POSTHOG_VERIFY_*` env vars; document Vercel env for client PostHog.
+1. Retries and configurable `POSTHOG_VERIFY_*` env vars; document production env for client PostHog.
 2. Acceptable proxy for “events reached PostHog”; optional URL filter as follow-up.
 3. Expected for forks.
 

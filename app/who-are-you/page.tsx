@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { AnimatedFrame } from "@/components/animated-frame";
 import { NavRow } from "@/components/nav-row";
 import { ClientProfile } from "@/components/who-are-you/client-profile";
+import { getClientIpFromHeaders } from "@/lib/client-ip";
 
 export const metadata: Metadata = {
 	title: "Who Are You?",
@@ -13,19 +14,19 @@ export const metadata: Metadata = {
 export default async function WhoAreYouPage() {
 	const hdrs = await headers();
 
+	// SSR: only visitor IP from headers; full geo is filled client-side via /api/edge-detect (ipapi).
 	const serverGeo = {
-		ip: hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
-		city: hdrs.get("x-vercel-ip-city") ?? null,
-		region: hdrs.get("x-vercel-ip-country-region") ?? null,
-		country: hdrs.get("x-vercel-ip-country") ?? null,
-		latitude: hdrs.get("x-vercel-ip-latitude") ?? null,
-		longitude: hdrs.get("x-vercel-ip-longitude") ?? null,
-		timezone: hdrs.get("x-vercel-ip-timezone") ?? null,
+		ip: getClientIpFromHeaders(hdrs) ?? null,
+		city: null,
+		region: null,
+		country: null,
+		latitude: null,
+		longitude: null,
+		timezone: null,
 	};
 
 	const edgeInfo = {
-		pop:
-			hdrs.get("x-edge-pop") ?? hdrs.get("x-vercel-id")?.split("::")[0] ?? null,
+		pop: hdrs.get("x-edge-pop") ?? hdrs.get("cf-ray") ?? null,
 		timestamp: hdrs.get("x-edge-timestamp") ?? null,
 	};
 

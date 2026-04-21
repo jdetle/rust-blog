@@ -1,66 +1,87 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { getClientIpFromHeaders } from "@/lib/client-ip";
 import { analyzeServerSignals, type EdgeSignals } from "@/lib/vpn-detect";
 
 /**
- * Edge Function: returns server-side IP intelligence that the client
- * can't reliably obtain on its own.
- *
- * Runs at the Vercel edge closest to the user. The response includes
- * geo headers, ASN/org info from ipapi.co, and server-side VPN signal
- * analysis. The client combines this with browser signals for the
- * final verdict.
- *
- * On non-Vercel environments (local dev), falls back to ipapi.co
- * for all fields.
+ * Returns server-side IP intelligence (geo, ASN) the browser cannot infer alone.
+ * Geolocation comes from ipapi.co using the resolved visitor IP (see `getClientIpFromHeaders`).
  */
 export const runtime = "edge";
 
 export async function GET(request: NextRequest) {
-	const forwarded = request.headers.get("x-forwarded-for");
-	const ip = forwarded?.split(",")[0]?.trim() ?? null;
-
-	const vercelCity = request.headers.get("x-vercel-ip-city");
-	const vercelRegion = request.headers.get("x-vercel-ip-country-region");
-	const vercelCountry = request.headers.get("x-vercel-ip-country");
-	const vercelLat = request.headers.get("x-vercel-ip-latitude");
-	const vercelLon = request.headers.get("x-vercel-ip-longitude");
-	const vercelTz = request.headers.get("x-vercel-ip-timezone");
+	const ip = getClientIpFromHeaders(request.headers);
 
 	let asn: string | null = null;
 	let org: string | null = null;
-	let city = vercelCity;
-	let region = vercelRegion;
-	let country = vercelCountry;
-	let latitude = vercelLat;
-	let longitude = vercelLon;
-	let timezone = vercelTz;
+	let city: string | null = null;
+	let region: string | null = null;
+	let country: string | null = null;
+	let latitude: string | null = null;
+	let longitude: string | null = null;
+	let timezone: string | null = null;
 	let isEU = false;
 	let ipapiRaw: Record<string, unknown> | null = null;
+	let geoFromIpapi = false;
 
-	// Enrich with ipapi.co for ASN/org (Vercel doesn't provide these).
-	// Also fills in geo fields when running locally (no Vercel headers).
 	try {
 		const target =
 			ip && !ip.startsWith("127.") && !ip.startsWith("::1")
-				? `https://ipapi.co/${ip}/json/`
+				? `https://ipapi.co/${encodeURIComponent(ip)}/json/`
 				: "https://ipapi.co/json/";
 		const url = new URL(target);
 		const res = await fetch(url.href, { signal: AbortSignal.timeout(3000) });
 		if (res.ok) {
 			ipapiRaw = (await res.json()) as Record<string, unknown>;
-			asn = (ipapiRaw.asn as string) ?? null;
-			org = (ipapiRaw.org as string) ?? null;
-			isEU = (ipapiRaw.in_eu as boolean) ?? false;
-			if (!city) city = (ipapiRaw.city as string) ?? null;
-			if (!region) region = (ipapiRaw.region as string) ?? null;
-			if (!country) country = (ipapiRaw.country_code as string) ?? null;
-			if (!latitude) latitude = String(ipapiRaw.latitude ?? "");
-			if (!longitude) longitude = String(ipapiRaw.longitude ?? "");
-			if (!timezone) timezone = (ipapiRaw.timezone as string) ?? null;
+			const ipapiErr = ipapiRaw.error === true;
+			if (!ipapiErr) {
+				asn = (ipapiRaw.asn as string) ?? null;
+				org = (ipapiRaw.org as string) ?? null;
+				isEU = (ipapiRaw.in_eu as boolean) ?? false;
+				const c = ipapiRaw.city;
+				const r = ipapiRaw.region;
+				const co = ipapiRaw.country_code;
+				const lat = ipapiRaw.latitude;
+				const lon = ipapiRaw.longitude;
+				const tz = ipapiRaw.timezone;
+				if (typeof c === "string" && c.length > 0) {
+					city = c;
+					geoFromIpapi = true;
+				}
+				if (typeof r === "string" && r.length > 0) {
+					region = r;
+					geoFromIpapi = true;
+				}
+				if (typeof co === "string" && co.length > 0) {
+					country = co;
+					geoFromIpapi = true;
+				}
+				if (lat !== undefined && lat !== null && String(lat).length > 0) {
+					latitude = String(lat);
+					geoFromIpapi = true;
+				}
+				if (lon !== undefined && lon !== null && String(lon).length > 0) {
+					longitude = String(lon);
+					geoFromIpapi = true;
+				}
+				if (typeof tz === "string" && tz.length > 0) {
+					timezone = tz;
+					geoFromIpapi = true;
+				}
+			} else {
+				asn = (ipapiRaw.asn as string) ?? null;
+				org = (ipapiRaw.org as string) ?? null;
+				isEU = (ipapiRaw.in_eu as boolean) ?? false;
+				if (!city) city = (ipapiRaw.city as string) ?? null;
+				if (!region) region = (ipapiRaw.region as string) ?? null;
+				if (!country) country = (ipapiRaw.country_code as string) ?? null;
+				if (!latitude) latitude = String(ipapiRaw.latitude ?? "");
+				if (!longitude) longitude = String(ipapiRaw.longitude ?? "");
+				if (!timezone) timezone = (ipapiRaw.timezone as string) ?? null;
+			}
 		}
 	} catch {
-		// ipapi.co down or rate-limited -- proceed with Vercel headers only
+		// ipapi.co down or rate-limited
 	}
 
 	const edgeSignals: EdgeSignals = {
@@ -78,13 +99,16 @@ export async function GET(request: NextRequest) {
 
 	const serverVpnSignals = analyzeServerSignals(edgeSignals);
 
-	const edgePop = request.headers.get("x-vercel-id")?.split("::")[0] ?? null;
+	const edgePop =
+		request.headers.get("x-edge-pop") ?? request.headers.get("cf-ray") ?? null;
+
+	const provider = geoFromIpapi ? "ipapi" : "ipapi-unavailable";
 
 	return NextResponse.json({
 		edge: {
 			...edgeSignals,
 			pop: edgePop,
-			provider: vercelCity ? "vercel-edge" : "ipapi-fallback",
+			provider,
 		},
 		vpnSignals: serverVpnSignals,
 		ipapi: ipapiRaw

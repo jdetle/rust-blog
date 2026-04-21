@@ -1,5 +1,6 @@
-//! Vercel Web Analytics Drain payload parsing.
-//! Schema: vercel.analytics.v1 — see https://vercel.com/docs/drains/reference/analytics
+//! Web analytics drain payload parsing (JSON posted to `/api/drain/web-analytics`).
+//! Incoming events may use the common `*.analytics.v1`-style schema identifier from
+//! hosted analytics products; we store them in Cosmos like any other batch.
 
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
@@ -8,7 +9,7 @@ use uuid::Uuid;
 use crate::analytics::AnalyticsEvent;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VercelDrainEvent {
+pub struct WebAnalyticsDrainEvent {
     #[serde(default)]
     pub schema: String,
     #[serde(default)]
@@ -33,7 +34,7 @@ pub struct VercelDrainEvent {
     pub fingerprint: String,
 }
 
-impl VercelDrainEvent {
+impl WebAnalyticsDrainEvent {
     pub fn to_analytics_event(&self) -> AnalyticsEvent {
         let page_url = if self.origin.is_empty() {
             self.path.clone()
@@ -71,7 +72,7 @@ impl VercelDrainEvent {
             },
             event_id: Uuid::new_v4(),
             event_type,
-            source: "vercel".to_string(),
+            source: "web_analytics".to_string(),
             page_url,
             user_agent: String::new(),
             referrer: self.referrer.clone(),
@@ -81,19 +82,19 @@ impl VercelDrainEvent {
     }
 }
 
-/// Vercel drain sends JSON array or single object.
+/// Drain endpoint accepts a JSON array or a single object.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum VercelDrainPayload {
-    Single(VercelDrainEvent),
-    Array(Vec<VercelDrainEvent>),
+pub enum WebAnalyticsDrainPayload {
+    Single(WebAnalyticsDrainEvent),
+    Array(Vec<WebAnalyticsDrainEvent>),
 }
 
-impl VercelDrainPayload {
-    pub fn events(&self) -> Vec<&VercelDrainEvent> {
+impl WebAnalyticsDrainPayload {
+    pub fn events(&self) -> Vec<&WebAnalyticsDrainEvent> {
         match self {
-            VercelDrainPayload::Single(e) => vec![e],
-            VercelDrainPayload::Array(v) => v.iter().collect(),
+            WebAnalyticsDrainPayload::Single(e) => vec![e],
+            WebAnalyticsDrainPayload::Array(v) => v.iter().collect(),
         }
     }
 }

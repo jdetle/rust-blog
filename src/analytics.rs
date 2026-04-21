@@ -65,8 +65,8 @@ pub struct UserProfile {
     pub persona_guess: String,
     /// Legacy field kept for backward-compat reads; no longer written.
     pub avatar_svg: String,
-    /// UTC date string (`YYYY-MM-DD`) recorded when the current avatars were generated.
-    /// Cache hit when this equals today's UTC date and all four PNG slots are non-empty.
+    /// UTC date string (`YYYY-MM-DD`) for the latest generation batch.
+    /// `generate-avatar` cache hit when this equals today's UTC date and a latest portrait exists.
     pub avatar_session_id: String,
     /// Slot 1 — region/culture theme. Raw base64 PNG (no `data:` prefix).
     pub avatar_png: String,
@@ -76,6 +76,50 @@ pub struct UserProfile {
     pub avatar_png_3: String,
     /// Slot 4 — abstract persona archetype.
     pub avatar_png_4: String,
+    /// Chronological history of composite PNGs (raw base64). Latest is last; mirrors `avatar_png`.
+    pub avatar_pngs: Vec<String>,
+}
+
+/// Caps stored history to avoid oversized Cosmos rows (each PNG is ~1–3 MB base64).
+pub const MAX_AVATAR_PNG_HISTORY: usize = 30;
+
+impl UserProfile {
+    /// Newest stored portrait for display (`GET /user-profile`) — last list entry or legacy `avatar_png`.
+    pub fn latest_avatar_png(&self) -> Option<&str> {
+        if let Some(last) = self.avatar_pngs.last() {
+            if !last.is_empty() {
+                return Some(last.as_str());
+            }
+        }
+        if !self.avatar_png.is_empty() {
+            return Some(self.avatar_png.as_str());
+        }
+        None
+    }
+
+    /// All stored images to pass into the image model as reference context (oldest → newest).
+    pub fn prior_pngs_for_evolution(&self) -> Vec<String> {
+        if !self.avatar_pngs.is_empty() {
+            return self.avatar_pngs.clone();
+        }
+        if !self.avatar_png.is_empty() {
+            return vec![self.avatar_png.clone()];
+        }
+        vec![]
+    }
+
+    /// History after appending this generation (trimmed). Caller writes `avatar_png = new_png` and stores this list.
+    pub fn appended_png_history(&self, new_png: &str) -> Vec<String> {
+        let mut history = self.prior_pngs_for_evolution();
+        if history.last().map(|s| s.as_str()) != Some(new_png) {
+            history.push(new_png.to_string());
+        }
+        if history.len() > MAX_AVATAR_PNG_HISTORY {
+            let drop = history.len() - MAX_AVATAR_PNG_HISTORY;
+            history.drain(0..drop);
+        }
+        history
+    }
 }
 
 /// Minimal storage contract needed by the avatar handler.
@@ -159,6 +203,7 @@ impl MemoryProfileStore {
             avatar_png_2: p.avatar_png_2.clone(),
             avatar_png_3: p.avatar_png_3.clone(),
             avatar_png_4: p.avatar_png_4.clone(),
+            avatar_pngs: p.avatar_pngs.clone(),
         })
     }
 }
@@ -189,6 +234,7 @@ impl ProfileStore for MemoryProfileStore {
             avatar_png_3: p.avatar_png_3.clone(),
             avatar_png_4: p.avatar_png_4.clone(),
             avatar_png: p.avatar_png.clone(),
+            avatar_pngs: p.avatar_pngs.clone(),
         }))
     }
 
@@ -211,9 +257,11 @@ impl ProfileStore for MemoryProfileStore {
             avatar_png_2: String::new(),
             avatar_png_3: String::new(),
             avatar_png_4: String::new(),
+            avatar_pngs: Vec::new(),
         });
         entry.persona_guess = persona.to_string();
         entry.avatar_session_id = avatar_session_id.to_string();
+        entry.avatar_pngs = entry.appended_png_history(png);
         entry.avatar_png = png.to_string();
         entry.updated_at = chrono::Utc::now().timestamp_millis();
         Ok(())
@@ -259,12 +307,12 @@ impl AnalyticsDb {
         let upsert_profile_stmt = session.prepare(upsert_profile_cql).await?;
 
         let upsert_avatar_cql = "INSERT INTO analytics.user_profiles \
-            (session_id, persona_guess, avatar_png, avatar_session_id, updated_at) \
-            VALUES (?, ?, ?, ?, ?)";
+            (session_id, persona_guess, avatar_png, avatar_pngs, avatar_session_id, updated_at) \
+            VALUES (?, ?, ?, ?, ?, ?)";
         let upsert_avatar_stmt = session.prepare(upsert_avatar_cql).await?;
 
         let get_profile_cql = "SELECT session_id, llm_summary, updated_at, persona_guess, \
-             avatar_svg, avatar_session_id, avatar_png, avatar_png_2, avatar_png_3, avatar_png_4 \
+             avatar_svg, avatar_session_id, avatar_png, avatar_png_2, avatar_png_3, avatar_png_4, avatar_pngs \
              FROM analytics.user_profiles WHERE session_id = ?";
         let get_profile_stmt = session.prepare(get_profile_cql).await?;
 
@@ -460,11 +508,15 @@ impl AnalyticsDb {
         persona_guess: &str,
         png: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let history = match self.get_user_profile(session_id).await {
+            Ok(Some(p)) => p.appended_png_history(png),
+            _ => vec![png.to_string()],
+        };
         let updated_at = CqlTimestamp(Utc::now().timestamp_millis());
         self.session
             .execute_unpaged(
                 &self.upsert_avatar_stmt,
-                (session_id, persona_guess, png, avatar_session_id, updated_at),
+                (session_id, persona_guess, png, history, avatar_session_id, updated_at),
             )
             .await?;
         Ok(())
@@ -497,11 +549,12 @@ impl AnalyticsDb {
                 Option<String>,
                 Option<String>,
                 Option<String>,
+                Option<Vec<String>>,
             )>()?
             .next()
         {
             let (sid, summary, updated_at, persona, avatar_svg, avatar_session_id,
-                 avatar_png, avatar_png_2, avatar_png_3, avatar_png_4) = row?;
+                 avatar_png, avatar_png_2, avatar_png_3, avatar_png_4, avatar_pngs) = row?;
             return Ok(Some(UserProfile {
                 session_id: sid,
                 llm_summary: summary.unwrap_or_default(),
@@ -513,6 +566,7 @@ impl AnalyticsDb {
                 avatar_png_2: avatar_png_2.unwrap_or_default(),
                 avatar_png_3: avatar_png_3.unwrap_or_default(),
                 avatar_png_4: avatar_png_4.unwrap_or_default(),
+                avatar_pngs: avatar_pngs.unwrap_or_default(),
             }));
         }
         Ok(None)

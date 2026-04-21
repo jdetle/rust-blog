@@ -145,11 +145,9 @@ This example uses Next.js App Router instead of Pages Router. Key differences:
 - [Next.js App Router Documentation](https://nextjs.org/docs/app)
 - [PostHog Next.js Integration Guide](https://posthog.com/docs/libraries/next-js)
 
-## Deploy on Vercel
+## Deploy
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new).
-
-Check out the [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Deploy the Next.js app to your environment (e.g. Azure App Service behind Cloudflare). See the [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for build output modes and runtime notes.
 
 ---
 

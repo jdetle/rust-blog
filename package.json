@@ -33,15 +33,11 @@
 		"ingest:meta-pixel": "bun run scripts/ingest-env/meta-pixel.ts",
 		"ingest:analytics-api": "bun run scripts/ingest-env/analytics-api.ts",
 		"ingest:rust-api": "bun run scripts/ingest-env/rust-api.ts",
-		"ingest:vercel-sync": "bun run scripts/ingest-env/vercel-sync.ts",
-		"ingest:vercel-token": "bun run scripts/ingest-env/vercel-token.ts",
 		"ingest:google-bigquery": "bun run scripts/ingest-env/google-bigquery.ts",
 		"ingest:meta-token": "bun run scripts/ingest-env/meta-token.ts"
 	},
 	"dependencies": {
 		"@next/third-parties": "^16.1.7",
-		"@vercel/analytics": "^2.0.1",
-		"@vercel/speed-insights": "^1.2.0",
 		"motion": "^12.38.0",
 		"next": "^15.3.0",
 		"nuqs": "^2.8.9",

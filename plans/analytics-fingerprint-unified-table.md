@@ -21,7 +21,7 @@ Research on each analytics provider's API and how to associate events with a use
 |----------|---------------------------|------------------|-----------------|-------------|
 | **PostHog** | Yes | `distinct_id` = fingerprint via `posthog.identify(fp)` | `GET /api/projects/:id/events/?distinct_id=<fp>` (deprecated but works). HogQL: `SELECT * FROM events WHERE distinct_id = '<fp>'` | Events API deprecated; migrate to batch exports or Query API long-term |
 | **Warehouse (ScyllaDB)** | Yes | `session_id` = fingerprint | Rust ingestor writes `session_id` from PostHog `distinct_id`. Custom ingest accepts `session_id` in payload | Already implemented. Index on `session_id` required |
-| **Vercel Analytics** | Partial | Drain payload has `deviceId` (persistent), `sessionId` (often 0). No native fingerprint | Web Analytics Drain (push). `beforeSend` can augment event; add `fingerprint` via `{ ...event, fingerprint }` if drain passes custom props | deviceId ≠ our fingerprint. sessionId often 0 in prod. Must inject fingerprint client-side and verify drain includes it |
+| **Host web analytics** | Partial | Drain payload has `deviceId` (persistent), `sessionId` (often 0). No native fingerprint | Web analytics drain (push). `beforeSend` can augment event; add `fingerprint` via `{ ...event, fingerprint }` if drain passes custom props | deviceId ≠ our fingerprint. sessionId often 0 in prod. Must inject fingerprint client-side and verify drain includes it |
 | **GA4 / BigQuery** | Yes (with setup) | `user_id` = fingerprint in gtag: `gtag('set', 'user_id', fingerprint)` | BigQuery export: `events_YYYYMMDD` has `user_id`, `user_pseudo_id`. Query: `SELECT * FROM events_* WHERE user_id = '<fp>'` | Requires GA4 → BigQuery export. `user_pseudo_id` is GA client ID, not fingerprint |
 | **Microsoft Clarity** | No | `clarity("identify", fingerprint)` tags sessions in dashboard only | Data Export API: aggregate metrics by dimensions (URL, country, device). No per-user/session fetch | 10 req/project/day. No way to export "sessions for user X" |
 | **Plausible** | No | N/A | Stats API: aggregate only (visitors, pageviews, bounce rate). Events API: send only | Privacy-focused; no per-visitor export |
@@ -77,10 +77,10 @@ Use **Option A** for new fingerprint-centric workloads. Migrate existing `sessio
 - Fetch: `GET /api/projects/{id}/events/?distinct_id={fingerprint}&limit=100`
 - Store: `session_id` = fingerprint in warehouse; same for `events_by_fingerprint.fingerprint`
 
-### Vercel Drain
+### Web analytics drain
 - Client: `beforeSend`: `return { ...event, fingerprint: fp }` (fingerprint must be available when event fires)
 - Drain endpoint: receives events; extract `fingerprint` from payload if present
-- **Caveat**: Drain schema docs don't list `fingerprint`. Verify that custom props from beforeSend reach the drain. If not, use `eventData` for custom events only; pageviews may lack fingerprint unless Vercel adds support.
+- **Caveat**: Drain schema docs may not list `fingerprint`. Verify that custom props from beforeSend reach the drain. If not, use `eventData` for custom events only; pageviews may lack fingerprint unless the host adds support.
 
 ### GA4 BigQuery
 - Client: `gtag('set', 'user_id', fingerprint)` before first event
@@ -102,12 +102,12 @@ All sources normalize to:
 
 | Column | Type | Source mapping |
 |--------|------|----------------|
-| fingerprint | TEXT | distinct_id (PostHog), session_id (warehouse), user_id (GA4), payload.fingerprint (Vercel drain) |
+| fingerprint | TEXT | distinct_id (PostHog), session_id (warehouse), user_id (GA4), payload.fingerprint (web analytics drain) |
 | event_date | INT | days since 1970-01-01 |
 | event_time | BIGINT | Unix ms |
 | event_id | UUID | Generate on insert if not provided |
 | event_type | TEXT | pageview, $pageview, custom event name |
-| source | TEXT | posthog, warehouse, vercel, ga4 |
+| source | TEXT | posthog, warehouse, web_analytics, ga4 |
 | page_url | TEXT | $current_url, path+origin, page_location |
 | user_agent | TEXT | optional |
 | referrer | TEXT | optional |
@@ -133,7 +133,7 @@ Results are deduplicated by `(source, event_type, page_url, event_date)` and mer
 |-----------|---------|--------|
 | Warehouse query | `WHERE session_id = ?` × 3 (fingerprint, user_id, distinct_id) | Same; or `WHERE fingerprint = ?` (partition key) |
 | PostHog fetch | 3 calls by each identifier, merge | Same |
-| Vercel | pull_vercel is stub | Drain endpoint; parse fingerprint from payload; write to events_by_fingerprint |
+| Web analytics | pull stub N/A | Drain endpoint; parse fingerprint from payload; write to events_by_fingerprint |
 | GA4 | Not integrated | BigQuery job → events_by_fingerprint |
 | my-events API | Fetches warehouse + PostHog by all 3 keys, merges | Query events_by_fingerprint only (or both during migration) |
 
@@ -144,7 +144,7 @@ Results are deduplicated by `(source, event_type, page_url, event_date)` and mer
 1. **Create** `analytics.events_by_fingerprint` table
 2. **Backfill**: Copy from `analytics.events` where `session_id` is non-empty; use `session_id` as `fingerprint`
 3. **Update Rust ingestor**: Write to both tables (or only new table)
-4. **Update drain handler**: Accept Vercel events, extract fingerprint, insert into `events_by_fingerprint`
+4. **Update drain handler**: Accept web-analytics drain events, extract fingerprint, insert into `events_by_fingerprint`
 5. **Update my-events**: Prefer `events_by_fingerprint` when available; fallback to warehouse + PostHog during rollout
 6. **Deprecate** old `session_id` index queries once migration is complete
 
@@ -157,7 +157,7 @@ Results are deduplicated by `(source, event_type, page_url, event_date)` and mer
 ## 9. References
 
 - [PostHog Events API](https://posthog.com/docs/api/events) — `distinct_id` filter
-- [Vercel Web Analytics Drain Schema](https://vercel.com/docs/drains/reference/analytics) — deviceId, sessionId, eventData
+- Host web analytics drain schema (see your analytics vendor) — deviceId, sessionId, eventData
 - [GA4 BigQuery Export Schema](https://support.google.com/analytics/answer/7029846) — user_id, user_pseudo_id
 - [Clarity Data Export API](https://learn.microsoft.com/en-us/clarity/setup-and-installation/clarity-data-export-api) — aggregate only
 - [Plausible Stats API](https://plausible.io/docs/stats-api) — aggregate only

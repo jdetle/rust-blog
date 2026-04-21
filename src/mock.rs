@@ -5,7 +5,7 @@ use chrono::{Duration, Utc};
 use rand::Rng;
 
 use crate::analytics::IncomingEvent;
-use crate::vercel_drain::{VercelDrainEvent, VercelDrainPayload};
+use crate::web_analytics_drain::{WebAnalyticsDrainEvent, WebAnalyticsDrainPayload};
 
 const SITE_ORIGIN: &str = "https://jdetle.com";
 
@@ -151,12 +151,12 @@ pub fn generate_incoming_events(
     events
 }
 
-/// Generates Vercel drain format events for a persona.
-pub fn generate_vercel_drain_events(
+/// Generates web-analytics drain format events for a persona.
+pub fn generate_web_analytics_drain_events(
     persona: &MockPersona,
     days_back: i64,
     rng: &mut impl Rng,
-) -> Vec<VercelDrainEvent> {
+) -> Vec<WebAnalyticsDrainEvent> {
     let now = Utc::now();
     let start = now - Duration::days(days_back);
     let mut events = Vec::new();
@@ -170,8 +170,8 @@ pub fn generate_vercel_drain_events(
         let event_time = start + Duration::seconds(offset_secs);
         let timestamp_ms = event_time.timestamp_millis();
 
-        events.push(VercelDrainEvent {
-            schema: "vercel.analytics.v1".to_string(),
+        events.push(WebAnalyticsDrainEvent {
+            schema: "analytics.mock.v1".to_string(),
             event_type: "pageview".to_string(),
             event_name: event_type.to_string(),
             event_data: "{}".to_string(),
@@ -200,16 +200,16 @@ pub fn generate_all_incoming_events(
     all
 }
 
-/// Generates VercelDrainPayload (array) for all personas.
-pub fn generate_all_vercel_drain_payloads(
+/// Generates [`WebAnalyticsDrainPayload`] (array) for all personas.
+pub fn generate_all_web_analytics_drain_payloads(
     days_back: i64,
     rng: &mut impl Rng,
-) -> Vec<VercelDrainPayload> {
+) -> Vec<WebAnalyticsDrainPayload> {
     MockPersona::all()
         .iter()
         .map(|p| {
-            let events = generate_vercel_drain_events(p, days_back, rng);
-            VercelDrainPayload::Array(events)
+            let events = generate_web_analytics_drain_events(p, days_back, rng);
+            WebAnalyticsDrainPayload::Array(events)
         })
         .collect()
 }
@@ -243,10 +243,10 @@ mod tests {
     }
 
     #[test]
-    fn generate_vercel_drain_events_has_fingerprint_and_device_id() {
+    fn generate_web_analytics_drain_events_has_fingerprint_and_device_id() {
         let persona = MockPersona::rss_subscriber();
         let mut rng = ChaCha8Rng::seed_from_u64(123);
-        let events = generate_vercel_drain_events(&persona, 14, &mut rng);
+        let events = generate_web_analytics_drain_events(&persona, 14, &mut rng);
         assert!(!events.is_empty());
         for e in &events {
             assert_eq!(e.fingerprint, persona.fingerprint);

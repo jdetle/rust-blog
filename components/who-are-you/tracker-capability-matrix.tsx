@@ -72,7 +72,7 @@ const ROWS: {
 		note: "Privacy-first; aggregated by design.",
 	},
 	{
-		tool: "Vercel Analytics",
+		tool: "Host web analytics",
 		pageviews: "yes",
 		customEvents: "no",
 		sessionReplay: "no",

@@ -119,11 +119,11 @@ Five analytics platforms are wired in `components/analytics-provider.tsx`:
 | Microsoft Clarity | `NEXT_PUBLIC_CLARITY_ID` | [clarity.microsoft.com](https://clarity.microsoft.com) |
 | PostHog | `NEXT_PUBLIC_POSTHOG_KEY` | [posthog.com](https://posthog.com) |
 | Plausible | `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` | [plausible.io](https://plausible.io) ($9/mo) |
-| Vercel Analytics | Built-in | Enabled in Vercel dashboard |
+| (host web analytics) | Drain → blog-service | Configure a POST drain to `/api/drain/web-analytics` if you use host-side analytics |
 
 Copy `.env.example` to `.env.local` and fill in your IDs. Placeholder values (containing `XXXXX`) are automatically skipped — no scripts fire until you add real IDs.
 
-Use the ingest scripts to add secrets: <code>bun run ingest:ga4</code>, <code>bun run ingest:clarity</code>, <code>bun run ingest:posthog</code>, <code>bun run ingest:plausible</code>, <code>bun run ingest:vercel-sync</code>.
+Use the ingest scripts to add secrets: <code>bun run ingest:ga4</code>, <code>bun run ingest:clarity</code>, <code>bun run ingest:posthog</code>, <code>bun run ingest:plausible</code>, <code>bun run ingest:analytics-api</code>.
 
 For production, add these as Azure App Service application settings. Public `NEXT_PUBLIC_*` values are still baked into the Next.js build; server-only values are available at runtime.
 

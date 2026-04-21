@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Ingest GA4 Measurement ID. Prompts for value, appends to .env.local, optionally adds to Vercel.
+ * Ingest GA4 Measurement ID. Prompts for value, appends to .env.local.
  * Sign up: https://analytics.google.com → Admin → Data streams → Copy Measurement ID (G-XXXXXXXXXX)
  */
 
@@ -24,13 +24,9 @@ if (!trimmed.startsWith("G-")) {
 
 await appendEnv(KEY, trimmed);
 console.log(`Added ${KEY} to ${ENV_FILE}`);
-const skipVercel = process.argv.includes("--no-vercel") || !process.stdin.isTTY;
-if (!skipVercel && (await confirm("Add to Vercel? (requires vercel CLI)"))) {
-	for (const env of ["production", "preview", "development"]) {
-		await run("vercel", "env", "add", KEY, env, "--value", trimmed, "--yes");
-	}
-	console.log("Added to Vercel (production, preview, development)");
-}
+console.log(
+	`Production: set ${KEY} in Azure Portal → App Service → Environment variables.`,
+);
 
 async function prompt(msg: string): Promise<string> {
 	const input = await new Promise<string>((resolve) => {
@@ -38,11 +34,6 @@ async function prompt(msg: string): Promise<string> {
 		process.stdin.once("data", (d) => resolve(d.toString().trim()));
 	});
 	return input;
-}
-
-async function confirm(msg: string): Promise<boolean> {
-	const r = await prompt(`${msg} [y/N]: `);
-	return /^y/i.test(r);
 }
 
 async function appendEnv(key: string, value: string) {
@@ -53,12 +44,3 @@ async function appendEnv(key: string, value: string) {
 	writeFileSync(ENV_FILE, `${lines.join("\n")}\n`);
 }
 
-async function run(...args: string[]) {
-	const p = Bun.spawn(args, {
-		stdin: "inherit",
-		stdout: "inherit",
-		stderr: "inherit",
-	});
-	await p.exited;
-	if (p.exitCode !== 0) throw new Error(`Command failed: ${args.join(" ")}`);
-}

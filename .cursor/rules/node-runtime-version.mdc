@@ -1,0 +1,26 @@
+---
+description: "Pin Bun and Node engines; Node 16 is discontinued for Next.js builds"
+alwaysApply: true
+---
+
+# Node / Bun runtime — production build hygiene
+
+This project uses **Bun** with an exact version pin (`package.json` `packageManager`). Older Node.js defaults (e.g. 16.x) cause Next.js and CI images to fail with discontinued-runtime errors.
+
+## The rule
+
+1. **package.json**: keep `engines.node` on a supported LTS (e.g. `20.x`) and align `packageManager` / `.bun-version` with the Bun version used in CI.
+2. **CI / Azure / Cloudflare pipelines**: use Node 20+ images where `node` runs (App Service, GitHub Actions `setup-node`, etc.).
+3. **Local**: optional `.nvmrc` with `20` for consistency.
+
+## Supported Node (typical)
+
+| Version | Status |
+|---------|--------|
+| 16.x | Discontinued for many hosts — avoid |
+| 20.x | LTS — preferred floor |
+| 22.x | Supported |
+
+## Detection
+
+Run `bun run build` locally before pushing; fix `engines` mismatches before they reach CI.

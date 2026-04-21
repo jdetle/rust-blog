@@ -2,13 +2,12 @@
  * Base URL for the `/api/rust/*` proxy routes.
  *
  * These routes previously forwarded to the standalone `rust-api` Container App.
- * After consolidation they still resolve through `RUST_API_URL` (for the existing
- * Vercel env var), but `BLOG_SERVICE_URL` is preferred when set so the same
- * `ca-rust-blog` Container App handles both paths.
+ * After consolidation they still resolve through `RUST_API_URL`, but `BLOG_SERVICE_URL`
+ * is preferred when set so the same Container App handles both paths.
  *
  * Resolution order (first non-empty wins):
- *   1. `BLOG_SERVICE_URL` — new canonical name for the unified service
- *   2. `RUST_API_URL`     — legacy name (still set in Vercel prod for rust-api)
+ *   1. `BLOG_SERVICE_URL` — canonical name for the unified service
+ *   2. `RUST_API_URL`     — legacy name
  */
 
 const RUST_PATH_SEGMENT = /^[a-zA-Z0-9_.-]+$/;

@@ -1,7 +1,7 @@
 /**
  * Multi-signal VPN / proxy / datacenter detection engine.
  *
- * Combines server-side edge intelligence (IP metadata, ASN, Vercel headers)
+ * Combines server-side edge intelligence (IP metadata, ASN, CDN edge headers)
  * with client-side browser signals (timezone mismatch, WebRTC leak, locale
  * inconsistency) to produce a probability score and human-readable verdict.
  *

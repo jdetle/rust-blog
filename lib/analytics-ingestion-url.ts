@@ -3,11 +3,10 @@
  *
  * Resolution order (first non-empty wins):
  *   1. `BLOG_SERVICE_URL`              — new canonical name for the unified service
- *   2. `ANALYTICS_API_URL`            — legacy server-only name (still set in Vercel prod)
+ *   2. `ANALYTICS_API_URL`            — legacy server-only name
  *   3. `NEXT_PUBLIC_ANALYTICS_API_URL` — older client-exposed name, kept for backward compat
  *
- * Both legacy names continue to work so Vercel production is not broken before the
- * env var is updated to `BLOG_SERVICE_URL`.
+ * Legacy names remain supported until all environments use `BLOG_SERVICE_URL`.
  */
 
 export function getAnalyticsIngestionBaseUrl(): string {

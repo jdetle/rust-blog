@@ -35,7 +35,7 @@
 - `generate_fake_avatar` signature change adds a `base_url: &str` parameter — but `src/api.rs` calls it by name, and `src/summarize.rs` uses its own separate `reqwest` call to Anthropic. Plan mentions injecting into `summarize.rs` but doesn't specify the seam. If summarize uses a different struct, you get two injection points that can drift.
 
 **Dmitri (Platform/SRE):**
-- We will have `ca-rust-blog` (the surviving Container App) and a deleted `ca-rust-api`, but the plan says nothing about decommissioning `ca-rust-api` in Azure. It is a live running Container App in `rg-rust-blog`. Deleting the deploy workflow does not delete the Container App. Evidence: `deploy-rust-api.yml` line 32 — `CONTAINER_APP: ca-rust-api`, same CAE and RG as `ca-rust-blog`. Left running, `ca-rust-api` consumes ACU and could receive traffic if `RUST_API_URL` in Vercel still points to it. Worst-case scenario: billing continues for an orphaned service and a stale Next.js env var silently 404s the `app/api/rust/[[...path]]/` proxy.
+- We will have `ca-rust-blog` (the surviving Container App) and a deleted `ca-rust-api`, but the plan says nothing about decommissioning `ca-rust-api` in Azure. It is a live running Container App in `rg-rust-blog`. Deleting the deploy workflow does not delete the Container App. Evidence: `deploy-rust-api.yml` line 32 — `CONTAINER_APP: ca-rust-api`, same CAE and RG as `ca-rust-blog`. Left running, `ca-rust-api` consumes ACU and could receive traffic if `RUST_API_URL` in production env still points to it. Worst-case scenario: billing continues for an orphaned service and a stale Next.js env var silently 404s the `app/api/rust/[[...path]]/` proxy.
 - Two deploy workflows (`deploy-analytics.yml` → `rg-jdetle-blog`, `deploy-azure.yml` → `rg-rust-blog`) target different resource groups. The plan retires `deploy-analytics.yml` but says nothing about whether `analytics-ingestion` Container App in `rg-jdetle-blog` should be decommissioned. There may be live traffic hitting that URL.
 - `deploy-analytics.yml` uses plain `docker build` with a local runner push to a different ACR (`jdetleblogacr` vs `PLATFORM_ACR`). These are different registries. After retirement, the old ACR still exists, still has images, and nobody cleans it up.
 
@@ -50,7 +50,7 @@
 
 **Sam (Frontend/DX):**
 - `cargo run --features test-support --bin blog-service` in a Playwright `webServer` entry takes 45-120 seconds cold. The current `timeout: 120_000` will almost certainly miss Rust compile time in CI. Worst-case: Playwright silently times out on the Rust webServer and tests run with no backend, producing misleading 502 failures.
-- The `BLOG_SERVICE_URL` fallback order needs to be explicit in `lib/analytics-ingestion-url.ts`. Vercel production still has `ANALYTICS_API_URL` set. If fallback order is wrong, adding `BLOG_SERVICE_URL` for the new endpoint would be ignored.
+- The `BLOG_SERVICE_URL` fallback order needs to be explicit in `lib/analytics-ingestion-url.ts`. Production still has `ANALYTICS_API_URL` set. If fallback order is wrong, adding `BLOG_SERVICE_URL` for the new endpoint would be ignored.
 
 ## Phase 2 - Defense
 
@@ -105,7 +105,7 @@
 
 ## Decision Memo
 - recommended option: Option A with five required modifications
-- unresolved risks: `<use>` cross-document SVG references (documented as known gap); Vercel env var cutover timing (manual step)
+- unresolved risks: `<use>` cross-document SVG references (documented as known gap); production env var cutover timing (manual step)
 - experiments: Pre-compile step for Playwright — validate locally before committing to CI workflow
 - rollout gates: (1) `GET /health` on `ca-rust-blog` post-deploy; (2) `POST /user-profile/generate-avatar` smoke before workflow deletion
 - rollback trigger: Non-200 `/health` for 3 consecutive minutes → `az containerapp revision copy` to prior tag
