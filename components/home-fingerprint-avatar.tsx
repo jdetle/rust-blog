@@ -118,6 +118,8 @@ interface UserContext {
 	referrer_type?: string;
 	utm?: string;
 	vpn_verdict?: string;
+	/** Heuristic from edge-detect: IP in a common VPN exit hosting region. */
+	vpn_exit_location_hint?: string;
 }
 
 function parseBrowser(ua: string): string {
@@ -245,6 +247,10 @@ async function buildUserContext(): Promise<UserContext> {
 					isEU?: boolean;
 				};
 				ipapi?: { currency?: string; countryCallingCode?: string };
+				vpnExitLocationHeuristic?: {
+					summary?: string;
+					probabilityPercent?: number;
+				} | null;
 			};
 			if (data.edge) {
 				ctx.city = data.edge.city ?? undefined;
@@ -261,6 +267,9 @@ async function buildUserContext(): Promise<UserContext> {
 				ctx.currency = (data.ipapi.currency as string) ?? undefined;
 				ctx.calling_code =
 					(data.ipapi.countryCallingCode as string) ?? undefined;
+			}
+			if (data.vpnExitLocationHeuristic?.summary) {
+				ctx.vpn_exit_location_hint = data.vpnExitLocationHeuristic.summary;
 			}
 		}
 	} catch {

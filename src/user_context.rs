@@ -38,6 +38,9 @@ pub struct UserContext {
     pub utm: Option<String>,
     // VPN assessment
     pub vpn_verdict: Option<String>,
+    /// Heuristic: IP geo matches common VPN exit hosting regions (from edge-detect / client).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vpn_exit_location_hint: Option<String>,
     // PostHog session (for cache key only — not included in prompt)
     pub posthog_session_id: Option<String>,
     // Activity (server-side only — populated from AnalyticsDb, not sent by client)
@@ -94,6 +97,11 @@ impl UserContext {
         push(&mut lines, "Referrer type", &self.referrer_type);
         push(&mut lines, "UTM tags", &self.utm);
         push(&mut lines, "VPN verdict", &self.vpn_verdict);
+        push(
+            &mut lines,
+            "VPN exit geography (heuristic)",
+            &self.vpn_exit_location_hint,
+        );
 
         // Activity signals (server-side enrichment)
         if let Some(count) = self.recent_event_count {

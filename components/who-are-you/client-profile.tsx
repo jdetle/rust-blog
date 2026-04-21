@@ -15,7 +15,11 @@ import type {
 	VpnAssessment,
 	VpnSignal,
 } from "@/lib/vpn-detect";
-import { analyzeClientServerMismatch, computeVerdict } from "@/lib/vpn-detect";
+import {
+	analyzeClientServerMismatch,
+	computeVerdict,
+	type VpnExitLocationHeuristic,
+} from "@/lib/vpn-detect";
 import { EventHistoryViz } from "./event-history-viz";
 import { ExposureMeter } from "./exposure-meter";
 import { HeatmapGhostIllustration } from "./heatmap-ghost-illustration";
@@ -46,6 +50,7 @@ interface DetectedProfile {
 interface EdgeApiResponse {
 	edge: EdgeSignals & { pop: string | null; provider: string };
 	vpnSignals: VpnSignal[];
+	vpnExitLocationHeuristic?: VpnExitLocationHeuristic | null;
 	ipapi: Record<string, unknown> | null;
 }
 
@@ -973,6 +978,13 @@ export function ClientProfile({
 					utm:
 						referral.utm && referral.utm !== "None" ? referral.utm : undefined,
 					vpn_verdict: vpnAssessment?.verdict ?? undefined,
+					vpn_exit_location_hint: (() => {
+						const s = vpnAssessment?.signals.find(
+							(x) => x.name === "Common VPN exit geography",
+						);
+						if (s?.detected && s.detail) return s.detail;
+						return undefined;
+					})(),
 				};
 
 				if (!cancelled) setAvatarGenerating(true);
