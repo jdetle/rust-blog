@@ -30,9 +30,9 @@ const endpoints: Array<{
 		expectedContent: ["posts", "Posts"],
 	},
 	{
-		path: "/posts/2020-year-in-review",
+		path: "/posts/2023-year-in-review",
 		name: "post detail",
-		expectedContent: ["2020", "year"],
+		expectedContent: ["2023", "year"],
 	},
 ];
 

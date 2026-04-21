@@ -40,8 +40,7 @@ impl OpenAiImagesClient {
             "prompt": prompt,
             "n": 1,
             "size": "1024x1024",
-            "quality": "medium",
-            "response_format": "b64_json"
+            "quality": "medium"
         });
 
         let res = self
