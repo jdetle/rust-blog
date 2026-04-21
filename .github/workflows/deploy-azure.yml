@@ -53,10 +53,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Azure login (OIDC)
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -67,6 +67,7 @@ jobs:
           KEY_VAULT_NAME: ${{ secrets.KEY_VAULT_NAME }}
           ANTHROPIC_API_KEY_SECRET: ${{ secrets.ANTHROPIC_API_KEY }}
           COSMOS_PASSWORD_SECRET: ${{ secrets.COSMOS_PASSWORD }}
+          OPENAI_API_KEY_SECRET: ${{ secrets.OPENAI_API_KEY }}
           POSTHOG_API_KEY_SECRET: ${{ secrets.POSTHOG_API_KEY }}
         run: |
           kv_get() {
@@ -90,6 +91,12 @@ jobs:
           [ -n "$kv_val" ] && COSMOS_PASSWORD="$kv_val"
           echo "::add-mask::${COSMOS_PASSWORD}"
           echo "COSMOS_PASSWORD=${COSMOS_PASSWORD}" >> "$GITHUB_ENV"
+
+          OPENAI_API_KEY="${OPENAI_API_KEY_SECRET}"
+          kv_val="$(kv_get "openai-rustblog-secret")"
+          [ -n "$kv_val" ] && OPENAI_API_KEY="$kv_val"
+          echo "::add-mask::${OPENAI_API_KEY}"
+          echo "OPENAI_API_KEY=${OPENAI_API_KEY}" >> "$GITHUB_ENV"
 
           POSTHOG_API_KEY="${POSTHOG_API_KEY_SECRET}"
           kv_val="$(kv_get "POSTHOG-API-KEY")"
@@ -165,7 +172,7 @@ jobs:
           PLATFORM_ACR: ${{ secrets.PLATFORM_ACR }}
           S10_INGEST_URL: ${{ secrets.S10_INGEST_URL }}
           S10_INGEST_KEY: ${{ secrets.S10_INGEST_KEY }}
-          # ANTHROPIC_API_KEY, COSMOS_PASSWORD, POSTHOG_API_KEY set in GITHUB_ENV
+          # ANTHROPIC_API_KEY, COSMOS_PASSWORD, OPENAI_API_KEY, POSTHOG_API_KEY set in GITHUB_ENV
           # by the "Fetch secrets" step above.
         run: |
           IDENTITY_ID=$(az identity show \
@@ -188,6 +195,10 @@ jobs:
           if [ -n "$COSMOS_PASSWORD" ]; then
             COMMON_SECRETS+=("cosmos-password=${COSMOS_PASSWORD}")
             COMMON_ENV+=("COSMOS_PASSWORD=secretref:cosmos-password")
+          fi
+          if [ -n "$OPENAI_API_KEY" ]; then
+            COMMON_SECRETS+=("openai-api-key=${OPENAI_API_KEY}")
+            COMMON_ENV+=("OPENAI_API_KEY=secretref:openai-api-key")
           fi
           if [ -n "$POSTHOG_API_KEY" ]; then
             COMMON_SECRETS+=("posthog-api-key=${POSTHOG_API_KEY}")
