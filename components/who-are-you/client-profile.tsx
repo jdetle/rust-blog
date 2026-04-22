@@ -2,8 +2,10 @@
 
 import posthog from "posthog-js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AvatarPortraitCarousel } from "@/components/avatar-portrait-carousel";
 import { TurnstileGate } from "@/components/turnstile-gate";
 import { canvasFingerprint } from "@/components/who-are-you/canvas-fingerprint";
+import { portraitDataUrisFromAvatarPayload } from "@/lib/home-fingerprint-avatar-portraits";
 import {
 	aggregateThirdPartyResources,
 	computeExposureScore,
@@ -380,7 +382,8 @@ export function ClientProfile({
 	const [userEventsError, setUserEventsError] = useState<string | null>(null);
 	const [llmSummary, setLlmSummary] = useState<string | null>(null);
 	const [personaGuess, setPersonaGuess] = useState<string | null>(null);
-	const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+	const [avatarPortraitUrls, setAvatarPortraitUrls] = useState<string[]>([]);
+	const [avatarCarouselIndex, setAvatarCarouselIndex] = useState(0);
 	const [observations, setObservations] = useState<string[]>([]);
 	const [visibleObs, setVisibleObs] = useState(0);
 	const [avatarGenerating, setAvatarGenerating] = useState(false);
@@ -889,6 +892,37 @@ export function ClientProfile({
 		return parts.length ? parts.join(" · ") : null;
 	}, [device.browser, device.os, device.deviceType]);
 
+	const bumpAvatarCarousel = useCallback(
+		(delta: -1 | 1) => {
+			setAvatarCarouselIndex((i) => {
+				const n = avatarPortraitUrls.length;
+				if (n <= 1) return 0;
+				return (i + delta + n) % n;
+			});
+		},
+		[avatarPortraitUrls.length],
+	);
+
+	const setAvatarCarouselIndexClamped = useCallback(
+		(i: number) => {
+			const n = avatarPortraitUrls.length;
+			if (n === 0) {
+				setAvatarCarouselIndex(0);
+				return;
+			}
+			setAvatarCarouselIndex(Math.max(0, Math.min(i, n - 1)));
+		},
+		[avatarPortraitUrls.length],
+	);
+
+	useEffect(() => {
+		setAvatarCarouselIndex((i) =>
+			avatarPortraitUrls.length === 0
+				? 0
+				: Math.min(i, avatarPortraitUrls.length - 1),
+		);
+	}, [avatarPortraitUrls.length]);
+
 	// Fetch LLM summary + stored avatar; if none, request generation via Anthropic + OpenAI.
 	useEffect(() => {
 		if (!loaded) return;
@@ -919,15 +953,18 @@ export function ClientProfile({
 					summary?: string | null;
 					persona_guess?: string | null;
 					avatar_url?: string | null;
+					avatar_urls?: unknown;
 				};
 				if (cancelled) return;
 				if (data.summary) setLlmSummary(data.summary);
 				if (data.persona_guess) setPersonaGuess(data.persona_guess);
-				if (data.avatar_url) {
-					setAvatarUrl(data.avatar_url);
+				const fromServer = portraitDataUrisFromAvatarPayload(data);
+				if (fromServer.length > 0) {
+					setAvatarPortraitUrls(fromServer);
+					setAvatarCarouselIndex(0);
 				}
 
-				const hasAvatar = Boolean(data.avatar_url);
+				const hasAvatar = fromServer.length > 0;
 				if (hasAvatar || avatarRequestedRef.current || !fp) return;
 				avatarRequestedRef.current = true;
 
@@ -1040,6 +1077,7 @@ export function ClientProfile({
 					const gen = (await gr.json()) as {
 						persona_guess?: string;
 						avatar_url?: string;
+						avatar_urls?: unknown;
 					};
 					if (cancelled) return;
 					// Stop observation ticker once image arrives.
@@ -1048,8 +1086,10 @@ export function ClientProfile({
 						obsTimerRef.current = null;
 					}
 					setPersonaGuess(gen.persona_guess ?? null);
-					if (gen.avatar_url) {
-						setAvatarUrl(gen.avatar_url);
+					const genUrls = portraitDataUrisFromAvatarPayload(gen);
+					if (genUrls.length > 0) {
+						setAvatarPortraitUrls(genUrls);
+						setAvatarCarouselIndex(0);
 					}
 				} finally {
 					if (!cancelled) setAvatarGenerating(false);
@@ -1678,7 +1718,7 @@ export function ClientProfile({
 				<h2>The Composite Picture</h2>
 				{summary ? (
 					<>
-						{avatarGenerating && !avatarUrl && (
+						{avatarGenerating && avatarPortraitUrls.length === 0 && (
 							<div className="fingerprint-avatar-block">
 								<div
 									className="avatar-generating-skeleton"
@@ -1704,31 +1744,22 @@ export function ClientProfile({
 								)}
 							</div>
 						)}
-						{(avatarUrl || personaGuess) && (
+						{(avatarPortraitUrls.length > 0 || personaGuess) && (
 							<div className="fingerprint-avatar-block">
-								{avatarUrl && (
-									<div
-										className="fingerprint-avatar-frame"
-										role="img"
-										aria-label="A personalised portrait aligned with your visitor profile"
-									>
-										{/* biome-ignore lint/performance/noImgElement: data: URIs are not supported by next/image */}
-										<img
-											src={avatarUrl}
-											width={256}
-											height={256}
-											alt="Personalised composite portrait"
-											className="fingerprint-avatar-img"
-											decoding="async"
-										/>
-									</div>
+								{avatarPortraitUrls.length > 0 && (
+									<AvatarPortraitCarousel
+										urls={avatarPortraitUrls}
+										activeIndex={avatarCarouselIndex}
+										setIndex={setAvatarCarouselIndexClamped}
+										bump={bumpAvatarCarousel}
+									/>
 								)}
 								{personaGuess ? (
 									<p className="summary-paragraph fingerprint-avatar-guess">
 										<strong>Wild guess:</strong> {personaGuess}
 									</p>
 								) : null}
-								{avatarUrl ? (
+								{avatarPortraitUrls.length > 0 ? (
 									<p
 										className="summary-paragraph"
 										style={{ fontSize: "0.75rem", opacity: 0.7 }}

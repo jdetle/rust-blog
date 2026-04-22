@@ -253,10 +253,12 @@ test("who-are-you page renders avatar in composite picture section", async ({
 	await stubAnalyticsRoutes(page);
 	await page.goto("/who-are-you");
 
-	const frame = page.locator(".fingerprint-avatar-frame");
+	const frame = page.locator(
+		".fingerprint-avatar-block .home-fingerprint-avatar-frame",
+	);
 	await expect(frame).toBeVisible({ timeout: 45_000 });
 
-	const img = frame.locator("img.fingerprint-avatar-img");
+	const img = frame.locator("img.home-fingerprint-avatar-img");
 	await expect(img).toHaveCount(1, { timeout: 5_000 });
 });
 

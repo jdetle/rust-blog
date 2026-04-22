@@ -118,7 +118,10 @@ fn legacy_profile_key<'a>(user_id: &'a str, distinct_id: &'a str) -> Option<&'a 
     }
 }
 
-/// Profile for reads: prefer fingerprint row; if it has no PNG, fall back to PostHog-keyed legacy row.
+/// Profile for reads: merge canvas fingerprint row with PostHog-keyed legacy row when both exist.
+///
+/// Without merging, a newer fingerprint row with a single portrait would hide a long `avatar_pngs`
+/// history stored only under `distinct_id` / `user_id` from earlier clients.
 async fn resolve_stored_profile(
     store: &dyn ProfileStore,
     fp: &str,
@@ -128,25 +131,12 @@ async fn resolve_stored_profile(
     let legacy = legacy_profile_key(user_id, distinct_id);
     if !fp.is_empty() {
         let by_fp = store.get_profile(fp).await?;
-        if let Some(ref p) = by_fp {
-            if p.latest_avatar_png().is_some() {
-                return Ok(by_fp);
-            }
-        }
-        if let Some(leg) = legacy.filter(|l| *l != fp) {
-            if let Some(p) = store.get_profile(leg).await? {
-                if p.latest_avatar_png().is_some() {
-                    return Ok(Some(p));
-                }
-            }
-        }
-        if by_fp.is_some() {
-            return Ok(by_fp);
-        }
-        if let Some(leg) = legacy.filter(|l| *l != fp) {
-            return store.get_profile(leg).await;
-        }
-        return Ok(None);
+        let by_legacy = if let Some(leg) = legacy.filter(|l| *l != fp) {
+            store.get_profile(leg).await?
+        } else {
+            None
+        };
+        return Ok(UserProfile::merge_split_storage_rows(by_legacy, by_fp));
     }
     if let Some(leg) = legacy {
         return store.get_profile(leg).await;

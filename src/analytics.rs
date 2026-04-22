@@ -155,6 +155,73 @@ impl UserProfile {
         }
         history
     }
+
+    /// Merge avatar history from two DB rows: legacy PostHog id vs canvas fingerprint.
+    ///
+    /// Early deployments (or clients that omitted fingerprint) stored portraits only under
+    /// `distinct_id` / `user_id`. Once fingerprint is sent, writes use the fp key; a **new**
+    /// fp row with one portrait would otherwise hide a long history on the legacy row.
+    /// Order: legacy chronology first, then fingerprint-keyed chronology, deduped by exact PNG bytes.
+    pub fn merge_split_storage_rows(
+        legacy: Option<UserProfile>,
+        fingerprint: Option<UserProfile>,
+    ) -> Option<UserProfile> {
+        match (fingerprint, legacy) {
+            (None, None) => None,
+            (Some(f), None) => Some(f),
+            (None, Some(l)) => Some(l),
+            (Some(f), Some(l)) => {
+                let merged_pngs = merge_png_history_sequences(
+                    &l.prior_pngs_for_evolution(),
+                    &f.prior_pngs_for_evolution(),
+                );
+                let avatar_png = merged_pngs.last().cloned().unwrap_or_default();
+                Some(UserProfile {
+                    session_id: f.session_id.clone(),
+                    llm_summary: if !f.llm_summary.is_empty() {
+                        f.llm_summary.clone()
+                    } else {
+                        l.llm_summary.clone()
+                    },
+                    updated_at: f.updated_at.max(l.updated_at),
+                    persona_guess: if !f.persona_guess.is_empty() {
+                        f.persona_guess.clone()
+                    } else {
+                        l.persona_guess.clone()
+                    },
+                    avatar_svg: f.avatar_svg.clone(),
+                    avatar_session_id: if !f.avatar_session_id.is_empty() {
+                        f.avatar_session_id.clone()
+                    } else {
+                        l.avatar_session_id.clone()
+                    },
+                    avatar_png: avatar_png.clone(),
+                    avatar_png_2: f.avatar_png_2.clone(),
+                    avatar_png_3: f.avatar_png_3.clone(),
+                    avatar_png_4: f.avatar_png_4.clone(),
+                    avatar_pngs: merged_pngs,
+                })
+            }
+        }
+    }
+}
+
+fn merge_png_history_sequences(legacy: &[String], fp: &[String]) -> Vec<String> {
+    let mut seen = std::collections::HashSet::<&str>::new();
+    let mut out: Vec<String> = Vec::new();
+    for png in legacy.iter().chain(fp.iter()) {
+        if png.is_empty() {
+            continue;
+        }
+        if seen.insert(png.as_str()) {
+            out.push(png.clone());
+        }
+    }
+    if out.len() > MAX_AVATAR_PNG_HISTORY {
+        let drop = out.len() - MAX_AVATAR_PNG_HISTORY;
+        out.drain(0..drop);
+    }
+    out
 }
 
 /// Minimal storage contract needed by the avatar handler.
@@ -625,5 +692,54 @@ impl ProfileStore for AnalyticsDb {
         png: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         AnalyticsDb::upsert_persona_avatar(self, id, avatar_session_id, persona, png).await
+    }
+}
+
+#[cfg(test)]
+mod merge_profile_tests {
+    use super::UserProfile;
+
+    fn profile_with_pngs(sid: &str, pngs: Vec<&str>) -> UserProfile {
+        let last = pngs.last().map(|s| s.to_string()).unwrap_or_default();
+        UserProfile {
+            session_id: sid.to_string(),
+            llm_summary: String::new(),
+            updated_at: 0,
+            persona_guess: String::new(),
+            avatar_svg: String::new(),
+            avatar_session_id: String::new(),
+            avatar_png: last.clone(),
+            avatar_png_2: String::new(),
+            avatar_png_3: String::new(),
+            avatar_png_4: String::new(),
+            avatar_pngs: pngs.into_iter().map(|s| s.to_string()).collect(),
+        }
+    }
+
+    #[test]
+    fn merge_combines_legacy_then_fp_dedupes() {
+        let leg = profile_with_pngs("ph-1", vec!["a", "b"]);
+        let fp = profile_with_pngs("fp-x", vec!["b", "c"]);
+        let m = UserProfile::merge_split_storage_rows(Some(leg), Some(fp)).expect("merged");
+        assert_eq!(
+            m.avatar_pngs,
+            vec!["a".to_string(), "b".to_string(), "c".to_string()]
+        );
+        assert_eq!(m.session_id, "fp-x");
+        assert_eq!(m.avatar_png, "c");
+    }
+
+    #[test]
+    fn merge_fingerprint_only() {
+        let fp = profile_with_pngs("fp", vec!["z"]);
+        let m = UserProfile::merge_split_storage_rows(None, Some(fp)).unwrap();
+        assert_eq!(m.stored_portrait_count(), 1);
+    }
+
+    #[test]
+    fn merge_legacy_only() {
+        let leg = profile_with_pngs("leg", vec!["x", "y"]);
+        let m = UserProfile::merge_split_storage_rows(Some(leg), None).unwrap();
+        assert_eq!(m.stored_portrait_count(), 2);
     }
 }
