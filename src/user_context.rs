@@ -52,6 +52,9 @@ pub struct UserContext {
     pub session_minutes: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_event_type: Option<String>,
+    /// Client-built summary from `/api/analytics/my-events` (PostHog + warehouse union).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unified_engagement_log: Option<String>,
 }
 
 impl UserContext {
@@ -115,6 +118,14 @@ impl UserContext {
         }
         push(&mut lines, "Last event type", &self.last_event_type);
 
+        if let Some(ref engagement) = self.unified_engagement_log {
+            if !engagement.is_empty() {
+                lines.push(format!(
+                    "Unified analytics sample (PostHog + first-party warehouse; other sources appear when tagged):\n{engagement}",
+                ));
+            }
+        }
+
         if lines.is_empty() {
             return "(no signals available)".to_string();
         }
@@ -151,5 +162,25 @@ impl UserContext {
         } else {
             format!("browsing on a {conn} connection in the {tz} timezone")
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn prompt_block_includes_unified_engagement_log() {
+        let ctx = UserContext {
+            city: Some("Oslo".to_string()),
+            unified_engagement_log: Some(
+                "Recorded events in merged sample: 3\nBy source: posthog (2), warehouse (1)"
+                    .to_string(),
+            ),
+            ..Default::default()
+        };
+        let block = ctx.to_prompt_block();
+        assert!(block.contains("Unified analytics sample"));
+        assert!(block.contains("posthog"));
     }
 }

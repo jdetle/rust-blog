@@ -10,6 +10,10 @@ import {
 } from "react";
 import { TurnstileGate } from "@/components/turnstile-gate";
 import { canvasFingerprint } from "@/components/who-are-you/canvas-fingerprint";
+import {
+	formatUnifiedEngagementLog,
+	type UnifiedEventLite,
+} from "@/lib/engagement-summary";
 
 const AVATAR_LABEL =
 	"A personalised portrait generated from regional art traditions and your browser signals. Updates each calendar day.";
@@ -28,7 +32,7 @@ type Phase =
 type LoadingStep = "fingerprint" | "region" | "artists" | "rendering";
 
 const STEP_MESSAGES: Record<LoadingStep, string> = {
-	fingerprint: "Reading your fingerprint…",
+	fingerprint: "Gathering your browser signals…",
 	region: "Detecting your region…",
 	artists: "Composing your art direction…",
 	rendering: "Rendering your portrait…",
@@ -120,6 +124,121 @@ interface UserContext {
 	vpn_verdict?: string;
 	/** Heuristic from edge-detect: IP in a common VPN exit hosting region. */
 	vpn_exit_location_hint?: string;
+	/** Merged PostHog + warehouse analytics summary for prompts (snake_case for Rust). */
+	unified_engagement_log?: string;
+}
+
+async function fetchUnifiedEngagementLog(
+	fp: string,
+): Promise<string | undefined> {
+	const params = new URLSearchParams();
+	params.set("fingerprint", fp);
+	params.set("limit", "100");
+	const distinct = posthog.get_distinct_id?.();
+	if (distinct) {
+		params.set("distinct_id", distinct);
+		params.set("user_id", distinct);
+	}
+	try {
+		const url = new URL("/api/analytics/my-events", window.location.origin);
+		params.forEach((value, key) => {
+			url.searchParams.set(key, value);
+		});
+		const r = await fetch(url.href);
+		if (!r.ok) return undefined;
+		const data = (await r.json()) as { events?: unknown[] };
+		const raw = Array.isArray(data.events) ? data.events : [];
+		const events: UnifiedEventLite[] = raw.map((e) => {
+			const row = e as Record<string, unknown>;
+			return {
+				event_type: typeof row.event_type === "string" ? row.event_type : "",
+				source: typeof row.source === "string" ? row.source : "",
+				page_url: typeof row.page_url === "string" ? row.page_url : "",
+			};
+		});
+		return formatUnifiedEngagementLog(events);
+	} catch {
+		return undefined;
+	}
+}
+
+function fpShortLabel(fp: string): string {
+	return fp.length > 14 ? `${fp.slice(0, 12)}…` : fp;
+}
+
+function AvatarSignalPlaceholder({
+	fpShort,
+	ctx,
+	interactionCount,
+	eventsLoading,
+}: {
+	fpShort: string;
+	ctx: UserContext;
+	interactionCount: number | null;
+	eventsLoading: boolean;
+}) {
+	const location = [ctx.city, ctx.region, ctx.country]
+		.filter(Boolean)
+		.join(", ");
+	const dmRm = [
+		ctx.dark_mode === true ? "dark UI" : null,
+		ctx.reduced_motion === true ? "reduced motion" : null,
+	]
+		.filter(Boolean)
+		.join(", ");
+
+	const rows: { label: string; value: string }[] = [
+		{ label: "Canvas fingerprint", value: fpShort },
+	];
+	if (location) rows.push({ label: "Approx. location", value: location });
+	if (ctx.browser) rows.push({ label: "Browser", value: ctx.browser });
+	if (ctx.os) rows.push({ label: "OS", value: ctx.os });
+	if (ctx.device_type) rows.push({ label: "Device", value: ctx.device_type });
+	if (ctx.screen) rows.push({ label: "Screen", value: ctx.screen });
+	if (ctx.gpu) rows.push({ label: "GPU", value: ctx.gpu });
+	if (ctx.timezone_browser)
+		rows.push({ label: "Timezone", value: ctx.timezone_browser });
+	if (ctx.languages) rows.push({ label: "Languages", value: ctx.languages });
+	if (ctx.connection_type)
+		rows.push({ label: "Connection", value: ctx.connection_type });
+	if (ctx.referrer_type)
+		rows.push({ label: "Referrer", value: ctx.referrer_type });
+	if (ctx.utm) rows.push({ label: "UTM", value: ctx.utm });
+	if (ctx.vpn_exit_location_hint)
+		rows.push({ label: "VPN hint", value: ctx.vpn_exit_location_hint });
+	if (dmRm) rows.push({ label: "Display prefs", value: dmRm });
+
+	const countLabel = eventsLoading
+		? "…"
+		: interactionCount === null
+			? "—"
+			: String(interactionCount);
+	rows.push({
+		label: "Recorded interactions",
+		value: `${countLabel} (merged analytics sample)`,
+	});
+
+	return (
+		<section
+			className="home-fingerprint-avatar-placeholder-panel"
+			aria-labelledby="home-fingerprint-avatar-preview-title"
+		>
+			<p
+				id="home-fingerprint-avatar-preview-title"
+				className="home-fingerprint-avatar-placeholder-title"
+			>
+				Your signals (preview)
+			</p>
+			<dl className="home-fingerprint-avatar-placeholder-kv">
+				{rows.map(({ label, value }) => (
+					<div key={label} className="home-fingerprint-avatar-placeholder-row">
+						<dt>{label}</dt>
+						<dd>{value}</dd>
+					</div>
+				))}
+			</dl>
+		</section>
+	);
 }
 
 function parseBrowser(ua: string): string {
@@ -365,6 +484,11 @@ export function HomeFingerprintAvatar() {
 	const [personaGuess, setPersonaGuess] = useState<string | null>(null);
 	const [phase, setPhase] = useState<Phase>("prefetching");
 	const [loadingStep, setLoadingStep] = useState<LoadingStep>("fingerprint");
+	const [previewCtx, setPreviewCtx] = useState<UserContext | null>(null);
+	const [previewReady, setPreviewReady] = useState(false);
+	const [interactionCount, setInteractionCount] = useState<number | null>(null);
+	const [eventsPreviewLoading, setEventsPreviewLoading] = useState(true);
+	const [fpShort, setFpShort] = useState("—");
 	const [observations, setObservations] = useState<string[]>([]);
 	const [visibleObs, setVisibleObs] = useState(0);
 	const requestedRef = useRef(false);
@@ -430,8 +554,15 @@ export function HomeFingerprintAvatar() {
 			requestedRef.current = true;
 
 			setPhase("loading");
-			setLoadingStep("artists");
-			const userContext = await buildUserContext();
+			setLoadingStep("fingerprint");
+			const [baseCtx, engagementLog] = await Promise.all([
+				buildUserContext(),
+				fetchUnifiedEngagementLog(fp),
+			]);
+			const userContext: UserContext = {
+				...baseCtx,
+				...(engagementLog ? { unified_engagement_log: engagementLog } : {}),
+			};
 			setLoadingStep("rendering");
 
 			const generateController = new AbortController();
@@ -537,6 +668,7 @@ export function HomeFingerprintAvatar() {
 			setPhase("absent");
 			return;
 		}
+		setFpShort(fpShortLabel(fp));
 		const hist = loadHistory(fp);
 		if (hist.length) {
 			setAvatarUrls(hist);
@@ -548,6 +680,55 @@ export function HomeFingerprintAvatar() {
 		} catch {
 			/* */
 		}
+	}, []);
+
+	useEffect(() => {
+		let cancelled = false;
+		void (async () => {
+			const fp = canvasFingerprint();
+			if (!fp || fp === "Canvas blocked") {
+				setPreviewReady(true);
+				setEventsPreviewLoading(false);
+				return;
+			}
+
+			try {
+				const ctx = await buildUserContext();
+				if (!cancelled) setPreviewCtx(ctx);
+			} catch {
+				/* non-fatal */
+			}
+			if (!cancelled) setPreviewReady(true);
+
+			const params = new URLSearchParams();
+			params.set("fingerprint", fp);
+			params.set("limit", "100");
+			const distinct = posthog.get_distinct_id?.();
+			if (distinct) {
+				params.set("distinct_id", distinct);
+				params.set("user_id", distinct);
+			}
+			const url = new URL("/api/analytics/my-events", window.location.origin);
+			params.forEach((value, key) => {
+				url.searchParams.set(key, value);
+			});
+
+			try {
+				const r = await fetch(url.href);
+				const data = (await r.json()) as { events?: unknown[] };
+				if (cancelled) return;
+				const n = Array.isArray(data.events) ? data.events.length : 0;
+				setInteractionCount(n);
+			} catch {
+				if (!cancelled) setInteractionCount(null);
+			} finally {
+				if (!cancelled) setEventsPreviewLoading(false);
+			}
+		})();
+
+		return () => {
+			cancelled = true;
+		};
 	}, []);
 
 	useEffect(() => {
@@ -639,13 +820,12 @@ export function HomeFingerprintAvatar() {
 	if (phase === "absent") return null;
 
 	const hasCache = avatarUrls.length > 0;
-	const isPrefetchNoCache = phase === "prefetching" && !hasCache;
-	const isPrefetchWithCache = phase === "prefetching" && hasCache;
+	const isPrefetch = phase === "prefetching";
 	const isCaptchaNoImage = phase === "awaiting-captcha" && !hasCache;
 	const isCaptchaWithCache = phase === "awaiting-captcha" && hasCache;
 	const isLoading = phase === "loading";
 
-	if (isPrefetchNoCache) {
+	if (isPrefetch && !previewReady) {
 		return (
 			<div
 				className="home-fingerprint-avatar home-fingerprint-avatar--loading"
@@ -663,20 +843,25 @@ export function HomeFingerprintAvatar() {
 		);
 	}
 
-	if (isPrefetchWithCache) {
+	if (isPrefetch && previewReady) {
+		const ctxForPreview = previewCtx ?? {};
 		return (
 			<div
-				className="home-fingerprint-avatar"
+				className="home-fingerprint-avatar home-fingerprint-avatar--prefetch-preview"
 				role="status"
 				aria-live="polite"
-				aria-label="Loading profile"
+				aria-busy="true"
+				aria-label="Loading profile portraits"
 			>
-				<AvatarPortraitCarousel
-					urls={avatarUrls}
-					activeIndex={activeIndex}
-					setIndex={setIndex}
-					bump={bumpSlide}
+				<AvatarSignalPlaceholder
+					fpShort={fpShort}
+					ctx={ctxForPreview}
+					interactionCount={interactionCount}
+					eventsLoading={eventsPreviewLoading}
 				/>
+				<p className="home-fingerprint-avatar-prefetch-hint">
+					Loading portraits tied to your fingerprint…
+				</p>
 			</div>
 		);
 	}
@@ -752,8 +937,7 @@ export function HomeFingerprintAvatar() {
 					)}
 					{isCaptchaWithCache && !isLoading && (
 						<p className="home-fingerprint-avatar-refresh-hint">
-							We’re showing your saved portraits while the profile loads. Complete
-							verification below to generate today’s portrait.
+							Complete verification below to generate today’s portrait.
 						</p>
 					)}
 					{observations.length > 0 && (

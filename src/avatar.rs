@@ -294,6 +294,7 @@ Rules:
 - Each observation is one complete sentence
 - Start every observation on its own line beginning with "•"
 - Use specific values from the data: exact city, browser version, GPU model, etc.
+- When the signals include recent page views, session duration, unified analytics samples (sources such as PostHog or first-party warehouse), or paths visited, you may include at most 2 bullets about repeat visits, breadth of engagement, or event-type patterns — still purely factual counts and labels, not interpretation of intent
 - State observable facts only — describe what the data shows, not advice or judgements
 - Do not greet the visitor, do not add a preamble or conclusion
 
