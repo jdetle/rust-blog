@@ -167,6 +167,66 @@ fn activity_lookup_id(fp: &str, user_id: &str, distinct_id: &str) -> Option<Stri
     }
 }
 
+fn apply_activity_events_to_context(events: &[AnalyticsEvent], ctx: &mut UserContext) {
+    ctx.recent_event_count = Some(events.len() as u32);
+    let mut seen = std::collections::HashSet::new();
+    ctx.recent_paths = events
+        .iter()
+        .filter_map(|e| {
+            let url = &e.page_url;
+            let path = if let Some(idx) = url.find("://") {
+                let after_scheme = &url[idx + 3..];
+                after_scheme
+                    .find('/')
+                    .map(|i| after_scheme[i..].to_string())
+                    .unwrap_or_else(|| "/".to_string())
+            } else {
+                url.clone()
+            };
+            if path == "/" || path.is_empty() {
+                None
+            } else {
+                Some(path)
+            }
+        })
+        .filter(|p| seen.insert(p.clone()))
+        .take(5)
+        .collect();
+    ctx.last_event_type = events.first().map(|e| e.event_type.clone());
+    if events.len() >= 2 {
+        let latest = events.iter().map(|e| e.event_time).max().unwrap_or(0);
+        let earliest = events.iter().map(|e| e.event_time).min().unwrap_or(0);
+        let mins = ((latest - earliest) / 60_000) as u32;
+        if mins > 0 {
+            ctx.session_minutes = Some(mins);
+        }
+    }
+}
+
+async fn enrich_user_context_with_db_activity(
+    db: &AnalyticsDb,
+    activity_lookup: &str,
+    ctx: &mut UserContext,
+) {
+    match timeout(
+        PROFILE_STORE_TIMEOUT,
+        db.query_events_by_user(activity_lookup, 20),
+    )
+    .await
+    {
+        Ok(Ok(events)) if !events.is_empty() => {
+            apply_activity_events_to_context(&events, ctx);
+        }
+        Err(_) => {
+            tracing::warn!(
+                activity_lookup = %activity_lookup,
+                "activity query timed out; continuing without enrichment"
+            );
+        }
+        _ => {}
+    }
+}
+
 #[derive(Serialize)]
 pub struct UserEventDto {
     pub event_id: String,
@@ -414,56 +474,7 @@ pub async fn user_profile_generate_avatar(
     let activity_lookup = activity_lookup_id(fp, uid, did).unwrap_or_else(|| storage_key.clone());
     let mut ctx = body.user_context.clone();
     if let Some(ref db) = state.db {
-        match timeout(
-            PROFILE_STORE_TIMEOUT,
-            db.query_events_by_user(&activity_lookup, 20),
-        )
-        .await
-        {
-            Ok(Ok(events)) if !events.is_empty() => {
-                ctx.recent_event_count = Some(events.len() as u32);
-                let mut seen = std::collections::HashSet::new();
-                ctx.recent_paths = events
-                    .iter()
-                    .filter_map(|e| {
-                        // Extract path from page_url, skipping root "/"
-                        let url = &e.page_url;
-                        let path = if let Some(idx) = url.find("://") {
-                            let after_scheme = &url[idx + 3..];
-                            after_scheme
-                                .find('/')
-                                .map(|i| after_scheme[i..].to_string())
-                                .unwrap_or_else(|| "/".to_string())
-                        } else {
-                            url.clone()
-                        };
-                        if path == "/" || path.is_empty() {
-                            None
-                        } else {
-                            Some(path)
-                        }
-                    })
-                    .filter(|p| seen.insert(p.clone()))
-                    .take(5)
-                    .collect();
-                ctx.last_event_type = events.first().map(|e| e.event_type.clone());
-                if events.len() >= 2 {
-                    let latest = events.iter().map(|e| e.event_time).max().unwrap_or(0);
-                    let earliest = events.iter().map(|e| e.event_time).min().unwrap_or(0);
-                    let mins = ((latest - earliest) / 60_000) as u32;
-                    if mins > 0 {
-                        ctx.session_minutes = Some(mins);
-                    }
-                }
-            }
-            Err(_) => {
-                tracing::warn!(
-                    activity_lookup = %activity_lookup,
-                    "activity query timed out; continuing without enrichment"
-                );
-            }
-            _ => {}
-        }
+        enrich_user_context_with_db_activity(db.as_ref(), &activity_lookup, &mut ctx).await;
     }
 
     // ── Generate composite image ──────────────────────────────────────
@@ -582,7 +593,19 @@ pub async fn user_profile_observations(
             .into_response();
     };
 
-    match avatar::generate_observations(anthropic, &body.user_context).await {
+    let fp = body.fingerprint.as_str();
+    let uid = body.user_id.as_str();
+    let did = body.distinct_id.as_str();
+    let mut ctx = body.user_context.clone();
+    if let Some(storage_key) = avatar_storage_key(fp, uid, did) {
+        let activity_lookup =
+            activity_lookup_id(fp, uid, did).unwrap_or_else(|| storage_key.clone());
+        if let Some(ref db) = state.db {
+            enrich_user_context_with_db_activity(db.as_ref(), &activity_lookup, &mut ctx).await;
+        }
+    }
+
+    match avatar::generate_observations(anthropic, &ctx).await {
         Ok(observations) => (
             StatusCode::OK,
             Json(serde_json::json!({ "observations": observations })),

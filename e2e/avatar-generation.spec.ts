@@ -50,6 +50,14 @@ async function stubAnalyticsRoutes(
 	page: import("@playwright/test").Page,
 	options: { hasCache?: boolean; generateFails?: boolean } = {},
 ) {
+	await page.route("**/api/analytics/my-events**", async (route) => {
+		await route.fulfill({
+			status: 200,
+			contentType: "application/json",
+			body: JSON.stringify({ events: [] }),
+		});
+	});
+
 	await page.route("**/api/analytics/user-profile**", async (route) => {
 		await route.fulfill({
 			status: 200,
