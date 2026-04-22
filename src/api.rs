@@ -353,6 +353,7 @@ pub async fn user_profile(
             } else {
                 serde_json::Value::Null
             };
+            let avatar_urls = profile.avatar_data_uris_newest_first();
             let history_len = profile.stored_portrait_count();
             (
                 StatusCode::OK,
@@ -361,6 +362,7 @@ pub async fn user_profile(
                     "updated_at": profile.updated_at,
                     "persona_guess": profile.persona_guess,
                     "avatar_url": avatar_url,
+                    "avatar_urls": avatar_urls,
                     "avatar_history_len": history_len,
                 })),
             )
@@ -373,6 +375,7 @@ pub async fn user_profile(
                 "updated_at": null,
                 "persona_guess": null,
                 "avatar_url": null,
+                "avatar_urls": [],
                 "avatar_history_len": 0,
             })),
         )
@@ -451,12 +454,14 @@ pub async fn user_profile_generate_avatar(
         let same_day = existing.avatar_session_id == today_utc;
         if let (true, Some(latest)) = (same_day, existing.latest_avatar_png()) {
             let url = format!("data:image/png;base64,{latest}");
+            let avatar_urls = existing.avatar_data_uris_newest_first();
             let history_len = existing.stored_portrait_count();
             return (
                 StatusCode::OK,
                 Json(serde_json::json!({
                     "persona_guess": existing.persona_guess,
                     "avatar_url": url,
+                    "avatar_urls": avatar_urls,
                     "cached": true,
                     "avatar_history_len": history_len,
                 })),
@@ -494,15 +499,19 @@ pub async fn user_profile_generate_avatar(
                 if let Some(image_error) = result.image_error {
                     tracing::warn!(error = %image_error, "composite image generation failed");
                 }
-                let history_len: usize = match &prior {
-                    Ok(Some(p)) => p.stored_portrait_count(),
-                    _ => 0,
+                let (history_len, avatar_urls): (usize, Vec<String>) = match &prior {
+                    Ok(Some(p)) => (
+                        p.stored_portrait_count(),
+                        p.avatar_data_uris_newest_first(),
+                    ),
+                    _ => (0, vec![]),
                 };
                 return (
                     StatusCode::OK,
                     Json(serde_json::json!({
                         "persona_guess": result.persona,
                         "avatar_url": "",
+                        "avatar_urls": avatar_urls,
                         "cached": false,
                         "image_generation_failed": true,
                         "avatar_history_len": history_len,
@@ -539,15 +548,23 @@ pub async fn user_profile_generate_avatar(
                 }
             }
             let url = format!("data:image/png;base64,{png}");
-            let new_history_len: usize = match &prior {
-                Ok(Some(p)) => p.appended_png_history(&png).len(),
-                _ => 1,
+            let chron: Vec<String> = match &prior {
+                Ok(Some(p)) => p.appended_png_history(&png),
+                _ => vec![png.clone()],
             };
+            let new_history_len = chron.len();
+            let avatar_urls: Vec<String> = chron
+                .iter()
+                .rev()
+                .filter(|s| !s.is_empty())
+                .map(|b64| format!("data:image/png;base64,{b64}"))
+                .collect();
             (
                 StatusCode::OK,
                 Json(serde_json::json!({
                     "persona_guess": result.persona,
                     "avatar_url": url,
+                    "avatar_urls": avatar_urls,
                     "cached": false,
                     "avatar_history_len": new_history_len,
                 })),
