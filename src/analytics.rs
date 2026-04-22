@@ -97,15 +97,39 @@ impl UserProfile {
         None
     }
 
-    /// All stored images to pass into the image model as reference context (oldest → newest).
-    pub fn prior_pngs_for_evolution(&self) -> Vec<String> {
+    /// Raw base64 portraits in storage order (oldest → newest); empty entries skipped.
+    pub fn portrait_pngs_chronological(&self) -> Vec<&str> {
         if !self.avatar_pngs.is_empty() {
-            return self.avatar_pngs.clone();
+            return self
+                .avatar_pngs
+                .iter()
+                .map(|s| s.as_str())
+                .filter(|s| !s.is_empty())
+                .collect();
         }
         if !self.avatar_png.is_empty() {
-            return vec![self.avatar_png.clone()];
+            return vec![self.avatar_png.as_str()];
         }
         vec![]
+    }
+
+    /// All stored images to pass into the image model as reference context (oldest → newest).
+    pub fn prior_pngs_for_evolution(&self) -> Vec<String> {
+        self.portrait_pngs_chronological()
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect()
+    }
+
+    /// PNG data URIs for carousel clients (newest slide first).
+    pub fn avatar_data_uris_newest_first(&self) -> Vec<String> {
+        let mut uris: Vec<String> = self
+            .portrait_pngs_chronological()
+            .into_iter()
+            .map(|b64| format!("data:image/png;base64,{b64}"))
+            .collect();
+        uris.reverse();
+        uris
     }
 
     /// How many prior portraits are stored (for `GET /user-profile` metadata, no image bytes).

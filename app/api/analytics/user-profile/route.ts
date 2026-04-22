@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
 			persona_guess: null,
 			avatar_svg: null,
 			avatar_url: null,
+			avatar_urls: [],
 			avatar_history_len: 0,
 		});
 	}
@@ -59,6 +60,7 @@ export async function GET(request: NextRequest) {
 				persona_guess: null,
 				avatar_svg: null,
 				avatar_url: null,
+				avatar_urls: [],
 				avatar_history_len: 0,
 			});
 		}
@@ -69,8 +71,14 @@ export async function GET(request: NextRequest) {
 			persona_guess?: string | null;
 			avatar_svg?: string | null;
 			avatar_url?: string | null;
+			avatar_urls?: string[] | null;
 			avatar_history_len?: number | null;
 		};
+		const avatarUrls = Array.isArray(data.avatar_urls)
+			? data.avatar_urls.filter(
+					(u): u is string => typeof u === "string" && u.length > 0,
+				)
+			: [];
 		return NextResponse.json(
 			{
 				summary: data.summary ?? null,
@@ -78,6 +86,7 @@ export async function GET(request: NextRequest) {
 				persona_guess: data.persona_guess ?? null,
 				avatar_svg: data.avatar_svg ?? null,
 				avatar_url: data.avatar_url ?? null,
+				avatar_urls: avatarUrls,
 				avatar_history_len: data.avatar_history_len ?? 0,
 			},
 			{
@@ -95,6 +104,7 @@ export async function GET(request: NextRequest) {
 			persona_guess: null,
 			avatar_svg: null,
 			avatar_url: null,
+			avatar_urls: [],
 			avatar_history_len: 0,
 		});
 	}
