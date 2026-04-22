@@ -1,6 +1,6 @@
 //! HTTP API for the blog service: health check, event ingestion, user event queries, and web analytics drain.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use axum::{
     extract::{Query, State},
@@ -35,6 +35,20 @@ pub struct AppState {
     pub openai: Option<Arc<OpenAiImagesClient>>,
     /// Profile storage used exclusively by the avatar handler; swappable for tests.
     pub profile_store: Arc<dyn ProfileStore>,
+    /// When set, [`user_profile_generate_avatar`] treats the locked string as today's UTC date
+    /// (`YYYY-MM-DD`) for cache keys instead of the wall clock. Production binaries must leave
+    /// this `None`; integration tests use it to simulate multi-day visits without waiting for midnight.
+    pub avatar_today_override: Option<Arc<Mutex<String>>>,
+}
+
+fn avatar_effective_today_utc(state: &AppState) -> String {
+    match &state.avatar_today_override {
+        Some(lock) => lock
+            .lock()
+            .expect("avatar_today_override mutex poisoned")
+            .clone(),
+        None => Utc::now().format("%Y-%m-%d").to_string(),
+    }
 }
 
 const PROFILE_STORE_TIMEOUT: Duration = Duration::from_secs(2);
@@ -438,7 +452,7 @@ pub async fn user_profile_generate_avatar(
     };
 
     // ── Cache check ──────────────────────────────────────────────────
-    let today_utc = Utc::now().format("%Y-%m-%d").to_string();
+    let today_utc = avatar_effective_today_utc(&state);
 
     if let Ok(Some(existing)) = &prior {
         let same_day = existing.avatar_session_id == today_utc;

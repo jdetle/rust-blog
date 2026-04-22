@@ -22,7 +22,7 @@ use axum::{routing::{get, post}, Router};
 ///
 /// Exported so that integration tests can construct the same router as the
 /// production binary without having to start a Cosmos DB or spawn background tasks.
-/// Tests pass `AppState { db: None, anthropic: Some(mock_client), profile_store: Arc::new(MemoryProfileStore::new()), .. }`.
+/// Tests pass `AppState { db: None, anthropic: Some(mock_client), profile_store: Arc::new(MemoryProfileStore::new()), avatar_today_override: None, .. }`.
 pub fn build_router(state: api::AppState) -> Router {
     Router::new()
         .route("/health", get(api::health))
