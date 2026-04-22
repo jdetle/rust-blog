@@ -1,0 +1,30 @@
+---
+description: Home fingerprint avatar must surface full server portrait history; do not cap slides with sparse analytics samples.
+globs: "**/home-fingerprint-avatar.tsx,**/home-fingerprint-avatar-portraits.ts,**/home-fingerprint-avatar-portraits.test.ts,e2e/avatar-generation.spec.ts"
+alwaysApply: false
+slug: home-fingerprint-avatar-carousel
+title: Home fingerprint avatar carousel
+domain: product
+ruleType: narrow
+version: 1.0.0
+---
+
+# Home fingerprint avatar carousel
+
+## Product rule
+
+The carousel must show **every** PNG data URI the backend returns in `avatar_urls` (newest first), or the single `avatar_url` when history is absent.
+
+## Do not
+
+- **Do not cap** visible slides using counts from `/api/analytics/my-events`, PostHog, or other merged event samples. Those responses are **sparse** (limits, deduplication, partial warehouse coverage) and routinely imply **fewer distinct UTC days** than the number of stored `avatar_pngs`, which **hides real portraits** and breaks UX.
+
+## Do
+
+- Normalize payloads with `portraitDataUrisFromAvatarPayload` in `lib/home-fingerprint-avatar-portraits.ts` (single source of truth).
+- Add or extend **unit tests** in `lib/home-fingerprint-avatar-portraits.test.ts` when changing parsing.
+- Keep **Playwright** coverage in `e2e/avatar-generation.spec.ts` that asserts multiple `avatar_urls` remain visible when `my-events` returns a single-day sample.
+
+## Server bound
+
+The authoritative upper bound on history length is **`MAX_AVATAR_PNG_HISTORY`** (Rust) and what Cosmos/Scylla stores — not client-side analytics heuristics.

@@ -5,7 +5,6 @@ import {
 	useCallback,
 	useEffect,
 	useLayoutEffect,
-	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -15,6 +14,10 @@ import {
 	formatUnifiedEngagementLog,
 	type UnifiedEventLite,
 } from "@/lib/engagement-summary";
+import {
+	isAvatarPngDataUri,
+	portraitDataUrisFromAvatarPayload,
+} from "@/lib/home-fingerprint-avatar-portraits";
 
 const AVATAR_LABEL =
 	"A personalised portrait generated from regional art traditions and your browser signals. Updates each calendar day.";
@@ -42,10 +45,6 @@ function historyKey(fp: string): string {
 	return `${LS_HISTORY_PREFIX}.${fp}`;
 }
 
-function isPngDataUri(s: string): boolean {
-	return s.startsWith("data:image/png;base64,");
-}
-
 function loadHistory(fp: string): string[] {
 	if (typeof window === "undefined") return [];
 	try {
@@ -53,11 +52,13 @@ function loadHistory(fp: string): string[] {
 		if (v1) {
 			const parsed = JSON.parse(v1) as unknown;
 			if (Array.isArray(parsed)) {
-				return parsed.filter((u) => typeof u === "string" && isPngDataUri(u));
+				return parsed.filter(
+					(u) => typeof u === "string" && isAvatarPngDataUri(u),
+				);
 			}
 		}
 		const leg = localStorage.getItem(`${LS_AVATAR_PREFIX}.${fp}`);
-		if (leg && isPngDataUri(leg)) return [leg];
+		if (leg && isAvatarPngDataUri(leg)) return [leg];
 	} catch {
 		/* private mode / corrupt */
 	}
@@ -71,7 +72,7 @@ function saveHistory(
 ): {
 	urls: string[];
 } {
-	const next = Array.from(new Set(urls.filter((u) => isPngDataUri(u))));
+	const next = Array.from(new Set(urls.filter((u) => isAvatarPngDataUri(u))));
 	try {
 		localStorage.setItem(historyKey(fp), JSON.stringify(next));
 		if (next[0]) localStorage.setItem(`${LS_AVATAR_PREFIX}.${fp}`, next[0]);
@@ -80,39 +81,6 @@ function saveHistory(
 		// quota
 	}
 	return { urls: next };
-}
-
-/** Distinct UTC calendar days represented in merged analytics sample (warehouse + PostHog). */
-function distinctUtcDaysFromEvents(
-	events: Array<{ event_date?: string; event_time?: number }>,
-): number {
-	const days = new Set<string>();
-	for (const e of events) {
-		if (
-			typeof e.event_date === "string" &&
-			/^\d{4}-\d{2}-\d{2}$/.test(e.event_date)
-		) {
-			days.add(e.event_date);
-			continue;
-		}
-		if (typeof e.event_time === "number" && Number.isFinite(e.event_time)) {
-			days.add(new Date(e.event_time).toISOString().slice(0, 10));
-		}
-	}
-	return days.size;
-}
-
-/**
- * Newest-first portrait list trimmed to at most one slide per distinct visit day
- * (when we have a positive day count from `/api/analytics/my-events`).
- */
-function applyVisitDayCarouselCap(
-	urls: string[],
-	visitDayCount: number | null,
-): string[] {
-	if (!urls.length) return urls;
-	if (visitDayCount == null || visitDayCount <= 0) return urls;
-	return urls.slice(0, Math.min(urls.length, visitDayCount));
 }
 
 interface UserContext {
@@ -500,7 +468,6 @@ function AvatarPortraitCarousel({
 
 export function HomeFingerprintAvatar() {
 	const [fullAvatarUrls, setFullAvatarUrls] = useState<string[]>([]);
-	const [visitDayCount, setVisitDayCount] = useState<number | null>(null);
 	const [activeIndex, setActiveIndex] = useState(0);
 	const [personaGuess, setPersonaGuess] = useState<string | null>(null);
 	const [phase, setPhase] = useState<Phase>("prefetching");
@@ -517,37 +484,27 @@ export function HomeFingerprintAvatar() {
 	const obsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const needsGenerationRef = useRef(false);
 	const fullAvatarUrlsRef = useRef<string[]>([]);
-	const visitDayCountRef = useRef<number | null>(null);
 
 	useEffect(() => {
 		fullAvatarUrlsRef.current = fullAvatarUrls;
 	}, [fullAvatarUrls]);
 
-	useEffect(() => {
-		visitDayCountRef.current = visitDayCount;
-	}, [visitDayCount]);
-
-	const displayAvatarUrls = useMemo(
-		() => applyVisitDayCarouselCap(fullAvatarUrls, visitDayCount),
-		[fullAvatarUrls, visitDayCount],
-	);
-
 	const setIndex = useCallback(
 		(i: number) => {
-			if (displayAvatarUrls.length === 0) return;
-			setActiveIndex(Math.max(0, Math.min(i, displayAvatarUrls.length - 1)));
+			if (fullAvatarUrls.length === 0) return;
+			setActiveIndex(Math.max(0, Math.min(i, fullAvatarUrls.length - 1)));
 		},
-		[displayAvatarUrls.length],
+		[fullAvatarUrls.length],
 	);
 
 	const bumpSlide = useCallback(
 		(d: -1 | 1) => {
-			if (displayAvatarUrls.length <= 1) return;
+			if (fullAvatarUrls.length <= 1) return;
 			setActiveIndex(
-				(i) => (i + d + displayAvatarUrls.length) % displayAvatarUrls.length,
+				(i) => (i + d + fullAvatarUrls.length) % fullAvatarUrls.length,
 			);
 		},
-		[displayAvatarUrls.length],
+		[fullAvatarUrls.length],
 	);
 
 	const handleCaptchaError = useCallback(() => {
@@ -667,30 +624,27 @@ export function HomeFingerprintAvatar() {
 
 				stopObservationReveal();
 
-				const cap = visitDayCountRef.current;
-				const persist = (full: string[]) => {
-					const forStorage = applyVisitDayCarouselCap(full, cap);
-					saveHistory(fp, forStorage, gen.persona_guess ?? null);
-				};
-
 				if (Array.isArray(gen.avatar_urls) && gen.avatar_urls.length > 0) {
-					const full = gen.avatar_urls.filter(
-						(u) => typeof u === "string" && isPngDataUri(u),
-					);
+					const full = portraitDataUrisFromAvatarPayload(gen);
 					setFullAvatarUrls(full);
-					persist(full);
+					saveHistory(fp, full, gen.persona_guess ?? null);
 					setActiveIndex(0);
 					if (gen.persona_guess) setPersonaGuess(gen.persona_guess);
 					setPhase("ready");
-				} else if (gen.avatar_url) {
+				} else if (
+					typeof gen.avatar_url === "string" &&
+					isAvatarPngDataUri(gen.avatar_url)
+				) {
 					const prev = fullAvatarUrlsRef.current;
 					const merged = [
 						gen.avatar_url,
 						...prev.filter((u) => u !== gen.avatar_url),
-					].filter(isPngDataUri);
-					const full = Array.from(new Set(merged));
-					setFullAvatarUrls(full);
-					persist(full);
+					];
+					const mergedFull = Array.from(
+						new Set(merged.filter(isAvatarPngDataUri)),
+					);
+					setFullAvatarUrls(mergedFull);
+					saveHistory(fp, mergedFull, gen.persona_guess ?? null);
 					setActiveIndex(0);
 					if (gen.persona_guess) setPersonaGuess(gen.persona_guess);
 					setPhase("ready");
@@ -774,13 +728,7 @@ export function HomeFingerprintAvatar() {
 				const data = (await r.json()) as { events?: unknown[] };
 				if (cancelled) return;
 				const raw = Array.isArray(data.events) ? data.events : [];
-				const n = raw.length;
-				setInteractionCount(n);
-				setVisitDayCount(
-					distinctUtcDaysFromEvents(
-						raw as Array<{ event_date?: string; event_time?: number }>,
-					),
-				);
+				setInteractionCount(raw.length);
 			} catch {
 				if (!cancelled) setInteractionCount(null);
 			} finally {
@@ -833,22 +781,11 @@ export function HomeFingerprintAvatar() {
 				};
 				if (cancelled) return;
 
-				const urlsFromServer =
-					Array.isArray(data.avatar_urls) && data.avatar_urls.length > 0
-						? data.avatar_urls.filter(
-								(u) => typeof u === "string" && isPngDataUri(u),
-							)
-						: data.avatar_url
-							? [data.avatar_url]
-							: [];
+				const urlsFromServer = portraitDataUrisFromAvatarPayload(data);
 
 				if (urlsFromServer.length) {
 					setFullAvatarUrls(urlsFromServer);
-					const forStorage = applyVisitDayCarouselCap(
-						urlsFromServer,
-						visitDayCountRef.current,
-					);
-					saveHistory(fp, forStorage, data.persona_guess ?? null);
+					saveHistory(fp, urlsFromServer, data.persona_guess ?? null);
 					setActiveIndex(0);
 					if (data.persona_guess) setPersonaGuess(data.persona_guess);
 					setPhase("ready");
@@ -891,26 +828,14 @@ export function HomeFingerprintAvatar() {
 
 	useEffect(() => {
 		setActiveIndex((i) => {
-			if (displayAvatarUrls.length === 0) return 0;
-			return Math.min(i, displayAvatarUrls.length - 1);
+			if (fullAvatarUrls.length === 0) return 0;
+			return Math.min(i, fullAvatarUrls.length - 1);
 		});
-	}, [displayAvatarUrls.length]);
-
-	useEffect(() => {
-		const fp = canvasFingerprint();
-		if (!fp || fp === "Canvas blocked") return;
-		if (fullAvatarUrls.length === 0) return;
-		if (visitDayCount === null) return;
-		saveHistory(
-			fp,
-			applyVisitDayCarouselCap(fullAvatarUrls, visitDayCount),
-			personaGuess,
-		);
-	}, [fullAvatarUrls, visitDayCount, personaGuess]);
+	}, [fullAvatarUrls.length]);
 
 	if (phase === "absent") return null;
 
-	const hasCache = displayAvatarUrls.length > 0;
+	const hasCache = fullAvatarUrls.length > 0;
 	const isPrefetch = phase === "prefetching";
 	const isCaptchaNoImage = phase === "awaiting-captcha" && !hasCache;
 	const isCaptchaWithCache = phase === "awaiting-captcha" && hasCache;
@@ -1012,7 +937,7 @@ export function HomeFingerprintAvatar() {
 					aria-busy={isLoading}
 				>
 					<AvatarPortraitCarousel
-						urls={displayAvatarUrls}
+						urls={fullAvatarUrls}
 						activeIndex={activeIndex}
 						setIndex={setIndex}
 						bump={bumpSlide}
@@ -1059,7 +984,7 @@ export function HomeFingerprintAvatar() {
 		return (
 			<div className="home-fingerprint-avatar">
 				<AvatarPortraitCarousel
-					urls={displayAvatarUrls}
+					urls={fullAvatarUrls}
 					activeIndex={activeIndex}
 					setIndex={setIndex}
 					bump={bumpSlide}
