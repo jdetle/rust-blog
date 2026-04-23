@@ -17,6 +17,7 @@ import {
 } from "@/lib/engagement-summary";
 import {
 	isAvatarPngDataUri,
+	mergePortraitUrisNewestFirst,
 	portraitDataUrisFromAvatarPayload,
 } from "@/lib/home-fingerprint-avatar-portraits";
 
@@ -385,6 +386,8 @@ async function buildUserContext(): Promise<UserContext> {
 }
 
 const OBSERVATION_INTERVAL_MS = 8_000;
+/** Profile can be cold (Cosmos, edge); client abort must not kill carousel before BFF returns. */
+const USER_PROFILE_FETCH_MS = 30_000;
 
 export function HomeFingerprintAvatar() {
 	const [fullAvatarUrls, setFullAvatarUrls] = useState<string[]>([]);
@@ -545,7 +548,11 @@ export function HomeFingerprintAvatar() {
 				stopObservationReveal();
 
 				if (Array.isArray(gen.avatar_urls) && gen.avatar_urls.length > 0) {
-					const full = portraitDataUrisFromAvatarPayload(gen);
+					const fromGen = portraitDataUrisFromAvatarPayload(gen);
+					const full = mergePortraitUrisNewestFirst(
+						fromGen,
+						fullAvatarUrlsRef.current,
+					);
 					setFullAvatarUrls(full);
 					saveHistory(fp, full, gen.persona_guess ?? null);
 					setActiveIndex(0);
@@ -664,7 +671,10 @@ export function HomeFingerprintAvatar() {
 	useEffect(() => {
 		let cancelled = false;
 		const profileController = new AbortController();
-		const profileTimeoutId = setTimeout(() => profileController.abort(), 6_000);
+		const profileTimeoutId = setTimeout(
+			() => profileController.abort(),
+			USER_PROFILE_FETCH_MS,
+		);
 
 		void (async () => {
 			const fp = canvasFingerprint();
@@ -704,8 +714,12 @@ export function HomeFingerprintAvatar() {
 				const urlsFromServer = portraitDataUrisFromAvatarPayload(data);
 
 				if (urlsFromServer.length) {
-					setFullAvatarUrls(urlsFromServer);
-					saveHistory(fp, urlsFromServer, data.persona_guess ?? null);
+					const merged = mergePortraitUrisNewestFirst(
+						urlsFromServer,
+						fullAvatarUrlsRef.current,
+					);
+					setFullAvatarUrls(merged);
+					saveHistory(fp, merged, data.persona_guess ?? null);
 					setActiveIndex(0);
 					if (data.persona_guess) setPersonaGuess(data.persona_guess);
 					setPhase("ready");
@@ -760,6 +774,40 @@ export function HomeFingerprintAvatar() {
 	const isCaptchaNoImage = phase === "awaiting-captcha" && !hasCache;
 	const isCaptchaWithCache = phase === "awaiting-captcha" && hasCache;
 	const isLoading = phase === "loading";
+
+	if (isPrefetch && hasCache) {
+		const ctxForPreview = previewCtx ?? {};
+		return (
+			<div
+				className="home-fingerprint-avatar home-fingerprint-avatar--prefetch-preview"
+				role="status"
+				aria-live="polite"
+				aria-busy="true"
+				aria-label="Loading profile portraits"
+			>
+				<AvatarPortraitCarousel
+					urls={fullAvatarUrls}
+					activeIndex={activeIndex}
+					setIndex={setIndex}
+					bump={bumpSlide}
+				/>
+				<p
+					className="home-fingerprint-avatar-prefetch-hint"
+					data-testid="home-fingerprint-avatar-prefetch-sync"
+				>
+					Syncing your full portrait history from the server…
+				</p>
+				{previewReady ? (
+					<AvatarSignalPlaceholder
+						fpShort={fpShort}
+						ctx={ctxForPreview}
+						interactionCount={interactionCount}
+						eventsLoading={eventsPreviewLoading}
+					/>
+				) : null}
+			</div>
+		);
+	}
 
 	if (isPrefetch && !previewReady) {
 		return (
