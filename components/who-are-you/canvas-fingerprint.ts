@@ -1,6 +1,22 @@
 /** Canvas hash used across the site for stable browser fingerprinting (who-are-you + home snapshot). */
 
+const PLAYWRIGHT_FP = "__PLAYWRIGHT_FP__";
+
+function readPlaywrightFingerprintOverride(): string | null {
+	if (process.env.NODE_ENV === "production") return null;
+	if (typeof window === "undefined") return null;
+	const v = (window as unknown as Record<string, string | undefined>)[
+		PLAYWRIGHT_FP
+	];
+	if (typeof v === "string" && /^[0-9a-f]{8}$/i.test(v)) {
+		return v.toLowerCase();
+	}
+	return null;
+}
+
 export function canvasFingerprint(): string {
+	const override = readPlaywrightFingerprintOverride();
+	if (override) return override;
 	try {
 		const canvas = document.createElement("canvas");
 		canvas.width = 280;

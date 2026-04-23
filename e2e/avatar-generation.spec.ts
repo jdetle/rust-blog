@@ -208,6 +208,39 @@ test.describe("home hero", () => {
 		expect(generateCalled).toBe(false);
 	});
 
+	/** Proves the carousel is driven by `user-profile.avatar_urls`, not by my-events length. */
+	test("home hero shows full avatar_urls count when my-events is empty (server is source of truth)", async ({
+		page,
+	}) => {
+		const fourSlides = [
+			FIXTURE_PNG_DATA_URI,
+			FIXTURE_PNG_DATA_URI_2,
+			"data:image/png;base64,YQ==",
+			"data:image/png;base64,Yg==",
+		];
+		await stubTurnstile(page);
+		await stubAnalyticsRoutes(page, {
+			hasCache: true,
+			cachedAvatarUrls: fourSlides,
+			myEventsBody: { events: [] },
+		});
+
+		await page.route("**/api/analytics/generate-avatar", async (route) => {
+			await route.fulfill({ status: 200, body: "{}" });
+		});
+
+		await gotoHome(page);
+
+		await expect(
+			page.getByRole("img", { name: AVATAR_IMG_ALT }),
+		).toBeVisible({ timeout: 20_000 });
+		for (const n of [1, 2, 3, 4] as const) {
+			await expect(
+				page.getByRole("tab", { name: new RegExp(`Portrait ${n} of 4`) }),
+			).toBeVisible();
+		}
+	});
+
 	test("home hero loads from cache without calling generate-avatar", async ({
 		page,
 	}) => {
@@ -241,6 +274,113 @@ test.describe("home hero", () => {
 		await page.waitForTimeout(5_000);
 		const imgs = page.locator("img.home-fingerprint-avatar-img");
 		await expect(imgs).toHaveCount(0);
+	});
+
+	/**
+	 * Local cache shows a carousel image immediately; delayed user-profile then
+	 * expands to the full `avatar_urls` list (fingerprint 55f067dd in dev only).
+	 */
+	test("home hero: slow user-profile — carousel first from cache, then all server images", async ({
+		page,
+	}, testInfo) => {
+		// Stagger: three projects hit one Next dev instance; a burst of navigations can abort streams.
+		if (testInfo.parallelIndex > 0) {
+			await page.waitForTimeout(testInfo.parallelIndex * 1_200);
+		}
+		const fp = "55f067dd";
+		const fullHistory = [
+			FIXTURE_PNG_DATA_URI,
+			FIXTURE_PNG_DATA_URI_2,
+			"data:image/png;base64,YQ==",
+		];
+		const oneLocal = JSON.stringify([FIXTURE_PNG_DATA_URI]);
+		const storageKey = `jdetle.avatar.history.v1.${fp}`;
+
+		await page.addInitScript(
+			`window.__PLAYWRIGHT_FP__ = ${JSON.stringify(fp)};
+			localStorage.setItem(${JSON.stringify(storageKey)}, ${JSON.stringify(oneLocal)});`,
+		);
+
+		await stubTurnstile(page);
+		await page.route("**/api/analytics/my-events**", async (route) => {
+			await route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: JSON.stringify({ events: [] }),
+			});
+		});
+		await page.route("**/api/analytics/user-profile**", async (route) => {
+			await new Promise((r) => {
+				setTimeout(r, 3_500);
+			});
+			await route.fulfill({
+				status: 200,
+				headers: {
+					"Content-Type": "application/json; charset=utf-8",
+					"Cache-Control": "private, no-store, no-cache, must-revalidate, max-age=0",
+				},
+				body: JSON.stringify({
+					summary: null,
+					updated_at: null,
+					persona_guess: null,
+					avatar_url: fullHistory[0] ?? null,
+					avatar_urls: fullHistory,
+					avatar_history_len: fullHistory.length,
+				}),
+			});
+		});
+		await page.route("**/api/analytics/generate-avatar**", async (route) => {
+			await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+		});
+
+		await gotoHome(page);
+
+		// user-profile is delayed 3.5s: local cache (1 img) can show first; no dots until 2+ slides.
+		const heroImg = page.locator("img.home-fingerprint-avatar-img");
+		await expect(heroImg).toBeVisible({ timeout: 8_000 });
+		const prefetchSync = page.getByTestId(
+			"home-fingerprint-avatar-prefetch-sync",
+		);
+		await expect(prefetchSync).toBeVisible({ timeout: 4_000 });
+
+		await expect(
+			page.getByRole("tab", { name: /Portrait 1 of 3/ }),
+		).toBeVisible({ timeout: 20_000 });
+		await expect(
+			page.getByRole("tab", { name: /Portrait 3 of 3/ }),
+		).toBeVisible();
+	});
+});
+
+test.describe("production API (opt-in)", () => {
+	test("GET /api/analytics/user-profile?fingerprint=55f067dd returns at least one PNG", async () => {
+		test.skip(
+			process.env.E2E_PROD_JDETLE !== "1",
+			"set E2E_PROD_JDETLE=1 to run production user-profile check",
+		);
+		const base = "https://www.jdetle.com";
+		const url = new URL("/api/analytics/user-profile", base);
+		url.searchParams.set("fingerprint", "55f067dd");
+		const res = await fetch(url.href, {
+			headers: { Accept: "application/json" },
+		});
+		expect(res.status).toBe(200);
+		const data = (await res.json()) as {
+			avatar_urls?: unknown;
+			avatar_url?: unknown;
+		};
+		const urls = Array.isArray(data.avatar_urls) ? data.avatar_urls : [];
+		const fromSingle =
+			typeof data.avatar_url === "string" ? [data.avatar_url] : [];
+		const combined = [
+			...urls.filter(
+				(u: unknown) =>
+					typeof u === "string" && (u as string).startsWith("data:image/png"),
+			),
+			...fromSingle.filter((u) => u.startsWith("data:image/png")),
+		];
+		// If this fails, seed a portrait for this fingerprint in analytics storage.
+		expect(combined.length).toBeGreaterThanOrEqual(1);
 	});
 });
 

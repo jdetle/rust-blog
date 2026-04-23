@@ -120,6 +120,7 @@ async fn main() -> anyhow::Result<()> {
         anthropic: anthropic.clone(),
         openai,
         profile_store,
+        avatar_today_override: None,
     };
 
     let app = rust_blog::build_router(state);
@@ -170,6 +171,7 @@ async fn run_memory_mode() -> anyhow::Result<()> {
         anthropic,
         openai: None,
         profile_store,
+        avatar_today_override: None,
     };
 
     let app = rust_blog::build_router(state);

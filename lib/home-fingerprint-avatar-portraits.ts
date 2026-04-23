@@ -35,3 +35,28 @@ export function portraitDataUrisFromAvatarPayload(data: {
 	}
 	return [];
 }
+
+/**
+ * Server list is newest-first and authoritative for order; any local-only URIs
+ * (e.g. from localStorage while profile is still loading) are appended after, deduped.
+ */
+export function mergePortraitUrisNewestFirst(
+	serverNewestFirst: string[],
+	localNewestFirst: string[],
+): string[] {
+	const out: string[] = [];
+	const seen = new Set<string>();
+	for (const u of serverNewestFirst) {
+		if (isAvatarPngDataUri(u) && !seen.has(u)) {
+			seen.add(u);
+			out.push(u);
+		}
+	}
+	for (const u of localNewestFirst) {
+		if (isAvatarPngDataUri(u) && !seen.has(u)) {
+			seen.add(u);
+			out.push(u);
+		}
+	}
+	return out;
+}

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	isAvatarPngDataUri,
+	mergePortraitUrisNewestFirst,
 	portraitDataUrisFromAvatarPayload,
 } from "./home-fingerprint-avatar-portraits";
 
@@ -48,6 +49,28 @@ describe("portraitDataUrisFromAvatarPayload", () => {
 				avatar_url: null,
 			}),
 		).toEqual([]);
+	});
+
+	test("ignores extra payload fields (e.g. avatar_history_len) — only avatar_urls/avatar_url matter", () => {
+		const uris = [PNG, `${PNG}b`];
+		const payload = Object.assign(
+			{ avatar_history_len: 99, other: 1 },
+			{ avatar_urls: uris, avatar_url: "ignored" },
+		) as { avatar_urls?: unknown; avatar_url?: unknown };
+		expect(portraitDataUrisFromAvatarPayload(payload)).toEqual(uris);
+	});
+});
+
+describe("mergePortraitUrisNewestFirst", () => {
+	test("keeps server order first, appends local-only", () => {
+		const a = `${PNG}A`;
+		const b = `${PNG}B`;
+		const c = `${PNG}C`;
+		expect(mergePortraitUrisNewestFirst([a, b], [c, a])).toEqual([a, b, c]);
+	});
+	test("dedupes identical URIs with server first", () => {
+		const a = `${PNG}X`;
+		expect(mergePortraitUrisNewestFirst([a], [a, `${PNG}Y`])).toEqual([a, `${PNG}Y`]);
 	});
 });
 

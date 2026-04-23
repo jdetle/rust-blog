@@ -9,7 +9,8 @@
 
 #![cfg(feature = "test-support")]
 
-use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use axum::Router;
@@ -21,7 +22,7 @@ use rust_blog::openai_images::OpenAiImagesClient;
 use serde_json::json;
 use tokio::net::TcpListener;
 use wiremock::matchers::{method, path};
-use wiremock::{Mock, MockServer, ResponseTemplate};
+use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
 // ── Canned responses ─────────────────────────────────────────────────
 
@@ -30,6 +31,13 @@ const CANNED_PERSONA: &str = "Probably a curious builder who reads long posts �
 /// Minimal valid PNG header base64-encoded (1×1 transparent PNG, 68 bytes).
 const CANNED_PNG_B64: &str =
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
+/// Distinct tiny PNGs so multi-day history cannot collapse via duplicate-base64 dedupe.
+const VISIT_DAY1_PNG_B64: &str = CANNED_PNG_B64;
+const VISIT_DAY2_PNG_B64: &str =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAwUBAO2pZ2sAAAAASUVORK5CYII=";
+const VISIT_DAY3_PNG_B64: &str =
+    "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAADklEQVR42mNk+M/wHwAEgwJ/l9gYKwAAAABJRU5ErkJggg==";
 
 fn anthropic_collage_response() -> serde_json::Value {
     json!({
@@ -97,6 +105,19 @@ impl ProfileStore for FailingProfileStore {
 
 /// Spin up router with Anthropic + OpenAI both mocked (composite image path).
 async fn setup_collage() -> (String, MockServer, MockServer, Arc<MemoryProfileStore>) {
+    setup_collage_inner(None).await
+}
+
+/// Same as [`setup_collage`], but `avatar_today_override` is wired for deterministic UTC dates.
+async fn setup_collage_with_day_override(
+    day: Arc<Mutex<String>>,
+) -> (String, MockServer, MockServer, Arc<MemoryProfileStore>) {
+    setup_collage_inner(Some(day)).await
+}
+
+async fn setup_collage_inner(
+    avatar_today_override: Option<Arc<Mutex<String>>>,
+) -> (String, MockServer, MockServer, Arc<MemoryProfileStore>) {
     let anthropic_mock = MockServer::start().await;
     let openai_mock = MockServer::start().await;
     let store = Arc::new(MemoryProfileStore::new());
@@ -115,6 +136,7 @@ async fn setup_collage() -> (String, MockServer, MockServer, Arc<MemoryProfileSt
         anthropic: Some(anthropic),
         openai: Some(openai),
         profile_store,
+        avatar_today_override,
     };
 
     let app: Router = rust_blog::build_router(state);
@@ -146,6 +168,7 @@ async fn setup_collage_with_store(
         anthropic: Some(anthropic),
         openai: Some(openai),
         profile_store,
+        avatar_today_override: None,
     };
 
     let app: Router = rust_blog::build_router(state);
@@ -175,6 +198,7 @@ async fn setup_anthropic_only() -> (String, MockServer, Arc<MemoryProfileStore>)
         anthropic: Some(anthropic),
         openai: None,
         profile_store,
+        avatar_today_override: None,
     };
 
     let app: Router = rust_blog::build_router(state);
@@ -627,6 +651,7 @@ async fn collage_new_calendar_day_uses_image_edits_when_prior_png_exists() {
         anthropic: Some(anthropic),
         openai: Some(openai),
         profile_store,
+        avatar_today_override: None,
     };
 
     let app: Router = rust_blog::build_router(state);
@@ -679,6 +704,124 @@ async fn collage_new_calendar_day_uses_image_edits_when_prior_png_exists() {
     openai_mock.verify().await;
 }
 
+/// Adversarial: three distinct UTC calendar days must yield three carousel images and three
+/// upstream image generations; a fourth visit the same simulated day must not call OpenAI again
+/// or grow history.
+#[tokio::test]
+async fn adversarial_three_visit_days_carousel_has_three_distinct_images() {
+    use std::collections::HashSet;
+
+    let day = Arc::new(Mutex::new("2026-04-20".to_string()));
+    let (base, anthropic_mock, openai_mock, store) =
+        setup_collage_with_day_override(day.clone()).await;
+
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(anthropic_collage_response()),
+        )
+        .expect(3)
+        .mount(&anthropic_mock)
+        .await;
+
+    let seq_for_mock = Arc::new(AtomicUsize::new(0));
+    let seq_responder = seq_for_mock.clone();
+    Mock::given(method("POST"))
+        .and(path("/v1/images/generations"))
+        .respond_with(move |_req: &Request| {
+            let i = seq_responder.fetch_add(1, Ordering::SeqCst);
+            let payloads = [
+                VISIT_DAY1_PNG_B64,
+                VISIT_DAY2_PNG_B64,
+                VISIT_DAY3_PNG_B64,
+            ];
+            let b64 = payloads[i.min(2)];
+            ResponseTemplate::new(200).set_body_json(openai_image_response(b64))
+        })
+        .expect(3)
+        .mount(&openai_mock)
+        .await;
+
+    let client = reqwest::Client::new();
+    let fp = "adv-carousel-3day";
+    let gen_body = json!({
+        "fingerprint": fp,
+        "session_id": "session-adv",
+        "user_context": { "city": "Reykjavik", "country": "Iceland" }
+    });
+
+    for (d, expect_len) in [
+        ("2026-04-20", 1usize),
+        ("2026-04-21", 2usize),
+        ("2026-04-22", 3usize),
+    ] {
+        *day.lock().unwrap() = d.to_string();
+        let res = client
+            .post(format!("{base}/user-profile/generate-avatar"))
+            .json(&gen_body)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(res.status(), 200, "day {d}");
+        let body: serde_json::Value = res.json().await.unwrap();
+        assert_eq!(
+            body["cached"], false,
+            "expected fresh generation on {d}, got cached"
+        );
+        let urls = body["avatar_urls"].as_array().unwrap();
+        assert_eq!(urls.len(), expect_len, "avatar_urls len on {d}");
+    }
+
+    // Same UTC day again: must be cached; still exactly three portraits.
+    *day.lock().unwrap() = "2026-04-22".to_string();
+    let res = client
+        .post(format!("{base}/user-profile/generate-avatar"))
+        .json(&gen_body)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let body: serde_json::Value = res.json().await.unwrap();
+    assert_eq!(
+        body["cached"], true,
+        "fourth request same day must hit cache"
+    );
+    let urls = body["avatar_urls"].as_array().unwrap();
+    assert_eq!(urls.len(), 3);
+
+    let res = client
+        .get(format!("{base}/user-profile?fingerprint={fp}"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let profile: serde_json::Value = res.json().await.unwrap();
+    let urls = profile["avatar_urls"]
+        .as_array()
+        .expect("GET must return avatar_urls");
+    assert_eq!(urls.len(), 3);
+    let mut seen = HashSet::new();
+    for u in urls.iter() {
+        let s = u.as_str().unwrap();
+        assert!(s.starts_with("data:image/png;base64,"));
+        seen.insert(s);
+    }
+    assert_eq!(seen.len(), 3, "carousel must surface three distinct PNGs");
+
+    assert_eq!(
+        urls[0].as_str().unwrap(),
+        format!("data:image/png;base64,{VISIT_DAY3_PNG_B64}"),
+        "carousel is newest-first"
+    );
+
+    let stored = store.get_stored(fp).await.unwrap();
+    assert_eq!(stored.avatar_pngs.len(), 3);
+    assert_eq!(stored.avatar_session_id, "2026-04-22");
+
+    anthropic_mock.verify().await;
+    openai_mock.verify().await;
+}
+
 // ── Observations tests ────────────────────────────────────────────────
 
 #[tokio::test]
@@ -725,6 +868,7 @@ async fn observations_without_anthropic_returns_503() {
         anthropic: None,
         openai: None,
         profile_store,
+        avatar_today_override: None,
     };
     let app: Router = rust_blog::build_router(state);
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
