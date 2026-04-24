@@ -1,4 +1,19 @@
+import * as Sentry from "@sentry/nextjs";
 import posthog from "posthog-js";
+
+const sentryDsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+if (typeof sentryDsn === "string" && sentryDsn.length > 0) {
+	Sentry.init({
+		dsn: sentryDsn,
+		sendDefaultPii: true,
+		tracesSampleRate: process.env.NODE_ENV === "development" ? 1.0 : 0.1,
+		integrations: [Sentry.replayIntegration()],
+		replaysSessionSampleRate: 0.1,
+		replaysOnErrorSampleRate: 1.0,
+	});
+}
+
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
 
 const posthogKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
 if (typeof posthogKey === "string" && posthogKey.length > 0) {
@@ -9,7 +24,6 @@ if (typeof posthogKey === "string" && posthogKey.length > 0) {
 		capture_exceptions: true,
 		debug: process.env.NODE_ENV === "development",
 	});
-	// Expose for DevTools and legacy checks; primary API is the module singleton.
 	if (typeof window !== "undefined") {
 		(window as Window & { posthog?: typeof posthog }).posthog = posthog;
 	}
