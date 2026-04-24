@@ -8,7 +8,7 @@
 # Required secrets (set by jdetle/platform scripts/set-github-secrets-from-azure-env.sh):
 #   AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AZURE_CLIENT_ID
 #   AZURE_RESOURCE_GROUP (rg-rust-blog), PLATFORM_ACR, S10_INGEST_URL, S10_INGEST_KEY
-#   KEY_VAULT_NAME  — Key Vault that holds 'anthropic-api-key' (fetched at deploy time)
+#   KEY_VAULT_NAME  — Key Vault: anthropic-api-key, and rust-sentry-dsn (Sentry blog-service)
 #
 # Migration policy: CQL migrations in migrations/ run BEFORE the container image is updated.
 # This ensures the schema is always ahead of the code, never behind it.
@@ -104,6 +104,14 @@ jobs:
           [ -n "$kv_val" ] && POSTHOG_API_KEY="$kv_val"
           echo "::add-mask::${POSTHOG_API_KEY}"
           echo "POSTHOG_API_KEY=${POSTHOG_API_KEY}" >> "$GITHUB_ENV"
+
+          RUST_SENTRY_DSN="$(kv_get "rust-sentry-dsn")"
+          if [ -n "$RUST_SENTRY_DSN" ]; then
+            echo "::add-mask::${RUST_SENTRY_DSN}"
+            echo "RUST_SENTRY_DSN=${RUST_SENTRY_DSN}" >> "$GITHUB_ENV"
+          else
+            echo "rust-sentry-dsn not in Key Vault — Sentry not configured for ca-rust-blog" >&2
+          fi
 
       - name: Run CQL migrations (schema-before-code)
         env:
@@ -203,6 +211,13 @@ jobs:
           if [ -n "$POSTHOG_API_KEY" ]; then
             COMMON_SECRETS+=("posthog-api-key=${POSTHOG_API_KEY}")
             COMMON_ENV+=("POSTHOG_API_KEY=secretref:posthog-api-key")
+          fi
+          if [ -n "$RUST_SENTRY_DSN" ]; then
+            COMMON_SECRETS+=("rust-sentry-dsn=${RUST_SENTRY_DSN}")
+            COMMON_ENV+=("SENTRY_DSN=secretref:rust-sentry-dsn")
+            COMMON_ENV+=("SENTRY_ENVIRONMENT=production")
+            COMMON_ENV+=("SENTRY_TRACES_SAMPLE_RATE=0")
+            COMMON_ENV+=("SENTRY_SEND_DEFAULT_PII=false")
           fi
 
           if ! az containerapp show --name "$CONTAINER_APP" --resource-group "$RG" &>/dev/null; then

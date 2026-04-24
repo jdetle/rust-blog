@@ -22,13 +22,17 @@ import {
 	computeVerdict,
 	type VpnExitLocationHeuristic,
 } from "@/lib/vpn-detect";
+import { AnalyticsToolsChart } from "./analytics-tools-chart";
 import { EventHistoryViz } from "./event-history-viz";
 import { ExposureMeter } from "./exposure-meter";
-import { HeatmapGhostIllustration } from "./heatmap-ghost-illustration";
 import { IdentityStitchingDiagram } from "./identity-stitching";
+import { LiveTagsOnThisPage } from "./live-tags-on-page";
+import { PageLoadInitiatorChart } from "./page-load-initiator-chart";
 import { ProfileTicker } from "./profile-ticker";
+import { WhoScalarBar } from "./recharts/who-scalar-bar";
 import { ThirdPartyConstellation } from "./third-party-constellation";
 import { TrackerCapabilityMatrix } from "./tracker-capability-matrix";
+import { VpnSignalsChart } from "./vpn-signals-chart";
 
 interface ServerGeo {
 	ip: string | null;
@@ -79,27 +83,20 @@ function DetectRow({
 	);
 }
 
-function ConfidenceMeter({
+function ConfidenceRecharts({
 	value,
 	verdict,
 }: {
 	value: number;
 	verdict: string;
 }) {
-	const colorClass =
-		verdict === "residential"
-			? "meter-green"
-			: verdict === "likely-vpn" || verdict === "tor"
-				? "meter-red"
-				: "meter-amber";
 	return (
 		<div className="confidence-meter">
-			<div className="meter-track">
-				<div
-					className={`meter-fill ${colorClass}`}
-					style={{ width: `${Math.max(value, 4)}%` }}
-				/>
-			</div>
+			<WhoScalarBar
+				value={value}
+				verdict={verdict}
+				ariaLabel={`${value} percent obfuscation confidence`}
+			/>
 			<span className="meter-label">{value}% obfuscation confidence</span>
 		</div>
 	);
@@ -156,21 +153,6 @@ function VerdictBadge({ verdict }: { verdict: string }) {
 		<span className={`verdict-badge verdict-${verdict}`}>
 			{labels[verdict] ?? verdict}
 		</span>
-	);
-}
-
-function SignalRow({ signal }: { signal: VpnSignal }) {
-	return (
-		<div
-			className={`signal-row ${signal.detected ? "signal-triggered" : "signal-clear"}`}
-		>
-			<span className="signal-indicator">
-				{signal.detected ? "\u26a0" : "\u2713"}
-			</span>
-			<span className="signal-name">{signal.name}</span>
-			<span className="signal-detail">{signal.detail}</span>
-			<span className="signal-weight">weight: {signal.weight}</span>
-		</div>
 	);
 }
 
@@ -1333,7 +1315,7 @@ export function ClientProfile({
 					<div className="vpn-verdict-card">
 						<div className="verdict-header">
 							<VerdictBadge verdict={vpnAssessment.verdict} />
-							<ConfidenceMeter
+							<ConfidenceRecharts
 								value={vpnAssessment.confidence}
 								verdict={vpnAssessment.verdict}
 							/>
@@ -1395,12 +1377,11 @@ export function ClientProfile({
 					<div className="signal-breakdown">
 						<h3>Signal Breakdown</h3>
 						<p className="detect-note">
-							Each signal contributes a weighted score. Triggered signals
-							increase the obfuscation confidence.
+							Each signal contributes a weighted score. Red bars: triggered
+							(suggest VPN/proxy/datacenter). Green: clear. Hover a bar for
+							details.
 						</p>
-						{vpnAssessment.signals.map((s) => (
-							<SignalRow key={s.name} signal={s} />
-						))}
+						<VpnSignalsChart signals={vpnAssessment.signals} />
 					</div>
 				)}
 			</section>
@@ -1609,8 +1590,12 @@ export function ClientProfile({
 			{/* ── Tracker capability matrix (documented) ─────────────────── */}
 			<section className="detect-section">
 				<h2>What common analytics tools can do</h2>
+				{loaded ? (
+					<LiveTagsOnThisPage tools={analyticsTools} gtmPresent={gtmPresent} />
+				) : null}
 				<TrackerCapabilityMatrix />
-				<HeatmapGhostIllustration />
+				<h3 className="request-mix-heading">This page load: request mix</h3>
+				<PageLoadInitiatorChart />
 			</section>
 
 			{/* ── How to reduce what sites know ───────────────────────────── */}
@@ -1649,6 +1634,9 @@ export function ClientProfile({
 			<section className="detect-section">
 				<h2>Analytics Tools Watching You</h2>
 				<p className="detect-note">Scripts currently loaded on this page</p>
+				{analyticsTools.length > 0 ? (
+					<AnalyticsToolsChart tools={analyticsTools} />
+				) : null}
 				<ul className="analytics-list">
 					{analyticsTools.map((t) => (
 						<li key={t.name} className="analytics-item">
@@ -1671,46 +1659,40 @@ export function ClientProfile({
 				) : null}
 			</section>
 
-			{/* ── Profile Ticker (picture building) ─────────────────────────── */}
-			<section className="detect-section">
-				<h2>Your Picture (building as you browse)</h2>
+			{/* ── Your activity: ticker + event history ─────────────────── */}
+			<section
+				className="detect-section event-history-cluster"
+				id="your-activity"
+			>
+				<h2>Your activity</h2>
 				<p className="detect-note">
-					Not a photograph — a <strong>running sketch</strong> built from what
-					analytics already log: which pages you opened, roughly when, and what
-					kind of action it was. You don&apos;t have to type your name; that
-					trail alone is still enough for stats, campaign measurement, and
-					follow-up ads elsewhere.
+					Not a photograph — a <strong>running sketch</strong> from what this
+					site can log: pages you opened, when, and what kind of event it was
+					(page view, custom, etc.), tied the same way analytics usually does
+					(visitor id + the canvas fingerprint above).
 				</p>
-				<p className="detect-note">
-					Below, each line is one stored event, tied to this browser the same
-					way the site usually does it (visitor id from the analytics cookie
-					plus the fingerprint shown above). The strip scrolls like a news
-					ticker; the more you browse, the longer the sketch gets.
-				</p>
-				<ProfileTicker events={userEvents} loading={userEventsLoading} />
-			</section>
-
-			{/* ── Your Event History ─────────────────────────────────────── */}
-			<section className="detect-section">
-				<h2>Your Event History</h2>
-				<p className="detect-note">
-					Same events as above, in a list: pulled from the site analytics
-					pipeline and matched to this browser.
-				</p>
-				{userEventsLoading && <p className="detect-note">Loading&hellip;</p>}
-				{userEventsError && (
-					<p className="detect-note" style={{ color: "var(--error, #dc2626)" }}>
-						{userEventsError}
-					</p>
-				)}
-				{!userEventsLoading && !userEventsError && userEvents.length === 0 && (
-					<p className="detect-note">
-						No events found yet. Visit a few pages and check back.
-					</p>
-				)}
-				{!userEventsLoading && !userEventsError && userEvents.length > 0 && (
-					<EventHistoryViz events={userEvents} />
-				)}
+				<div className="event-history-block">
+					<div className="event-history-ticker-panel">
+						<h3 className="event-history-subh">Live sketch</h3>
+						<p className="detect-note event-history-ticker-hint">
+							News-style ticker: each line is one stored event; it grows as you
+							browse.
+						</p>
+						<ProfileTicker events={userEvents} loading={userEventsLoading} />
+					</div>
+					<div className="event-history-detail-panel">
+						<h3 className="event-history-subh">Charts &amp; event feed</h3>
+						<p className="detect-note event-history-ticker-hint">
+							From the analytics pipeline, matched to this browser when keys are
+							configured.
+						</p>
+						<EventHistoryViz
+							events={userEvents}
+							loading={userEventsLoading || !loaded}
+							error={userEventsError}
+						/>
+					</div>
+				</div>
 			</section>
 
 			{/* ── Composite Summary ─────────────────────────────────────── */}

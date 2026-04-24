@@ -12,11 +12,17 @@ pub mod info;
 pub mod mock;
 pub mod openai_images;
 pub mod origin_enrichment;
-pub mod user_context;
 pub mod summarize;
+pub mod user_context;
 pub mod web_analytics_drain;
 
-use axum::{routing::{get, post}, Router};
+use axum::{
+    body::Body,
+    http::Request,
+    routing::{get, post},
+    Router,
+};
+use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
 
 /// Build the full Axum router from the given application state.
 ///
@@ -42,5 +48,8 @@ pub fn build_router(state: api::AppState) -> Router {
             post(api::user_profile_observations),
         )
         .with_state(state)
+        // Axum applies layers in reverse order: first listed = outermost (CORS first).
         .layer(api::cors_layer())
+        .layer(SentryHttpLayer::new())
+        .layer(NewSentryLayer::<Request<Body>>::new_from_top())
 }

@@ -15,14 +15,15 @@
 #   AZURE_RESOURCE_GROUP   — rg-rust-blog
 #   PLATFORM_ACR           — full ACR login server (e.g. myacr.azurecr.io)
 #   PLATFORM_SUB_ID        — subscription that owns the ACR
-#   KEY_VAULT_NAME         — kvrustblog2bb8 (holds turnstile-secret-key, posthog-api-key)
+#   KEY_VAULT_NAME         — kvrustblog2bb8 (turnstile, posthog-api-key, sentry-auth-token)
 #
 # Optional fallback GitHub secrets (used when KV secret is absent):
 #   TURNSTILE_SECRET_KEY, POSTHOG_PERSONAL_API_KEY
 #
 # Sentry (Build Next.js step — next.config source maps):
-#   NEXT_PUBLIC_SENTRY_DSN — DSN for project rust-blog-nextjs (baked at build)
-#   SENTRY_AUTH_TOKEN — create at https://sentry.io/settings/auth-tokens/ (releases + source maps)
+#   NEXT_PUBLIC_SENTRY_DSN — DSN for project rust-blog-nextjs (baked at build) — also as GitHub secret
+#   SENTRY_AUTH_TOKEN — Key Vault secret `sentry-auth-token` (same as .env.sentry-build-plugin) or
+#   GitHub secret SENTRY_AUTH_TOKEN
 
 name: deploy-frontend-azure
 
@@ -41,7 +42,8 @@ on:
       - "next.config.ts"
       - "instrumentation.ts"
       - "instrumentation-client.ts"
-      - "sentry.*.ts"
+      - "sentry.server.config.ts"
+      - "sentry.edge.config.ts"
       - "tsconfig.json"
       - "tailwind.config.*"
       - "Dockerfile.frontend"
@@ -90,6 +92,7 @@ jobs:
           KEY_VAULT_NAME: ${{ secrets.KEY_VAULT_NAME }}
           TURNSTILE_SECRET_KEY_GH: ${{ secrets.TURNSTILE_SECRET_KEY }}
           POSTHOG_PERSONAL_API_KEY_GH: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
+          SENTRY_AUTH_TOKEN_GH: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: |
           kv_get() {
             local secret_name="$1"
@@ -117,6 +120,14 @@ jobs:
           echo "::add-mask::${POSTHOG_PERSONAL_API_KEY}"
           echo "POSTHOG_PERSONAL_API_KEY=${POSTHOG_PERSONAL_API_KEY}" >> "$GITHUB_ENV"
 
+          SENTRY_AUTH_TOKEN="${SENTRY_AUTH_TOKEN_GH}"
+          kv_val="$(kv_get "sentry-auth-token")"
+          [ -n "$kv_val" ] && SENTRY_AUTH_TOKEN="$kv_val"
+          if [ -n "$SENTRY_AUTH_TOKEN" ]; then
+            echo "::add-mask::${SENTRY_AUTH_TOKEN}"
+            echo "SENTRY_AUTH_TOKEN=${SENTRY_AUTH_TOKEN}" >> "$GITHUB_ENV"
+          fi
+
       - name: Image tag
         id: meta
         run: |
@@ -140,7 +151,7 @@ jobs:
           SENTRY_ORG: "oak-heights-llc"
           SENTRY_PROJECT: "rust-blog-nextjs"
           NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_AUTH_TOKEN: ${{ env.SENTRY_AUTH_TOKEN }}
           NEXT_PUBLIC_POSTHOG_KEY: "phc_sOf9IR0gRco70ZVGBwuP8ZNTlbJkw1on9FNeVV1xNtp"
           NEXT_PUBLIC_POSTHOG_HOST: "https://us.posthog.com"
           NEXT_PUBLIC_GA4_ID: "G-S217MS7QDZ"
@@ -217,6 +228,12 @@ jobs:
           if [ -n "$POSTHOG_PERSONAL_API_KEY" ]; then
             COMMON_SECRETS+=("posthog-personal-api-key=${POSTHOG_PERSONAL_API_KEY}")
             COMMON_ENV+=("POSTHOG_PERSONAL_API_KEY=secretref:posthog-personal-api-key")
+          fi
+          if [ -n "$SENTRY_AUTH_TOKEN" ]; then
+            COMMON_SECRETS+=("sentry-auth-token=${SENTRY_AUTH_TOKEN}")
+            COMMON_ENV+=("SENTRY_AUTH_TOKEN=secretref:sentry-auth-token")
+            COMMON_ENV+=("SENTRY_ORG=oak-heights-llc")
+            COMMON_ENV+=("SENTRY_PROJECT=rust-blog-nextjs")
           fi
 
           if ! az containerapp show --name "$CONTAINER_APP" --resource-group "$RG" &>/dev/null; then

@@ -2475,6 +2475,217 @@ New post skeleton:
 	letter-spacing: 0.02em;
 }
 
+.event-viz-summary-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+	gap: 1.1rem;
+	margin-bottom: 1.5rem;
+}
+
+.event-viz-panel {
+	padding: 0.75rem 0.85rem 0.5rem;
+	border-radius: 14px;
+	border: 1px solid var(--line);
+	background: rgba(255, 255, 255, 0.4);
+}
+
+.event-viz-panel--cumulative {
+	grid-column: 1 / -1;
+}
+
+.event-viz-panel-title {
+	margin: 0 0 0.45rem;
+	font-size: 0.68rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--muted-ink);
+	font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+}
+
+.event-viz-feed-heading {
+	margin: 0 0 0.5rem;
+	font-size: 0.72rem;
+	letter-spacing: 0.07em;
+	text-transform: uppercase;
+	color: var(--muted-ink);
+}
+
+.event-viz-timeline-item {
+	margin: 0;
+	padding: 0;
+}
+
+.event-viz-card {
+	margin-bottom: 0.4rem;
+}
+
+.event-viz-chip--inline {
+	font-size: 0.62rem;
+}
+
+.event-viz-skeleton {
+	border-radius: 12px;
+	border: 1px dashed var(--line);
+	overflow: hidden;
+}
+
+.event-viz-skeleton-charts {
+	height: 12rem;
+	background: linear-gradient(
+		110deg,
+		rgba(107, 125, 94, 0.06) 0%,
+		rgba(201, 162, 39, 0.08) 50%,
+		rgba(107, 125, 94, 0.05) 100%
+	);
+	background-size: 200% 100%;
+	animation: event-viz-shimmer 1.4s ease-in-out infinite;
+}
+
+.event-viz-skeleton-list {
+	height: 5rem;
+	margin-top: 0.75rem;
+	background: rgba(42, 35, 28, 0.04);
+	border-top: 1px solid var(--line);
+}
+
+@keyframes event-viz-shimmer {
+	0% {
+		background-position: 100% 0;
+	}
+	100% {
+		background-position: 0% 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.event-viz-skeleton-charts {
+		animation: none;
+	}
+}
+
+.event-viz-loading-copy {
+	margin-top: 0.5rem;
+}
+
+.event-viz-empty-title {
+	margin: 0 0 0.35rem;
+	font-weight: 600;
+	color: var(--ink);
+}
+
+.event-viz-empty-hint {
+	margin: 0;
+}
+
+.event-viz-chart-fallback {
+	grid-column: 1 / -1;
+}
+
+.event-history-cluster {
+	scroll-margin-top: 0.5rem;
+}
+
+.event-history-block {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 1.5rem;
+	margin-top: 0.75rem;
+}
+
+@media (min-width: 880px) {
+	.event-history-block {
+		grid-template-columns: 1fr 1.35fr;
+		align-items: start;
+	}
+}
+
+.event-history-subh {
+	margin: 0 0 0.4rem;
+	font-size: 1.05rem;
+	font-weight: 600;
+	color: var(--ink);
+}
+
+.event-history-ticker-hint {
+	margin: 0 0 0.75rem;
+}
+
+.event-history-ticker-panel,
+.event-history-detail-panel {
+	padding: 0.9rem 1rem;
+	border-radius: 16px;
+	border: 1px solid var(--line);
+	background: rgba(255, 255, 255, 0.45);
+}
+
+.who-recharts-root {
+	font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+}
+
+.who-recharts-root .recharts-text {
+	fill: var(--ink);
+}
+
+.who-recharts-root .recharts-tooltip-wrapper {
+	font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+}
+
+.stitching-legend-dl {
+	margin: 1rem 0 0;
+	padding: 0.75rem 0 0;
+	border-top: 1px dashed var(--line);
+	display: grid;
+	gap: 0.5rem;
+}
+
+.stitching-legend-row {
+	display: grid;
+	grid-template-columns: minmax(8rem, 10rem) 1fr;
+	gap: 0.5rem 1rem;
+	margin: 0;
+	font-size: 0.88rem;
+}
+
+.stitching-legend-row dt {
+	color: var(--muted-ink);
+	margin: 0;
+}
+
+.stitching-legend-row dd {
+	margin: 0;
+}
+
+.live-tags-heading {
+	font-size: 1rem;
+	margin: 0 0 0.35rem;
+}
+
+.live-tags-sub {
+	margin-bottom: 0.6rem;
+}
+
+.request-mix-heading {
+	font-size: 1.05rem;
+	margin: 1.5rem 0 0.4rem;
+}
+
+.initiator-chart-wrap {
+	margin-top: 0.5rem;
+}
+
+.initiator-chart-note {
+	margin-bottom: 0.5rem;
+}
+
+.constellation-chart-wrap {
+	margin: 0.5rem 0 0.75rem;
+}
+
+.analytics-tools-chart-wrap {
+	margin: 0.75rem 0 0.5rem;
+	max-width: 20rem;
+}
+
 /* ── Exposure meter + third-party constellation ──────────────── */
 
 .exposure-inline {

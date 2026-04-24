@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 declare global {
 	interface Window {
 		turnstile?: {
+			ready: (callback: () => void) => void;
 			render: (
 				container: HTMLElement | string,
 				options: TurnstileOptions,
@@ -31,6 +32,17 @@ interface TurnstileGateProps {
 }
 
 const SCRIPT_ID = "cf-turnstile-script";
+/** Explicit mode — required for `turnstile.render()` in SPAs (see Cloudflare Turnstile docs). */
+const TURNSTILE_API =
+	"https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+
+function withTurnstileReady(fn: () => void) {
+	if (window.turnstile?.ready) {
+		window.turnstile.ready(fn);
+	} else {
+		fn();
+	}
+}
 // Trim defensively — env values pulled from some providers (or pasted into
 // .env files) can carry trailing whitespace/newlines, which Turnstile rejects.
 const SITE_KEY = (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "").trim();
@@ -54,18 +66,23 @@ export function TurnstileGate({ onToken, onError }: TurnstileGateProps) {
 			if (!containerRef.current || !window.turnstile) return;
 			if (widgetIdRef.current) return; // already rendered
 
-			widgetIdRef.current = window.turnstile.render(containerRef.current, {
-				sitekey: SITE_KEY,
-				callback: onToken,
-				"error-callback": onError,
-				"expired-callback": () => {
-					// Token expired — reset so a fresh one is issued.
-					if (widgetIdRef.current && window.turnstile) {
-						window.turnstile.reset(widgetIdRef.current);
-					}
-				},
-				appearance: "interaction-only",
-				theme: "auto",
+			withTurnstileReady(() => {
+				if (!containerRef.current || !window.turnstile || widgetIdRef.current)
+					return;
+
+				widgetIdRef.current = window.turnstile.render(containerRef.current, {
+					sitekey: SITE_KEY,
+					callback: onToken,
+					"error-callback": onError,
+					"expired-callback": () => {
+						// Token expired — reset so a fresh one is issued.
+						if (widgetIdRef.current && window.turnstile) {
+							window.turnstile.reset(widgetIdRef.current);
+						}
+					},
+					appearance: "interaction-only",
+					theme: "auto",
+				});
 			});
 		};
 
@@ -78,7 +95,7 @@ export function TurnstileGate({ onToken, onError }: TurnstileGateProps) {
 		if (!document.getElementById(SCRIPT_ID)) {
 			const script = document.createElement("script");
 			script.id = SCRIPT_ID;
-			script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+			script.src = TURNSTILE_API;
 			script.async = true;
 			script.defer = true;
 			script.onload = renderWidget;

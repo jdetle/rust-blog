@@ -59,12 +59,8 @@ pub fn build_regional_collage_prompt(
         .and_then(origin_enrichment::sanitize_country_code)
         .unwrap_or_default();
     let date_utc = Utc::now().format("%Y-%m-%d").to_string();
-    let axes = origin_enrichment::composition_axes(
-        fingerprint,
-        &cc,
-        enrichment.weather_code,
-        &date_utc,
-    );
+    let axes =
+        origin_enrichment::composition_axes(fingerprint, &cc, enrichment.weather_code, &date_utc);
 
     format!(
         r#"You are an AI helping a privacy-education blog create a personalised abstract avatar image for a visitor.
@@ -361,7 +357,8 @@ mod tests {
             languages: Some("en-US".to_string()),
             ..Default::default()
         };
-        let prompt = build_regional_collage_prompt("deadbeef", &ctx, None, &OriginEnrichment::default());
+        let prompt =
+            build_regional_collage_prompt("deadbeef", &ctx, None, &OriginEnrichment::default());
         assert!(prompt.contains("deadbeef"));
         assert!(prompt.contains("PERSONA:"));
         assert!(prompt.contains("ART_DIRECTION:"));
@@ -380,7 +377,8 @@ mod tests {
         e.weather_temperature_c = Some(-2.0);
         e.country_name = Some("Norway".to_string());
         e.employment_summary = Some("~2% agriculture, ~20% industry, ~78% services".to_string());
-        e.place_photo_context = Some("Wikimedia Commons file names: File:Oslofjord.jpg".to_string());
+        e.place_photo_context =
+            Some("Wikimedia Commons file names: File:Oslofjord.jpg".to_string());
         let prompt = build_regional_collage_prompt("fp2", &ctx, None, &e);
         assert!(prompt.contains("-2.0"));
         assert!(prompt.contains("Norway"));
@@ -403,7 +401,8 @@ mod tests {
             referrer_type: Some("search".to_string()),
             ..Default::default()
         };
-        let prompt = build_regional_collage_prompt("aabbccdd", &ctx, None, &OriginEnrichment::default());
+        let prompt =
+            build_regional_collage_prompt("aabbccdd", &ctx, None, &OriginEnrichment::default());
         assert!(prompt.contains("Tokyo"));
         assert!(prompt.contains("Japan"));
         assert!(prompt.contains("Firefox 124"));
@@ -436,7 +435,8 @@ mod tests {
             last_event_type: Some("pageview".to_string()),
             ..Default::default()
         };
-        let prompt = build_regional_collage_prompt("actfp", &ctx, None, &OriginEnrichment::default());
+        let prompt =
+            build_regional_collage_prompt("actfp", &ctx, None, &OriginEnrichment::default());
         assert!(prompt.contains("Recent page views: 7"));
         assert!(prompt.contains("/posts/rust"));
         assert!(prompt.contains("Session duration: 12 min"));

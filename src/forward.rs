@@ -33,7 +33,12 @@ impl PostHogForwarder {
             "timestamp": event.event_time,
         });
 
-        let res = self.client.post(POSTHOG_CAPTURE_URL).json(&payload).send().await;
+        let res = self
+            .client
+            .post(POSTHOG_CAPTURE_URL)
+            .json(&payload)
+            .send()
+            .await;
 
         match res {
             Ok(resp) if resp.status().is_success() => {

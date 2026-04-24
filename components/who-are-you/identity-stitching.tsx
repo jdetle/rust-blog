@@ -1,9 +1,19 @@
 "use client";
 
-/**
- * Illustrative diagram: how identifiers can be linked for analytics (educational).
- */
+import { Sankey, Tooltip } from "recharts";
+import { WhoChartBox } from "./recharts/who-charts-shared";
 
+const tooltipStyle = {
+	backgroundColor: "rgba(242, 236, 224, 0.96)",
+	border: "1px solid rgba(42, 35, 28, 0.12)",
+	borderRadius: 8,
+	color: "#2a231c",
+	fontSize: 12,
+};
+
+/**
+ * Sankey from **this session’s** identifier signals (fingerprint, distinct_id, cookie).
+ */
 export function IdentityStitchingDiagram({
 	canvasFingerprint,
 	distinctId,
@@ -22,118 +32,71 @@ export function IdentityStitchingDiagram({
 			? `${distinctId.slice(0, 16)}\u2026`
 			: (distinctId ?? "\u2014");
 
+	const linkStrength = (present: boolean) => (present ? 4 : 0.4);
+
+	const data = {
+		nodes: [
+			{ name: "Canvas fingerprint" },
+			{ name: "Product distinct_id" },
+			{ name: "First-party cookie" },
+			{ name: "Merged visitor profile" },
+		],
+		links: [
+			{
+				source: 0,
+				target: 3,
+				value: linkStrength(Boolean(canvasFingerprint)),
+			},
+			{
+				source: 1,
+				target: 3,
+				value: linkStrength(Boolean(distinctId?.trim())),
+			},
+			{ source: 2, target: 3, value: linkStrength(hasFirstPartyCookie) },
+		],
+	};
+
 	return (
 		<div className="stitching-wrap">
 			<p className="detect-note">
 				Product analytics tools can merge identifiers into one visitor profile
-				(subject to their privacy policy and your region&apos;s law).
+				(subject to their privacy policy and your region&apos;s law). Link width
+				reflects whether each signal is present in <em>this</em> session.
 			</p>
-			<svg
-				className="stitching-svg"
-				viewBox="0 0 320 200"
-				role="img"
-				aria-label="Diagram linking canvas fingerprint, product ID, and first-party cookie to a merged profile"
+			<WhoChartBox
+				height={260}
+				aria-label="Sankey diagram of identifiers flowing into a merged profile"
 			>
-				<title>Identity stitching diagram</title>
-				<defs>
-					<marker
-						id="stitch-arrow"
-						markerWidth="8"
-						markerHeight="8"
-						refX="6"
-						refY="4"
-						orient="auto"
-					>
-						<path d="M0,0 L8,4 L0,8 z" className="stitching-arrowhead" />
-					</marker>
-				</defs>
-
-				<rect
-					className="stitching-node"
-					x="8"
-					y="28"
-					width="92"
-					height="44"
-					rx="6"
-				/>
-				<text className="stitching-label" x="54" y="48" textAnchor="middle">
-					Canvas fingerprint
-				</text>
-				<text className="stitching-value" x="54" y="64" textAnchor="middle">
-					{fpShort}
-				</text>
-
-				<rect
-					className="stitching-node"
-					x="116"
-					y="28"
-					width="92"
-					height="44"
-					rx="6"
-				/>
-				<text className="stitching-label" x="162" y="48" textAnchor="middle">
-					Product distinct_id
-				</text>
-				<text className="stitching-value" x="162" y="64" textAnchor="middle">
-					{idShort}
-				</text>
-
-				<rect
-					className="stitching-node"
-					x="224"
-					y="28"
-					width="88"
-					height="44"
-					rx="6"
-				/>
-				<text className="stitching-label" x="268" y="48" textAnchor="middle">
-					First-party cookie
-				</text>
-				<text className="stitching-value" x="268" y="64" textAnchor="middle">
-					{hasFirstPartyCookie ? "Set on this site" : "Not detected"}
-				</text>
-
-				<path
-					className="stitching-link"
-					d="M 54 80 Q 54 108 160 118"
-					markerEnd="url(#stitch-arrow)"
-				/>
-				<path
-					className="stitching-link"
-					d="M 162 80 Q 162 108 160 118"
-					markerEnd="url(#stitch-arrow)"
-				/>
-				<path
-					className="stitching-link"
-					d="M 268 80 Q 268 108 160 118"
-					markerEnd="url(#stitch-arrow)"
-				/>
-
-				<rect
-					className="stitching-merge"
-					x="72"
-					y="128"
-					width="176"
-					height="56"
-					rx="8"
-				/>
-				<text
-					className="stitching-merge-title"
-					x="160"
-					y="156"
-					textAnchor="middle"
+				<Sankey
+					data={data}
+					nodeWidth={12}
+					nodePadding={32}
+					linkCurvature={0.5}
+					iterations={64}
+					margin={{ top: 8, right: 16, bottom: 8, left: 16 }}
+					sort={false}
 				>
-					Merged visitor profile
-				</text>
-				<text
-					className="stitching-merge-sub"
-					x="160"
-					y="174"
-					textAnchor="middle"
-				>
-					Events &amp; page views tied together
-				</text>
-			</svg>
+					<Tooltip contentStyle={tooltipStyle} />
+				</Sankey>
+			</WhoChartBox>
+			<dl className="stitching-legend-dl">
+				<div className="stitching-legend-row">
+					<dt>Canvas fingerprint</dt>
+					<dd>
+						<code className="persona-code">{fpShort}</code>
+					</dd>
+				</div>
+				<div className="stitching-legend-row">
+					<dt>Product distinct_id</dt>
+					<dd>
+						<code className="persona-code">{idShort}</code>
+					</dd>
+				</div>
+				<div className="stitching-legend-row">
+					<dt>First-party cookie</dt>
+					<dd>{hasFirstPartyCookie ? "Set on this site" : "Not detected"}</dd>
+				</div>
+			</dl>
 		</div>
 	);
 }

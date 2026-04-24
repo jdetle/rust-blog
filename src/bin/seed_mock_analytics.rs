@@ -10,8 +10,8 @@ const DEFAULT_DAYS_BACK: i64 = 14;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let base_url = std::env::var("ANALYTICS_API_URL")
-        .unwrap_or_else(|_| "http://localhost:8080".to_string());
+    let base_url =
+        std::env::var("ANALYTICS_API_URL").unwrap_or_else(|_| "http://localhost:8080".to_string());
     let base_url = base_url.trim_end_matches('/');
 
     let days_back: i64 = std::env::var("SEED_DAYS_BACK")
@@ -23,23 +23,21 @@ async fn main() -> anyhow::Result<()> {
 
     let client = reqwest::Client::new();
 
-    println!("Seeding mock analytics to {} (events over last {} days)", base_url, days_back);
+    println!(
+        "Seeding mock analytics to {} (events over last {} days)",
+        base_url, days_back
+    );
 
     let use_custom = std::env::var("SEED_USE_CUSTOM").unwrap_or_else(|_| "true".into()) != "false";
-    let use_web_analytics_drain = std::env::var("SEED_USE_WEB_ANALYTICS_DRAIN")
-        .unwrap_or_else(|_| "true".into())
-        != "false";
+    let use_web_analytics_drain =
+        std::env::var("SEED_USE_WEB_ANALYTICS_DRAIN").unwrap_or_else(|_| "true".into()) != "false";
 
     if use_custom {
         let events = generate_all_incoming_events(days_back, &mut rng);
         let events_url = format!("{}/api/events", base_url);
         let mut stored = 0;
         for ev in &events {
-            let res = client
-                .post(&events_url)
-                .json(ev)
-                .send()
-                .await?;
+            let res = client.post(&events_url).json(ev).send().await?;
             if res.status().is_success() {
                 stored += 1;
             } else {
@@ -54,11 +52,7 @@ async fn main() -> anyhow::Result<()> {
         let drain_url = format!("{}/api/drain/web-analytics", base_url);
         let mut total_stored = 0;
         for payload in &payloads {
-            let res = client
-                .post(&drain_url)
-                .json(payload)
-                .send()
-                .await?;
+            let res = client.post(&drain_url).json(payload).send().await?;
             if res.status().is_success() {
                 if let Ok(json) = res.json::<serde_json::Value>().await {
                     total_stored += json.get("stored").and_then(|v| v.as_u64()).unwrap_or(0);

@@ -128,7 +128,10 @@ async fn setup_collage_inner(
         Some(anthropic_mock.uri()),
     ));
     let openai_url = format!("{}/v1/images/generations", openai_mock.uri());
-    let openai = Arc::new(OpenAiImagesClient::new("oai-test-key".to_string(), Some(openai_url)));
+    let openai = Arc::new(OpenAiImagesClient::new(
+        "oai-test-key".to_string(),
+        Some(openai_url),
+    ));
 
     let state = AppState {
         db: None,
@@ -160,7 +163,10 @@ async fn setup_collage_with_store(
         Some(anthropic_mock.uri()),
     ));
     let openai_url = format!("{}/v1/images/generations", openai_mock.uri());
-    let openai = Arc::new(OpenAiImagesClient::new("oai-test-key".to_string(), Some(openai_url)));
+    let openai = Arc::new(OpenAiImagesClient::new(
+        "oai-test-key".to_string(),
+        Some(openai_url),
+    ));
 
     let state = AppState {
         db: None,
@@ -254,9 +260,7 @@ async fn single_composite_image_generated() {
 
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(anthropic_collage_response()),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(anthropic_collage_response()))
         .expect(1)
         .mount(&anthropic_mock)
         .await;
@@ -291,19 +295,32 @@ async fn single_composite_image_generated() {
     assert_eq!(res.status(), 200);
     let body: serde_json::Value = res.json().await.unwrap();
     assert_eq!(body["cached"], false);
-    assert!(body["persona_guess"].as_str().unwrap().contains("curious builder"));
+    assert!(body["persona_guess"]
+        .as_str()
+        .unwrap()
+        .contains("curious builder"));
 
     let url = body["avatar_url"].as_str().unwrap();
-    assert!(url.starts_with("data:image/png;base64,"), "must be a data URI");
+    assert!(
+        url.starts_with("data:image/png;base64,"),
+        "must be a data URI"
+    );
 
     // Verify PNG stored in the profile.
     let stored = store.get_stored("collage-fp-001").await.unwrap();
     assert!(!stored.avatar_png.is_empty(), "avatar_png must be stored");
-    assert_eq!(stored.avatar_pngs.len(), 1, "history must record one generation");
+    assert_eq!(
+        stored.avatar_pngs.len(),
+        1,
+        "history must record one generation"
+    );
     assert_eq!(stored.avatar_pngs[0], stored.avatar_png);
 
     let today_utc = Utc::now().format("%Y-%m-%d").to_string();
-    assert_eq!(stored.avatar_session_id, today_utc, "session date must be today");
+    assert_eq!(
+        stored.avatar_session_id, today_utc,
+        "session date must be today"
+    );
 
     anthropic_mock.verify().await;
     openai_mock.verify().await;
@@ -315,9 +332,7 @@ async fn collage_generation_uses_gpt_image_default_base64_response() {
 
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(anthropic_collage_response()),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(anthropic_collage_response()))
         .expect(1)
         .mount(&anthropic_mock)
         .await;
@@ -352,7 +367,10 @@ async fn collage_generation_uses_gpt_image_default_base64_response() {
     let body: serde_json::Value = res.json().await.unwrap();
     assert_eq!(body["cached"], false);
     assert!(
-        body["avatar_url"].as_str().unwrap().starts_with("data:image/png;base64,"),
+        body["avatar_url"]
+            .as_str()
+            .unwrap()
+            .starts_with("data:image/png;base64,"),
         "must be a data URI"
     );
 
@@ -366,9 +384,7 @@ async fn collage_generation_returns_persona_guess_when_images_fail() {
 
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(anthropic_collage_response()),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(anthropic_collage_response()))
         .expect(1)
         .mount(&anthropic_mock)
         .await;
@@ -407,7 +423,10 @@ async fn collage_generation_returns_persona_guess_when_images_fail() {
     let body: serde_json::Value = res.json().await.unwrap();
     assert_eq!(body["cached"], false);
     assert_eq!(body["image_generation_failed"], true);
-    assert!(body["persona_guess"].as_str().unwrap().contains("curious builder"));
+    assert!(body["persona_guess"]
+        .as_str()
+        .unwrap()
+        .contains("curious builder"));
     assert_eq!(body["avatar_url"].as_str().unwrap(), "");
 
     anthropic_mock.verify().await;
@@ -421,9 +440,7 @@ async fn collage_generation_returns_persona_guess_when_image_validation_fails() 
 
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(anthropic_collage_response()),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(anthropic_collage_response()))
         .expect(1)
         .mount(&anthropic_mock)
         .await;
@@ -432,8 +449,7 @@ async fn collage_generation_returns_persona_guess_when_image_validation_fails() 
     Mock::given(method("POST"))
         .and(path("/v1/images/generations"))
         .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(openai_image_response(&oversized_b64)),
+            ResponseTemplate::new(200).set_body_json(openai_image_response(&oversized_b64)),
         )
         .expect(1)
         .mount(&openai_mock)
@@ -459,7 +475,10 @@ async fn collage_generation_returns_persona_guess_when_image_validation_fails() 
     let body: serde_json::Value = res.json().await.unwrap();
     assert_eq!(body["cached"], false);
     assert_eq!(body["image_generation_failed"], true);
-    assert!(body["persona_guess"].as_str().unwrap().contains("curious builder"));
+    assert!(body["persona_guess"]
+        .as_str()
+        .unwrap()
+        .contains("curious builder"));
     assert_eq!(body["avatar_url"].as_str().unwrap(), "");
 
     anthropic_mock.verify().await;
@@ -473,9 +492,7 @@ async fn collage_second_request_served_from_cache() {
     // Exactly one Anthropic + one OpenAI call for the first request.
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(anthropic_collage_response()),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(anthropic_collage_response()))
         .expect(1)
         .mount(&anthropic_mock)
         .await;
@@ -527,9 +544,7 @@ async fn collage_same_day_different_session_serves_from_cache() {
 
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(anthropic_collage_response()),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(anthropic_collage_response()))
         .expect(1)
         .mount(&anthropic_mock)
         .await;
@@ -553,7 +568,10 @@ async fn collage_same_day_different_session_serves_from_cache() {
         .await
         .unwrap();
     assert_eq!(first.status(), 200);
-    assert_eq!(first.json::<serde_json::Value>().await.unwrap()["cached"], false);
+    assert_eq!(
+        first.json::<serde_json::Value>().await.unwrap()["cached"],
+        false
+    );
 
     // Different session, same day — must be a cache hit.
     let second = client
@@ -563,7 +581,10 @@ async fn collage_same_day_different_session_serves_from_cache() {
         .await
         .unwrap();
     assert_eq!(second.status(), 200);
-    assert_eq!(second.json::<serde_json::Value>().await.unwrap()["cached"], true);
+    assert_eq!(
+        second.json::<serde_json::Value>().await.unwrap()["cached"],
+        true
+    );
 
     anthropic_mock.verify().await;
     openai_mock.verify().await;
@@ -576,9 +597,7 @@ async fn collage_generation_succeeds_when_profile_store_errors() {
 
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(anthropic_collage_response()),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(anthropic_collage_response()))
         .expect(1)
         .mount(&anthropic_mock)
         .await;
@@ -612,10 +631,16 @@ async fn collage_generation_succeeds_when_profile_store_errors() {
     let body: serde_json::Value = res.json().await.unwrap();
     assert_eq!(body["cached"], false);
     assert!(
-        body["avatar_url"].as_str().unwrap().starts_with("data:image/png;base64,"),
+        body["avatar_url"]
+            .as_str()
+            .unwrap()
+            .starts_with("data:image/png;base64,"),
         "must return a valid data URI even when profile store errors"
     );
-    assert!(body["persona_guess"].as_str().unwrap().contains("curious builder"));
+    assert!(body["persona_guess"]
+        .as_str()
+        .unwrap()
+        .contains("curious builder"));
 
     anthropic_mock.verify().await;
     openai_mock.verify().await;
@@ -643,7 +668,10 @@ async fn collage_new_calendar_day_uses_image_edits_when_prior_png_exists() {
         Some(anthropic_mock.uri()),
     ));
     let openai_gen_url = format!("{}/v1/images/generations", openai_mock.uri());
-    let openai = Arc::new(OpenAiImagesClient::new("oai-test-key".to_string(), Some(openai_gen_url)));
+    let openai = Arc::new(OpenAiImagesClient::new(
+        "oai-test-key".to_string(),
+        Some(openai_gen_url),
+    ));
 
     let state = AppState {
         db: None,
@@ -664,9 +692,7 @@ async fn collage_new_calendar_day_uses_image_edits_when_prior_png_exists() {
 
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(anthropic_collage_response()),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(anthropic_collage_response()))
         .expect(1)
         .mount(&anthropic_mock)
         .await;
@@ -696,7 +722,10 @@ async fn collage_new_calendar_day_uses_image_edits_when_prior_png_exists() {
     let body: serde_json::Value = res.json().await.unwrap();
     assert_eq!(body["cached"], false);
     assert!(
-        body["avatar_url"].as_str().unwrap().starts_with("data:image/png;base64,"),
+        body["avatar_url"]
+            .as_str()
+            .unwrap()
+            .starts_with("data:image/png;base64,"),
         "must be a data URI"
     );
 
@@ -717,9 +746,7 @@ async fn adversarial_three_visit_days_carousel_has_three_distinct_images() {
 
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(anthropic_collage_response()),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(anthropic_collage_response()))
         .expect(3)
         .mount(&anthropic_mock)
         .await;
@@ -730,11 +757,7 @@ async fn adversarial_three_visit_days_carousel_has_three_distinct_images() {
         .and(path("/v1/images/generations"))
         .respond_with(move |_req: &Request| {
             let i = seq_responder.fetch_add(1, Ordering::SeqCst);
-            let payloads = [
-                VISIT_DAY1_PNG_B64,
-                VISIT_DAY2_PNG_B64,
-                VISIT_DAY3_PNG_B64,
-            ];
+            let payloads = [VISIT_DAY1_PNG_B64, VISIT_DAY2_PNG_B64, VISIT_DAY3_PNG_B64];
             let b64 = payloads[i.min(2)];
             ResponseTemplate::new(200).set_body_json(openai_image_response(b64))
         })
@@ -830,9 +853,7 @@ async fn observations_endpoint_returns_bullet_list() {
 
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(anthropic_observations_response()),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(anthropic_observations_response()))
         .expect(1)
         .mount(&anthropic_mock)
         .await;
@@ -852,7 +873,10 @@ async fn observations_endpoint_returns_bullet_list() {
     let body: serde_json::Value = res.json().await.unwrap();
     let obs = body["observations"].as_array().unwrap();
     assert_eq!(obs.len(), 6, "must return exactly 6 observations");
-    assert!(obs[0].as_str().unwrap().contains("Tokyo"), "first obs must mention Tokyo");
+    assert!(
+        obs[0].as_str().unwrap().contains("Tokyo"),
+        "first obs must mention Tokyo"
+    );
 
     anthropic_mock.verify().await;
 }

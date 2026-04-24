@@ -21,20 +21,56 @@ use rust_blog::forward::PostHogForwarder;
 use rust_blog::openai_images::OpenAiImagesClient;
 use rust_blog::summarize;
 use tokio::net::TcpListener;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::EnvFilter;
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::new(
-            std::env::var("RUST_LOG")
-                .unwrap_or_else(|_| "blog_service=info,tower_http=info".into()),
-        ))
-        .with(tracing_subscriber::fmt::layer())
-        .init();
-
+fn main() -> anyhow::Result<()> {
+    // Load `.env` before anything that reads the process environment (Sentry, DB, etc.).
     dotenv().ok();
 
+    // Sentry docs recommend initializing the SDK before the async runtime. Tracing is set up
+    // first so `sentry::integrations::tracing` can forward spans once `sentry::init` runs.
+    let env_filter = EnvFilter::new(
+        std::env::var("RUST_LOG").unwrap_or_else(|_| "blog_service=info,tower_http=info".into()),
+    );
+    let _sentry = {
+        let dsn = std::env::var("SENTRY_DSN")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .and_then(|s| s.parse().ok());
+        let traces_sample_rate = std::env::var("SENTRY_TRACES_SAMPLE_RATE")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.0);
+        let send_default_pii = std::env::var("SENTRY_SEND_DEFAULT_PII")
+            .map(|s| s == "1" || s.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(sentry::integrations::tracing::layer())
+            .with(tracing_subscriber::fmt::layer())
+            .init();
+
+        sentry::init(sentry::ClientOptions {
+            dsn,
+            release: sentry::release_name!(),
+            environment: std::env::var("SENTRY_ENVIRONMENT").ok().map(Into::into),
+            traces_sample_rate,
+            send_default_pii,
+            ..Default::default()
+        })
+    };
+
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?
+        .block_on(async_main())?;
+    Ok(())
+}
+
+async fn async_main() -> anyhow::Result<()> {
     // ---------------------------------------------------------------------------
     // Optional in-memory mode for integration tests (test-support feature only).
     // ---------------------------------------------------------------------------
@@ -48,8 +84,7 @@ async fn main() -> anyhow::Result<()> {
     // ---------------------------------------------------------------------------
     let contact_point = std::env::var("COSMOS_CONTACT_POINT")
         .unwrap_or_else(|_| "jd-analytics.cassandra.cosmos.azure.com".to_string());
-    let username =
-        std::env::var("COSMOS_USERNAME").unwrap_or_else(|_| "jd-analytics".to_string());
+    let username = std::env::var("COSMOS_USERNAME").unwrap_or_else(|_| "jd-analytics".to_string());
     let password = std::env::var("COSMOS_PASSWORD").ok();
 
     let posthog_api_key = std::env::var("POSTHOG_API_KEY").ok();
@@ -58,7 +93,9 @@ async fn main() -> anyhow::Result<()> {
     let google_creds_path = std::env::var("GOOGLE_APPLICATION_CREDENTIALS").ok();
     let meta_token = std::env::var("META_ACCESS_TOKEN").ok();
 
-    let anthropic_key = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.is_empty());
+    let anthropic_key = std::env::var("ANTHROPIC_API_KEY")
+        .ok()
+        .filter(|k| !k.is_empty());
     let anthropic_base_url = std::env::var("ANTHROPIC_BASE_URL").ok();
     let anthropic = anthropic_key
         .as_deref()
@@ -68,7 +105,9 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|_| "false".into())
         .trim()
         .eq_ignore_ascii_case("true");
-    let openai_key = std::env::var("OPENAI_API_KEY").ok().filter(|k| !k.is_empty());
+    let openai_key = std::env::var("OPENAI_API_KEY")
+        .ok()
+        .filter(|k| !k.is_empty());
     let openai_base_url = std::env::var("OPENAI_IMAGES_BASE_URL").ok();
     let openai: Option<Arc<OpenAiImagesClient>> = if collage_enabled {
         openai_key.map(|k| Arc::new(OpenAiImagesClient::new(k, openai_base_url)))
@@ -145,6 +184,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     axum::serve(listener, app).await?;
+    // Ensure the Sentry client flushes; the main guard is dropped with `main`'s return.
     Ok(())
 }
 
@@ -156,7 +196,9 @@ async fn run_memory_mode() -> anyhow::Result<()> {
 
     tracing::warn!("BLOG_SERVICE_DB=memory — using in-memory store (test-support mode)");
 
-    let anthropic_key = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.is_empty());
+    let anthropic_key = std::env::var("ANTHROPIC_API_KEY")
+        .ok()
+        .filter(|k| !k.is_empty());
     let anthropic_base_url = std::env::var("ANTHROPIC_BASE_URL").ok();
     let anthropic = anthropic_key
         .as_deref()
@@ -182,7 +224,10 @@ async fn run_memory_mode() -> anyhow::Result<()> {
         .unwrap_or(8080);
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     let listener = TcpListener::bind(addr).await?;
-    tracing::info!("listening on http://{} (memory mode)", listener.local_addr()?);
+    tracing::info!(
+        "listening on http://{} (memory mode)",
+        listener.local_addr()?
+    );
     axum::serve(listener, app).await?;
     Ok(())
 }

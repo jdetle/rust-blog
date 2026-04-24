@@ -6,8 +6,7 @@ use reqwest::Client;
 use std::sync::Arc;
 use uuid::Uuid;
 
-const CLARITY_EXPORT_URL: &str =
-    "https://www.clarity.ms/export-data/api/v1/project-live-insights";
+const CLARITY_EXPORT_URL: &str = "https://www.clarity.ms/export-data/api/v1/project-live-insights";
 
 const POSTHOG_EVENTS_URL: &str = "https://us.posthog.com/api/projects";
 
@@ -34,10 +33,8 @@ impl Aggregator {
     ) -> Self {
         let clarity_export_url =
             std::env::var("CLARITY_EXPORT_URL").unwrap_or_else(|_| CLARITY_EXPORT_URL.to_string());
-        let project_id =
-            std::env::var("POSTHOG_PROJECT_ID").unwrap_or_else(|_| "1".to_string());
-        let posthog_events_url =
-            format!("{POSTHOG_EVENTS_URL}/{project_id}/events/");
+        let project_id = std::env::var("POSTHOG_PROJECT_ID").unwrap_or_else(|_| "1".to_string());
+        let posthog_events_url = format!("{POSTHOG_EVENTS_URL}/{project_id}/events/");
         let db_sink: Arc<dyn EventSink> = db;
         Self::with_endpoints(
             db_sink,
@@ -96,7 +93,9 @@ impl Aggregator {
                 "web analytics drain token set — inbound POST /api/drain/web-analytics; no pull needed"
             );
         } else {
-            tracing::debug!("web analytics: no drain token; configure POST drain to blog-service if needed");
+            tracing::debug!(
+                "web analytics: no drain token; configure POST drain to blog-service if needed"
+            );
         }
     }
 
@@ -173,10 +172,7 @@ impl Aggregator {
         let res = self
             .client
             .get(&self.posthog_events_url)
-            .header(
-                "Authorization",
-                format!("Bearer {}", self.posthog_api_key),
-            )
+            .header("Authorization", format!("Bearer {}", self.posthog_api_key))
             .query(&[("after", today.as_str()), ("limit", "100")])
             .send()
             .await;
@@ -405,7 +401,9 @@ mod tests {
             let server = MockServer::start().await;
             Mock::given(method("GET"))
                 .and(path("/events"))
-                .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "results": results })))
+                .respond_with(
+                    ResponseTemplate::new(200).set_body_json(json!({ "results": results })),
+                )
                 .mount(&server)
                 .await;
 

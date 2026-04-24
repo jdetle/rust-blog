@@ -44,7 +44,11 @@
 		"nuqs": "^2.8.9",
 		"posthog-js": "^1.360.2",
 		"react": "^19.1.0",
-		"react-dom": "^19.1.0"
+		"react-dom": "^19.1.0",
+		"recharts": "^2.15.0"
+	},
+	"overrides": {
+		"react-is": "^19.0.0"
 	},
 	"devDependencies": {
 		"@anthropic-ai/sdk": "^0.80.0",

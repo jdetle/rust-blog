@@ -48,6 +48,20 @@ rand = "0.8"
 rand_chacha = "0.3"
 async-trait = "0.1"
 base64 = "0.22"
+# `default-features = false` avoids `native-tls`; `rustls` aligns with this crate's reqwest stack.
+sentry = { version = "0.47", default-features = false, features = [
+  "backtrace",
+  "contexts",
+  "debug-images",
+  "panic",
+  "release-health",
+  "tracing",
+  "reqwest",
+  "rustls",
+  "tokio",
+  "tower",
+  "tower-http",
+] }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

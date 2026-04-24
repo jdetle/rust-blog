@@ -25,7 +25,10 @@ pub fn date_from_iso_timestamp_prefix(s: &str) -> Option<NaiveDate> {
 }
 
 /// Resolve event date from PostHog `timestamp` field (string or other JSON). Falls back to `now` when missing/invalid.
-pub fn posthog_event_date_from_timestamp(ts: Option<&Value>, fallback_date: NaiveDate) -> NaiveDate {
+pub fn posthog_event_date_from_timestamp(
+    ts: Option<&Value>,
+    fallback_date: NaiveDate,
+) -> NaiveDate {
     let Some(v) = ts else {
         return fallback_date;
     };
@@ -57,7 +60,12 @@ pub fn clarity_row_to_event(row: &Value, now_ms: i64, event_id: Uuid) -> Analyti
 }
 
 /// Build a stored event from one PostHog Events API result object.
-pub fn posthog_raw_to_event(raw: &Value, now_ms: i64, event_id: Uuid, fallback_date: NaiveDate) -> AnalyticsEvent {
+pub fn posthog_raw_to_event(
+    raw: &Value,
+    now_ms: i64,
+    event_id: Uuid,
+    fallback_date: NaiveDate,
+) -> AnalyticsEvent {
     let event_date = posthog_event_date_from_timestamp(raw.get("timestamp"), fallback_date);
     AnalyticsEvent {
         site_id: "jdetle-blog".to_string(),
@@ -93,10 +101,8 @@ pub fn posthog_raw_to_event(raw: &Value, now_ms: i64, event_id: Uuid, fallback_d
             .and_then(|d| d.as_str())
             .unwrap_or("")
             .to_string(),
-        properties: serde_json::to_string(
-            raw.get("properties").unwrap_or(&Value::Null),
-        )
-        .unwrap_or_default(),
+        properties: serde_json::to_string(raw.get("properties").unwrap_or(&Value::Null))
+            .unwrap_or_default(),
     }
 }
 

@@ -111,7 +111,10 @@ impl UserContext {
             lines.push(format!("- Recent page views: {count}"));
         }
         if !self.recent_paths.is_empty() {
-            lines.push(format!("- Recently visited: {}", self.recent_paths.join(", ")));
+            lines.push(format!(
+                "- Recently visited: {}",
+                self.recent_paths.join(", ")
+            ));
         }
         if let Some(mins) = self.session_minutes {
             lines.push(format!("- Session duration: {mins} min"));
@@ -146,7 +149,11 @@ impl UserContext {
     }
 
     pub(crate) fn device_desc(&self) -> String {
-        match (self.gpu.as_deref(), self.os.as_deref(), self.device_type.as_deref()) {
+        match (
+            self.gpu.as_deref(),
+            self.os.as_deref(),
+            self.device_type.as_deref(),
+        ) {
             (Some(gpu), Some(os), _) if !gpu.is_empty() => format!("{os} with {gpu}"),
             (_, Some(os), Some(dev)) => format!("{os} ({dev})"),
             (_, Some(os), _) => os.to_string(),

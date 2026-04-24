@@ -5,6 +5,7 @@ const sentryDsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 if (typeof sentryDsn === "string" && sentryDsn.length > 0) {
 	Sentry.init({
 		dsn: sentryDsn,
+		// Intentional: improves replay/error correlation; differs from Rust SENTRY_SEND_DEFAULT_PII default in .env.example.
 		sendDefaultPii: true,
 		tracesSampleRate: process.env.NODE_ENV === "development" ? 1.0 : 0.1,
 		integrations: [Sentry.replayIntegration()],

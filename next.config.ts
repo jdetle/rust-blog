@@ -36,4 +36,11 @@ export default withSentryConfig(nextConfig, {
 	silent: !process.env.CI,
 	authToken: process.env.SENTRY_AUTH_TOKEN,
 	widenClientFileUpload: true,
+	tunnelRoute: "/monitoring",
+	webpack: {
+		automaticVercelMonitors: true,
+		treeshake: {
+			removeDebugLogging: true,
+		},
+	},
 });

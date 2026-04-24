@@ -47,6 +47,9 @@ async function stubTurnstile(
 ) {
 	await page.addInitScript((t) => {
 		window.turnstile = {
+			ready: (cb: () => void) => {
+				queueMicrotask(cb);
+			},
 			render: (
 				_container: HTMLElement | string,
 				options: { callback?: (tok: string) => void },
