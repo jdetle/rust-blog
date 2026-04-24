@@ -1,8 +1,8 @@
+use chrono::{NaiveDate, Utc};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use rust_blog::aggregate_mapping::{
     date_from_iso_timestamp_prefix, posthog_event_date_from_timestamp, posthog_raw_to_event,
 };
-use chrono::{NaiveDate, Utc};
 use serde_json::json;
 use uuid::Uuid;
 

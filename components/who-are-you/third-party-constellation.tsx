@@ -1,109 +1,36 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
+import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
+import {
+	useWhoChartAnimation,
+	WHO_CHART,
+	WHO_TICK,
+	WhoChartBox,
+} from "@/components/who-are-you/recharts/who-charts-shared";
 import type { ThirdPartyHostAgg } from "@/lib/third-party-resources";
 import { aggregateThirdPartyResources } from "@/lib/third-party-resources";
 
-const MAX_NODES = 14;
+const MAX_ROWS = 14;
 
-function ConstellationSvg({ hosts }: { hosts: ThirdPartyHostAgg[] }) {
-	const display = hosts.slice(0, MAX_NODES);
-	const n = display.length;
-	const cx = 50;
-	const cy = 50;
-	const r = 34;
+const tooltipStyle = {
+	backgroundColor: "rgba(242, 236, 224, 0.96)",
+	border: "1px solid rgba(42, 35, 28, 0.12)",
+	borderRadius: 8,
+	color: WHO_CHART.ink,
+	fontSize: 12,
+};
 
-	if (n === 0) {
-		return (
-			<div className="constellation-empty">
-				<p className="detect-note">
-					No cross-origin resource requests recorded yet, or the browser hid
-					details (cross-origin timing can be limited).
-				</p>
-			</div>
-		);
-	}
-
-	const satellites = display.map((h, i) => {
-		const angle = (2 * Math.PI * i) / n - Math.PI / 2;
-		const thickness = Math.min(6, 1 + Math.min(h.count, 12) * 0.45);
-		return {
-			x: cx + r * Math.cos(angle),
-			y: cy + r * Math.sin(angle),
-			strokeW: thickness,
-			host: h.host,
-			count: h.count,
-		};
-	});
-
-	const shortHost = (h: string) =>
-		h.length > 22 ? `${h.slice(0, 20)}\u2026` : h;
-
-	return (
-		<div className="constellation-wrap">
-			<svg
-				className="constellation-svg"
-				viewBox="0 0 100 100"
-				role="img"
-				aria-label="Third-party hosts contacted during this page load"
-			>
-				<title>Third-party network graph</title>
-				{satellites.map((s) => (
-					<line
-						key={`e-${s.host}`}
-						x1={cx}
-						y1={cy}
-						x2={s.x}
-						y2={s.y}
-						className="constellation-edge"
-						strokeWidth={Math.min(s.strokeW * 0.35, 3)}
-					/>
-				))}
-				<circle className="constellation-core" cx={cx} cy={cy} r={7} />
-				<text
-					className="constellation-core-label"
-					x={cx}
-					y={cy + 2.5}
-					textAnchor="middle"
-					fontSize="4"
-				>
-					You
-				</text>
-				{satellites.map((s) => (
-					<g key={s.host}>
-						<circle className="constellation-node" cx={s.x} cy={s.y} r={3.2} />
-						<text
-							className="constellation-host"
-							x={s.x}
-							y={s.y - 6}
-							textAnchor="middle"
-							fontSize="3.2"
-						>
-							{shortHost(s.host)}
-						</text>
-						<title>
-							{s.host} — {s.count} request{s.count === 1 ? "" : "s"}
-						</title>
-					</g>
-				))}
-			</svg>
-			<ul className="constellation-legend">
-				{display.map((h) => (
-					<li key={h.host}>
-						<span className="constellation-legend-host">{h.host}</span>
-						<span className="constellation-legend-meta">
-							{h.count}× &middot; {h.initiatorTypes.join(", ")}
-						</span>
-					</li>
-				))}
-			</ul>
-		</div>
-	);
+function shortHost(h: string, max = 28) {
+	return h.length > max ? `${h.slice(0, max - 1)}…` : h;
 }
 
 export function ThirdPartyConstellation() {
 	const [hosts, setHosts] = useState<ThirdPartyHostAgg[]>([]);
 	const [ready, setReady] = useState(false);
+	const uid = useId().replace(/:/g, "");
+	const gradId = `tp-grad-${uid}`;
+	const animate = useWhoChartAnimation();
 
 	useEffect(() => {
 		const run = () => {
@@ -122,6 +49,15 @@ export function ThirdPartyConstellation() {
 		return () => window.clearTimeout(t);
 	}, []);
 
+	const chartData = useMemo(() => {
+		return hosts.slice(0, MAX_ROWS).map((h) => ({
+			label: shortHost(h.host),
+			fullHost: h.host,
+			count: h.count,
+			types: h.initiatorTypes.join(", "),
+		}));
+	}, [hosts]);
+
 	if (!ready) {
 		return (
 			<p className="detect-note loading-pulse">
@@ -130,15 +66,94 @@ export function ThirdPartyConstellation() {
 		);
 	}
 
+	if (chartData.length === 0) {
+		return (
+			<div className="constellation-empty">
+				<p className="detect-note">
+					No cross-origin resource requests recorded yet, or the browser hid
+					details (cross-origin timing can be limited).
+				</p>
+			</div>
+		);
+	}
+
 	return (
 		<>
 			<p className="detect-note">
-				Each line is a different hostname your browser contacted while loading
-				this page (scripts, pixels, fonts, APIs). Thicker lines mean more
-				requests. This is a <strong>minimum</strong> &mdash; some third parties
-				hide details from Resource Timing.
+				Each bar is a hostname your browser contacted while loading this page
+				(scripts, pixels, fonts, APIs). Longer bars mean more requests. This is
+				a <strong>minimum</strong> &mdash; some third parties hide details from
+				Resource Timing.
 			</p>
-			<ConstellationSvg hosts={hosts} />
+			<div className="constellation-chart-wrap">
+				<WhoChartBox
+					height={Math.min(420, 48 + chartData.length * 26)}
+					className="constellation-recharts"
+					aria-label="Third-party hosts by request count"
+				>
+					<BarChart
+						layout="vertical"
+						data={chartData}
+						margin={{ top: 4, right: 12, left: 4, bottom: 4 }}
+						barSize={18}
+					>
+						<defs>
+							<linearGradient id={gradId} x1="0" y1="0" x2="1" y2="0">
+								<stop offset="0%" stopColor="rgba(107, 125, 94, 0.75)" />
+								<stop offset="100%" stopColor="rgba(201, 162, 39, 0.75)" />
+							</linearGradient>
+						</defs>
+						<CartesianGrid
+							horizontal
+							stroke={WHO_CHART.grid}
+							strokeDasharray="3 3"
+						/>
+						<XAxis
+							type="number"
+							allowDecimals={false}
+							tick={WHO_TICK}
+							tickLine={false}
+							axisLine={false}
+							height={24}
+						/>
+						<YAxis
+							type="category"
+							dataKey="label"
+							width={108}
+							tick={{ fontSize: 10, fill: "rgba(42, 35, 28, 0.65)" }}
+							interval={0}
+							tickLine={false}
+							axisLine={false}
+						/>
+						<Tooltip
+							contentStyle={tooltipStyle}
+							formatter={(val) => [
+								`${val} request${Number(val) === 1 ? "" : "s"}`,
+								"Count",
+							]}
+							labelFormatter={(_l, p) =>
+								(p?.[0]?.payload as { fullHost?: string })?.fullHost ?? ""
+							}
+						/>
+						<Bar
+							dataKey="count"
+							fill={`url(#${gradId})`}
+							isAnimationActive={animate}
+							radius={[0, 3, 3, 0]}
+						/>
+					</BarChart>
+				</WhoChartBox>
+			</div>
+			<ul className="constellation-legend">
+				{hosts.slice(0, MAX_ROWS).map((h) => (
+					<li key={h.host}>
+						<span className="constellation-legend-host">{h.host}</span>
+						<span className="constellation-legend-meta">
+							{h.count}× &middot; {h.initiatorTypes.join(", ")}
+						</span>
+					</li>
+				))}
+			</ul>
 		</>
 	);
 }

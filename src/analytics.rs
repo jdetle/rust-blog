@@ -431,9 +431,10 @@ impl AnalyticsDb {
         &self,
         event: &AnalyticsEvent,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let date_days = event.event_date.signed_duration_since(
-            NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()
-        ).num_days() as i32;
+        let date_days = event
+            .event_date
+            .signed_duration_since(NaiveDate::from_ymd_opt(1970, 1, 1).unwrap())
+            .num_days() as i32;
 
         self.session
             .execute_unpaged(
@@ -499,7 +500,19 @@ impl AnalyticsDb {
             String,
             String,
         )>()? {
-            let (site_id, date_days, event_time, event_id, event_type, source, page_url, user_agent, referrer, session_id, properties) = row?;
+            let (
+                site_id,
+                date_days,
+                event_time,
+                event_id,
+                event_type,
+                source,
+                page_url,
+                user_agent,
+                referrer,
+                session_id,
+                properties,
+            ) = row?;
             let origin = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
             let event_date = origin
                 .checked_add_signed(chrono::Duration::days(date_days as i64))
@@ -562,7 +575,19 @@ impl AnalyticsDb {
                 String,
                 String,
             )>()? {
-                let (site_id, date_days, event_time, event_id, event_type, source, page_url, user_agent, referrer, session_id, properties) = row?;
+                let (
+                    site_id,
+                    date_days,
+                    event_time,
+                    event_id,
+                    event_type,
+                    source,
+                    page_url,
+                    user_agent,
+                    referrer,
+                    session_id,
+                    properties,
+                ) = row?;
                 let event_date = origin
                     .checked_add_signed(chrono::Duration::days(date_days as i64))
                     .unwrap_or(origin);
@@ -618,7 +643,14 @@ impl AnalyticsDb {
         self.session
             .execute_unpaged(
                 &self.upsert_avatar_stmt,
-                (session_id, persona_guess, png, history, avatar_session_id, updated_at),
+                (
+                    session_id,
+                    persona_guess,
+                    png,
+                    history,
+                    avatar_session_id,
+                    updated_at,
+                ),
             )
             .await?;
         Ok(())
@@ -655,8 +687,19 @@ impl AnalyticsDb {
             )>()?
             .next()
         {
-            let (sid, summary, updated_at, persona, avatar_svg, avatar_session_id,
-                 avatar_png, avatar_png_2, avatar_png_3, avatar_png_4, avatar_pngs) = row?;
+            let (
+                sid,
+                summary,
+                updated_at,
+                persona,
+                avatar_svg,
+                avatar_session_id,
+                avatar_png,
+                avatar_png_2,
+                avatar_png_3,
+                avatar_png_4,
+                avatar_pngs,
+            ) = row?;
             return Ok(Some(UserProfile {
                 session_id: sid,
                 llm_summary: summary.unwrap_or_default(),

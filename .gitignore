@@ -46,3 +46,6 @@ tsconfig.tsbuildinfo
 .rust-blog-anthropic-key
 # Claude agent internal worktrees (full repo checkouts — never commit)
 .claude/worktrees/
+
+# Sentry Config File
+.env.sentry-build-plugin
