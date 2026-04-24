@@ -1,4 +1,5 @@
-# Runtime-only image — Next.js is built by bun in CI (deploy-frontend-azure.yml).
+# Runtime-only image — Next.js is built by bun in CI (deploy-frontend-azure.yml);
+# this stage runs the standalone server with Node (Next’s supported runtime).
 # The build context passed to this Dockerfile contains only the assembled
 # standalone output; no source files or node_modules are needed here.
 #
@@ -7,18 +8,18 @@
 #   .next/static/       → Static assets (JS/CSS chunks)
 #   public/             → Public directory (created empty by CI if absent)
 
-FROM oven/bun:1.3.12-alpine
+FROM node:20-alpine
 WORKDIR /app
 
 ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0
 
-RUN addgroup --system --gid 1001 bungroup \
- && adduser --system --uid 1001 bunuser
+RUN addgroup --system --gid 1001 nodejs \
+ && adduser --system --uid 1001 nextjs
 
-COPY --chown=bunuser:bungroup . .
+COPY --chown=nextjs:nodejs . .
 
-USER bunuser
+USER nextjs
 EXPOSE 3000
-CMD ["bun", "run", "server.js"]
+CMD ["node", "server.js"]

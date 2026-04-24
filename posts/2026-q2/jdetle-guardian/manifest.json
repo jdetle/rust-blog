@@ -7,7 +7,7 @@
 	"versions": ["human", "ai"],
 	"authorship": {
 		"ai": "ai",
-		"human": "human"
+		"human": "draft"
 	},
 	"heroImage": {
 		"url": "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=1400&q=80&auto=format&fit=crop",

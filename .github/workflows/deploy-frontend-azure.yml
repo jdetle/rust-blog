@@ -4,7 +4,7 @@
 # Build flow:
 #   1. bun install + bun run build  (NEXT_PUBLIC_* baked into bundle here)
 #   2. Assemble minimal Docker context from .next/standalone + .next/static
-#   3. docker build Dockerfile.frontend (runtime-only node:22-alpine image)
+#   3. docker build Dockerfile.frontend (runtime-only node:20-alpine image)
 #   4. docker push to ACR, then az containerapp create/update
 #
 # Runtime secrets (TURNSTILE_SECRET_KEY, POSTHOG_PERSONAL_API_KEY) are

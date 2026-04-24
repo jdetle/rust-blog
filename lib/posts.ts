@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-export type Authorship = "human" | "ai";
+export type Authorship = "human" | "ai" | "draft";
 
 export interface Post {
 	kind: "single";

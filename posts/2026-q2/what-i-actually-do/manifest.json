@@ -5,7 +5,7 @@
 	"defaultVersion": "human",
 	"versions": ["human", "ai"],
 	"authorship": {
-		"human": "human",
+		"human": "draft",
 		"ai": "ai"
 	},
 	"heroImage": {
