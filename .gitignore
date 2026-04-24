@@ -49,3 +49,6 @@ tsconfig.tsbuildinfo
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+# Literal "~" directory at repo root (bad path expansion / tooling accident — never commit)
+/~/
