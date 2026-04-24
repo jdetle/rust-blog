@@ -19,6 +19,10 @@
 #
 # Optional fallback GitHub secrets (used when KV secret is absent):
 #   TURNSTILE_SECRET_KEY, POSTHOG_PERSONAL_API_KEY
+#
+# Sentry (Build Next.js step — next.config source maps):
+#   NEXT_PUBLIC_SENTRY_DSN — DSN for project rust-blog-nextjs (baked at build)
+#   SENTRY_AUTH_TOKEN — create at https://sentry.io/settings/auth-tokens/ (releases + source maps)
 
 name: deploy-frontend-azure
 
@@ -35,6 +39,9 @@ on:
       - "package.json"
       - "bun.lock"
       - "next.config.ts"
+      - "instrumentation.ts"
+      - "instrumentation-client.ts"
+      - "sentry.*.ts"
       - "tsconfig.json"
       - "tailwind.config.*"
       - "Dockerfile.frontend"
@@ -129,6 +136,11 @@ jobs:
 
       - name: Build Next.js
         env:
+          CI: "true"
+          SENTRY_ORG: "oak-heights-llc"
+          SENTRY_PROJECT: "rust-blog-nextjs"
+          NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           NEXT_PUBLIC_POSTHOG_KEY: "phc_sOf9IR0gRco70ZVGBwuP8ZNTlbJkw1on9FNeVV1xNtp"
           NEXT_PUBLIC_POSTHOG_HOST: "https://us.posthog.com"
           NEXT_PUBLIC_GA4_ID: "G-S217MS7QDZ"

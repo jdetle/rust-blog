@@ -1,3 +1,4 @@
+import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
@@ -29,4 +30,10 @@ const nextConfig: NextConfig = {
 	skipTrailingSlashRedirect: true,
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+	org: "oak-heights-llc",
+	project: "rust-blog-nextjs",
+	silent: !process.env.CI,
+	authToken: process.env.SENTRY_AUTH_TOKEN,
+	widenClientFileUpload: true,
+});
