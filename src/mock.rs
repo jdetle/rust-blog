@@ -50,7 +50,9 @@ impl MockPersona {
         Self {
             fingerprint: "fp_goo3d4e5f6a7b8".to_string(),
             device_id: 10010003,
-            user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0".to_string(),
+            user_agent:
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0"
+                    .to_string(),
             referrer: "https://www.google.com/".to_string(),
             page_sequence: vec!["/posts/aws-solutions-architect-prep", "/posts", "/"],
             event_types: vec!["pageview", "$pageview", "pageview"],
@@ -129,11 +131,7 @@ pub fn generate_incoming_events(
     let start = now - Duration::days(days_back);
     let mut events = Vec::new();
 
-    for (path, event_type) in persona
-        .page_sequence
-        .iter()
-        .zip(persona.event_types.iter())
-    {
+    for (path, event_type) in persona.page_sequence.iter().zip(persona.event_types.iter()) {
         let offset_secs = rng.gen_range(0..(days_back * 86400));
         let _event_time = start + Duration::seconds(offset_secs);
         let page_url = format!("{}{}", SITE_ORIGIN, path);
@@ -161,11 +159,7 @@ pub fn generate_web_analytics_drain_events(
     let start = now - Duration::days(days_back);
     let mut events = Vec::new();
 
-    for (path, event_type) in persona
-        .page_sequence
-        .iter()
-        .zip(persona.event_types.iter())
-    {
+    for (path, event_type) in persona.page_sequence.iter().zip(persona.event_types.iter()) {
         let offset_secs = rng.gen_range(0..(days_back * 86400));
         let event_time = start + Duration::seconds(offset_secs);
         let timestamp_ms = event_time.timestamp_millis();
@@ -189,10 +183,7 @@ pub fn generate_web_analytics_drain_events(
 }
 
 /// Generates IncomingEvents for all personas.
-pub fn generate_all_incoming_events(
-    days_back: i64,
-    rng: &mut impl Rng,
-) -> Vec<IncomingEvent> {
+pub fn generate_all_incoming_events(days_back: i64, rng: &mut impl Rng) -> Vec<IncomingEvent> {
     let mut all = Vec::new();
     for persona in MockPersona::all() {
         all.extend(generate_incoming_events(&persona, days_back, rng));
@@ -223,7 +214,8 @@ mod tests {
     #[test]
     fn persona_has_unique_fingerprint_and_device_id() {
         let personas = MockPersona::all();
-        let fps: std::collections::HashSet<_> = personas.iter().map(|p| p.fingerprint.as_str()).collect();
+        let fps: std::collections::HashSet<_> =
+            personas.iter().map(|p| p.fingerprint.as_str()).collect();
         let devs: std::collections::HashSet<_> = personas.iter().map(|p| p.device_id).collect();
         assert_eq!(fps.len(), personas.len());
         assert_eq!(devs.len(), personas.len());

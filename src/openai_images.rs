@@ -24,8 +24,7 @@ impl OpenAiImagesClient {
         Self {
             api_key,
             http,
-            base_url: base_url
-                .unwrap_or_else(|| OPENAI_IMAGES_URL.to_string()),
+            base_url: base_url.unwrap_or_else(|| OPENAI_IMAGES_URL.to_string()),
         }
     }
 
@@ -38,7 +37,9 @@ impl OpenAiImagesClient {
         }
     }
 
-    fn parse_b64_response(json: serde_json::Value) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    fn parse_b64_response(
+        json: serde_json::Value,
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
         let b64 = json
             .get("data")
             .and_then(|d| d.as_array())

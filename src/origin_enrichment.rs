@@ -14,7 +14,8 @@ use std::time::Duration;
 use tokio::time::timeout;
 
 const ENRICH_BUDGET: Duration = Duration::from_secs(2);
-const USER_AGENT: &str = "rust-blog-avatar-enrichment/1.0 (privacy-education blog; +https://github.com)";
+const USER_AGENT: &str =
+    "rust-blog-avatar-enrichment/1.0 (privacy-education blog; +https://github.com)";
 
 static HTTP: OnceLock<Client> = OnceLock::new();
 
@@ -58,7 +59,8 @@ pub fn sanitize_wikipedia_title(city: &str, region: Option<&str>) -> Option<Stri
         let r = r.trim();
         if !r.is_empty()
             && r.len() <= 80
-            && r.chars().all(|c| c.is_ascii_alphanumeric() || c == ' ' || c == '-')
+            && r.chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == ' ' || c == '-')
         {
             format!("{city}, {r}")
         } else {
@@ -91,7 +93,9 @@ impl OriginEnrichment {
     pub fn to_prompt_block(&self) -> String {
         let mut lines: Vec<String> = Vec::new();
         if let Some(t) = self.weather_temperature_c {
-            lines.push(format!("- Approximate local conditions (Open-Meteo): {t:.1}°C"));
+            lines.push(format!(
+                "- Approximate local conditions (Open-Meteo): {t:.1}°C"
+            ));
         }
         if let Some(code) = self.weather_code {
             if let Some(desc) = wmo_weather_label(code) {
@@ -122,7 +126,9 @@ impl OriginEnrichment {
             lines.push(format!("- Official languages (public list): {l}"));
         }
         if let Some(ref e) = self.employment_summary {
-            lines.push(format!("- Employment sector mix (World Bank modeled ILO, country level): {e}"));
+            lines.push(format!(
+                "- Employment sector mix (World Bank modeled ILO, country level): {e}"
+            ));
         }
         if let Some(ref p) = self.place_photo_context {
             let short = if p.len() > 600 {
@@ -140,7 +146,9 @@ impl OriginEnrichment {
             } else {
                 e.clone()
             };
-            lines.push(format!("- Place context (Wikipedia summary, factual): {short}"));
+            lines.push(format!(
+                "- Place context (Wikipedia summary, factual): {short}"
+            ));
         }
         if lines.is_empty() {
             return "(no public origin enrichment available)".to_string();
@@ -172,9 +180,21 @@ pub fn composition_axes(
     date_utc.hash(&mut h);
     let seed = h.finish();
 
-    let rhythms = ["radial or spiralling energy", "horizontal strata and bands", "layered depth and foreground overlap"];
-    let temps = ["lean warm amber and gold accents", "lean cool teal and slate accents", "balanced earth neutrals with one vivid accent"];
-    let structures = ["open centre with dense edges", "grid-like modular patches", "diagonal motion across the frame"];
+    let rhythms = [
+        "radial or spiralling energy",
+        "horizontal strata and bands",
+        "layered depth and foreground overlap",
+    ];
+    let temps = [
+        "lean warm amber and gold accents",
+        "lean cool teal and slate accents",
+        "balanced earth neutrals with one vivid accent",
+    ];
+    let structures = [
+        "open centre with dense edges",
+        "grid-like modular patches",
+        "diagonal motion across the frame",
+    ];
 
     let r = rhythms[(seed as usize) % rhythms.len()];
     let t = temps[((seed >> 8) as usize) % temps.len()];
@@ -270,18 +290,13 @@ async fn fetch_rest_country(alpha2: &str) -> Option<CountryInfo> {
         .as_ref()
         .and_then(|n| n.common.clone())
         .or_else(|| Some(alpha2.to_string()))?;
-    let capital = first
-        .capital
-        .as_ref()
-        .and_then(|c| c.first().cloned());
+    let capital = first.capital.as_ref().and_then(|c| c.first().cloned());
     let region = first.region.clone();
     let subregion = first.subregion.clone();
-    let langs = first.languages.as_ref().map(|m| {
-        m.values()
-            .cloned()
-            .collect::<Vec<_>>()
-            .join(", ")
-    });
+    let langs = first
+        .languages
+        .as_ref()
+        .map(|m| m.values().cloned().collect::<Vec<_>>().join(", "));
     let cca3 = first
         .cca3
         .as_ref()
@@ -437,7 +452,10 @@ async fn fetch_google_image_search_context(query: &str) -> Option<String> {
     if parts.is_empty() {
         return None;
     }
-    Some(format!("Google image search (top results): {}", parts.join(" | ")))
+    Some(format!(
+        "Google image search (top results): {}",
+        parts.join(" | ")
+    ))
 }
 
 #[derive(Deserialize)]
@@ -534,10 +552,7 @@ fn parse_lat_lon(ctx: &UserContext) -> Option<(f64, f64)> {
 /// Parallel public API enrichment for avatar prompts. Fails soft — returns partial or empty.
 pub async fn enrich_for_avatar(ctx: &UserContext) -> OriginEnrichment {
     let lat_lon = parse_lat_lon(ctx);
-    let alpha = ctx
-        .country
-        .as_deref()
-        .and_then(sanitize_country_code);
+    let alpha = ctx.country.as_deref().and_then(sanitize_country_code);
 
     let weather_f = async {
         if let Some((lat, lon)) = lat_lon {
@@ -557,9 +572,9 @@ pub async fn enrich_for_avatar(ctx: &UserContext) -> OriginEnrichment {
 
     // Only resolve Wikipedia when we have lat/lon — avoids ambiguous city names and keeps tests offline without coordinates.
     let wiki_title = if lat_lon.is_some() {
-        ctx.city.as_deref().and_then(|c| {
-            sanitize_wikipedia_title(c, ctx.region.as_deref())
-        })
+        ctx.city
+            .as_deref()
+            .and_then(|c| sanitize_wikipedia_title(c, ctx.region.as_deref()))
     } else {
         None
     };
@@ -638,7 +653,10 @@ mod tests {
             sanitize_wikipedia_title("Oslo", Some("Oslo")),
             Some("Oslo, Oslo".to_string())
         );
-        assert_eq!(sanitize_wikipedia_title("Austin", Some("Texas")), Some("Austin, Texas".to_string()));
+        assert_eq!(
+            sanitize_wikipedia_title("Austin", Some("Texas")),
+            Some("Austin, Texas".to_string())
+        );
     }
 
     #[test]

@@ -34,8 +34,8 @@ async fn second_visit_returns_summary() {
         return;
     }
 
-    let contact_point =
-        std::env::var("COSMOS_CONTACT_POINT").unwrap_or_else(|_| "jd-analytics.cassandra.cosmos.azure.com".into());
+    let contact_point = std::env::var("COSMOS_CONTACT_POINT")
+        .unwrap_or_else(|_| "jd-analytics.cassandra.cosmos.azure.com".into());
     let username = std::env::var("COSMOS_USERNAME").unwrap_or_else(|_| "jd-analytics".into());
     let password = std::env::var("COSMOS_PASSWORD").expect("COSMOS_PASSWORD required");
 
@@ -77,7 +77,10 @@ async fn second_visit_returns_summary() {
         .expect("get profile");
 
     let p = profile.expect("profile should exist");
-    assert!(!p.llm_summary.is_empty(), "second visit should return a summary");
+    assert!(
+        !p.llm_summary.is_empty(),
+        "second visit should return a summary"
+    );
     assert!(
         p.llm_summary.contains("Tech-oriented") || p.llm_summary.contains("visitor"),
         "summary should describe the user; got: {}",

@@ -26,7 +26,12 @@ pub async fn ready() -> StatusCode {
 
 pub async fn info() -> Json<serde_json::Value> {
     let mut env: HashMap<String, String> = HashMap::new();
-    for key in ["APP_NAME", "ENVIRONMENT", "PRISM_INGEST_URL", "OTEL_SERVICE_NAME"] {
+    for key in [
+        "APP_NAME",
+        "ENVIRONMENT",
+        "PRISM_INGEST_URL",
+        "OTEL_SERVICE_NAME",
+    ] {
         if let Ok(v) = std::env::var(key) {
             env.insert(key.to_string(), v);
         }

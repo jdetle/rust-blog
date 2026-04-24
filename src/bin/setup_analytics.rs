@@ -66,7 +66,11 @@ async fn setup_posthog(password: &str) -> String {
     });
 
     println!("Attempting PostHog signup via API...");
-    let res = client.post(POSTHOG_SIGNUP_URL).json(&signup_body).send().await;
+    let res = client
+        .post(POSTHOG_SIGNUP_URL)
+        .json(&signup_body)
+        .send()
+        .await;
 
     let api_key: Option<String> = match res {
         Ok(resp) if resp.status().is_success() => {
@@ -173,27 +177,44 @@ async fn setup_cosmos_db(resource_group: &str) -> CosmosCredentials {
     ensure_az_cli();
 
     run_az(&[
-        "group", "create",
-        "--name", resource_group,
-        "--location", "eastus",
+        "group",
+        "create",
+        "--name",
+        resource_group,
+        "--location",
+        "eastus",
     ]);
 
     println!("  Creating Cosmos DB account (this may take a few minutes)...");
     run_az(&[
-        "cosmosdb", "create",
-        "--name", COSMOS_ACCOUNT,
-        "--resource-group", resource_group,
-        "--capabilities", "EnableCassandra",
-        "--default-consistency-level", "Eventual",
-        "--locations", "regionName=eastus", "failoverPriority=0", "isZoneRedundant=False",
+        "cosmosdb",
+        "create",
+        "--name",
+        COSMOS_ACCOUNT,
+        "--resource-group",
+        resource_group,
+        "--capabilities",
+        "EnableCassandra",
+        "--default-consistency-level",
+        "Eventual",
+        "--locations",
+        "regionName=eastus",
+        "failoverPriority=0",
+        "isZoneRedundant=False",
     ]);
 
     println!("  Creating keyspace '{COSMOS_KEYSPACE}'...");
     run_az(&[
-        "cosmosdb", "cassandra", "keyspace", "create",
-        "--account-name", COSMOS_ACCOUNT,
-        "--resource-group", resource_group,
-        "--name", COSMOS_KEYSPACE,
+        "cosmosdb",
+        "cassandra",
+        "keyspace",
+        "create",
+        "--account-name",
+        COSMOS_ACCOUNT,
+        "--resource-group",
+        resource_group,
+        "--name",
+        COSMOS_KEYSPACE,
     ]);
 
     println!("  Creating events table...");
@@ -223,13 +244,22 @@ async fn setup_cosmos_db(resource_group: &str) -> CosmosCredentials {
 
     let schema_str = serde_json::to_string(&schema).unwrap();
     run_az(&[
-        "cosmosdb", "cassandra", "table", "create",
-        "--account-name", COSMOS_ACCOUNT,
-        "--resource-group", resource_group,
-        "--keyspace-name", COSMOS_KEYSPACE,
-        "--name", "events",
-        "--schema", &schema_str,
-        "--max-throughput", "4000",
+        "cosmosdb",
+        "cassandra",
+        "table",
+        "create",
+        "--account-name",
+        COSMOS_ACCOUNT,
+        "--resource-group",
+        resource_group,
+        "--keyspace-name",
+        COSMOS_KEYSPACE,
+        "--name",
+        "events",
+        "--schema",
+        &schema_str,
+        "--max-throughput",
+        "4000",
     ]);
 
     println!("  Creating user_profiles table...");
@@ -247,13 +277,22 @@ async fn setup_cosmos_db(resource_group: &str) -> CosmosCredentials {
     });
     let profiles_schema_str = serde_json::to_string(&profiles_schema).unwrap();
     run_az(&[
-        "cosmosdb", "cassandra", "table", "create",
-        "--account-name", COSMOS_ACCOUNT,
-        "--resource-group", resource_group,
-        "--keyspace-name", COSMOS_KEYSPACE,
-        "--name", "user_profiles",
-        "--schema", &profiles_schema_str,
-        "--max-throughput", "400",
+        "cosmosdb",
+        "cassandra",
+        "table",
+        "create",
+        "--account-name",
+        COSMOS_ACCOUNT,
+        "--resource-group",
+        resource_group,
+        "--keyspace-name",
+        COSMOS_KEYSPACE,
+        "--name",
+        "user_profiles",
+        "--schema",
+        &profiles_schema_str,
+        "--max-throughput",
+        "400",
     ]);
 
     println!("  Retrieving connection info...");
@@ -262,17 +301,22 @@ async fn setup_cosmos_db(resource_group: &str) -> CosmosCredentials {
 
     let output = Command::new("az")
         .args([
-            "cosmosdb", "keys", "list",
-            "--name", COSMOS_ACCOUNT,
-            "--resource-group", resource_group,
-            "--type", "connection-strings",
-            "--output", "json",
+            "cosmosdb",
+            "keys",
+            "list",
+            "--name",
+            COSMOS_ACCOUNT,
+            "--resource-group",
+            resource_group,
+            "--type",
+            "connection-strings",
+            "--output",
+            "json",
         ])
         .output()
         .expect("failed to run az CLI");
 
-    let keys_json: serde_json::Value =
-        serde_json::from_slice(&output.stdout).unwrap_or_default();
+    let keys_json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap_or_default();
 
     let cosmos_password = keys_json
         .get("connectionStrings")

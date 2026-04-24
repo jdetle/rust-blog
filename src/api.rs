@@ -2,6 +2,12 @@
 
 use std::sync::{Arc, Mutex};
 
+use crate::analytics::{AnalyticsDb, AnalyticsEvent, IncomingEvent, ProfileStore, UserProfile};
+use crate::anthropic::AnthropicClient;
+use crate::avatar::{self, UserContext};
+use crate::forward::PostHogForwarder;
+use crate::openai_images::OpenAiImagesClient;
+use crate::web_analytics_drain::WebAnalyticsDrainPayload;
 use axum::{
     extract::{Query, State},
     http::{header, StatusCode},
@@ -9,14 +15,8 @@ use axum::{
     Json,
 };
 use chrono::Utc;
-use tokio::time::{Duration, timeout};
-use crate::analytics::{AnalyticsDb, AnalyticsEvent, IncomingEvent, ProfileStore, UserProfile};
-use crate::anthropic::AnthropicClient;
-use crate::avatar::{self, UserContext};
-use crate::forward::PostHogForwarder;
-use crate::openai_images::OpenAiImagesClient;
-use crate::web_analytics_drain::WebAnalyticsDrainPayload;
 use serde::Serialize;
+use tokio::time::{timeout, Duration};
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 
 /// Application state shared across all handlers.
@@ -282,7 +282,10 @@ pub async fn ingest_event(
         });
     }
 
-    (StatusCode::ACCEPTED, Json(serde_json::json!({"event_id": event.event_id.to_string()})))
+    (
+        StatusCode::ACCEPTED,
+        Json(serde_json::json!({"event_id": event.event_id.to_string()})),
+    )
         .into_response()
 }
 
@@ -504,10 +507,7 @@ pub async fn user_profile_generate_avatar(
                     tracing::warn!(error = %image_error, "composite image generation failed");
                 }
                 let (history_len, avatar_urls): (usize, Vec<String>) = match &prior {
-                    Ok(Some(p)) => (
-                        p.stored_portrait_count(),
-                        p.avatar_data_uris_newest_first(),
-                    ),
+                    Ok(Some(p)) => (p.stored_portrait_count(), p.avatar_data_uris_newest_first()),
                     _ => (0, vec![]),
                 };
                 return (
@@ -534,9 +534,12 @@ pub async fn user_profile_generate_avatar(
 
             match timeout(
                 PROFILE_STORE_TIMEOUT,
-                state
-                    .profile_store
-                    .upsert_persona_avatar(&storage_key, &today_utc, &result.persona, &png),
+                state.profile_store.upsert_persona_avatar(
+                    &storage_key,
+                    &today_utc,
+                    &result.persona,
+                    &png,
+                ),
             )
             .await
             {
@@ -643,7 +646,6 @@ pub async fn user_profile_observations(
     }
 }
 
-
 pub async fn web_analytics_drain(
     State(state): State<AppState>,
     Json(payload): Json<WebAnalyticsDrainPayload>,
@@ -659,7 +661,11 @@ pub async fn web_analytics_drain(
             stored += 1;
         }
     }
-    (StatusCode::ACCEPTED, Json(serde_json::json!({ "stored": stored }))).into_response()
+    (
+        StatusCode::ACCEPTED,
+        Json(serde_json::json!({ "stored": stored })),
+    )
+        .into_response()
 }
 
 pub fn cors_layer() -> CorsLayer {
