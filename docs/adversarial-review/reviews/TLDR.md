@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-04-23 sentry-nextjs](./2026-04-23-sentry-nextjs.md)
+  - decision: proceed; integrate @sentry/nextjs + gate example routes in production behind SENTRY_ENABLE_EXAMPLE_ROUTES
+  - risk: verify GitHub secrets for DSN + SENTRY_AUTH_TOKEN before relying on source maps in prod
+  - follow-up: [ ] author — confirm secrets + post-deploy error smoke; rotate any DSN leaked in a local working tree (never commit real DSN in instrumentation-client)
+
 - [2026-04-19 github-actions-cleanup](./2026-04-19-github-actions-cleanup.md)
   - decision: proceed; rename frontend deploy workflow to `deploy-frontend.yml`, remove preview `e2e-preview.yml` and doc references
   - risk: no automated PR preview smoke until a replacement workflow exists
