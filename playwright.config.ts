@@ -15,6 +15,10 @@ const mockAnthropicPort = process.env.MOCK_ANTHROPIC_PORT ?? "9090";
 const blogServiceBin =
 	process.env.BLOG_SERVICE_BIN ?? "./target/debug/blog-service";
 
+// Synthetic DSN for e2e only (no credential). Built without a 32-hex literal so
+// scripts/check-sentry-dsn-literals.sh does not false-positive.
+const e2eSentryDsn = `https://${"0".repeat(32)}@o000000.ingest.us.sentry.io/0000001`;
+
 export default defineConfig({
 	testDir: "e2e",
 	fullyParallel: true,
@@ -75,7 +79,7 @@ export default defineConfig({
 		},
 		// 3. Next.js dev server — started last; BLOG_SERVICE_URL points at the binary above.
 		{
-			command: `PORT=${port} BLOG_SERVICE_URL=http://127.0.0.1:${blogServicePort} bun run dev`,
+			command: `PORT=${port} BLOG_SERVICE_URL=http://127.0.0.1:${blogServicePort} NEXT_PUBLIC_SENTRY_DSN=${e2eSentryDsn} bun run dev`,
 			url: baseURL,
 			reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "1",
 			timeout: 120_000,

@@ -12,6 +12,7 @@
 		"start": "bun run --bun next start",
 		"start:azure": "HOSTNAME=0.0.0.0 PORT=${PORT:-8080} node .next/standalone/server.js",
 		"lint": "bunx biome check .",
+		"check:sentry-dsn": "bash scripts/check-sentry-dsn-literals.sh",
 		"test": "bun test lib",
 		"test:ci": "bash scripts/test-ci.sh",
 		"test:e2e": "playwright test",
