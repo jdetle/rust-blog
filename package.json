@@ -7,9 +7,9 @@
 		"node": "20.x"
 	},
 	"scripts": {
-		"dev": "bun run --bun next dev --turbopack",
-		"build": "bun run --bun next build",
-		"start": "bun run --bun next start",
+		"dev": "node ./node_modules/next/dist/bin/next dev --turbopack",
+		"build": "node ./node_modules/next/dist/bin/next build",
+		"start": "node ./node_modules/next/dist/bin/next start",
 		"start:azure": "HOSTNAME=0.0.0.0 PORT=${PORT:-8080} node .next/standalone/server.js",
 		"lint": "bunx biome check .",
 		"check:sentry-dsn": "bash scripts/check-sentry-dsn-literals.sh",
