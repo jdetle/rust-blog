@@ -39,8 +39,11 @@ require_cmd() {
 }
 
 read_env_var() {
-    local key="$1"
-    grep -E "^${key}=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d'=' -f2-
+	local key="$1"
+	local line
+	line=$(grep -E "^${key}=" "$ENV_FILE" 2>/dev/null | head -1) || true
+	[[ -z "$line" ]] && return 0
+	printf '%s' "${line#${key}=}"
 }
 
 # ---------------------------------------------------------------------------

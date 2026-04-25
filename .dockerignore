@@ -1,6 +1,10 @@
 target/
 .next/
 node_modules/
+_deploy/
+.cursor/
+# Literal directory name (not home) — was bloating ACR upload context
+~/
 .claude/
 .git/
 *.md

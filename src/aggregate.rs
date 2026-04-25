@@ -1,7 +1,7 @@
 use crate::aggregate_mapping::{clarity_row_to_event, posthog_raw_to_event};
 use crate::analytics::AnalyticsDb;
 use crate::event_sink::EventSink;
-use chrono::Utc;
+use chrono::{SecondsFormat, Utc};
 use reqwest::Client;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -170,14 +170,29 @@ impl Aggregator {
     }
 
     async fn pull_posthog(&self) {
-        let today = Utc::now().format("%Y-%m-%d").to_string();
+        // Ingest/capture uses the project key (phc_…). Listing events requires a personal API key
+        // (phx_…) with scope query:read — see https://posthog.com/docs/api/events
+        if self.posthog_api_key.starts_with("phc_") {
+            tracing::debug!(
+                "skipping PostHog events pull: project key cannot call Events API; set POSTHOG_PERSONAL_API_KEY"
+            );
+            return;
+        }
+
+        // PostHog expects ISO-8601 datetimes for `after`, not a bare date.
+        let after = Utc::now()
+            .date_naive()
+            .and_hms_opt(0, 0, 0)
+            .expect("midnight")
+            .and_utc()
+            .to_rfc3339_opts(SecondsFormat::Secs, true);
         let fallback_date = Utc::now().date_naive();
 
         let res = self
             .client
             .get(&self.posthog_events_url)
             .header("Authorization", format!("Bearer {}", self.posthog_api_key))
-            .query(&[("after", today.as_str()), ("limit", "100")])
+            .query(&[("after", after.as_str()), ("limit", "100")])
             .send()
             .await;
 

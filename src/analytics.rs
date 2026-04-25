@@ -480,10 +480,11 @@ impl AnalyticsDb {
 
         let limit = limit.min(100);
 
-        // Secondary index on session_id enables this query. Without it, use ALLOW FILTERING (slow).
+        // Secondary index on session_id (see migrations/001_add_session_id_index.cql). Avoid ALLOW FILTERING:
+        // Azure Cosmos DB for Cassandra often rejects or poorly serves those scans.
         let cql = "SELECT site_id, event_date, event_time, event_id, event_type, source, \
                    page_url, user_agent, referrer, session_id, properties \
-                   FROM analytics.events WHERE session_id = ? LIMIT ? ALLOW FILTERING";
+                   FROM analytics.events WHERE session_id = ? LIMIT ?";
 
         let prepared = self.session.prepare(cql).await?;
         let result = self
