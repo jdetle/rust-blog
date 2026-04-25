@@ -1,6 +1,7 @@
 target/
 .next/
 node_modules/
+.claude/
 .git/
 *.md
 content/

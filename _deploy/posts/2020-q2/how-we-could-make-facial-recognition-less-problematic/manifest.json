@@ -1,0 +1,17 @@
+{
+	"title": "How We Could Make Facial Recognition Less Problematic",
+	"author": "John Detlefs",
+	"date": "June 18, 2020",
+	"draft": true,
+	"defaultVersion": "ai",
+	"versions": ["human", "ai"],
+	"authorship": {
+		"human": "human",
+		"ai": "ai"
+	},
+	"heroImage": {
+		"url": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=1400&q=80&auto=format&fit=crop",
+		"alt": "Face portrait",
+		"credit": "Photo by Joseph Gonzalez on Unsplash"
+	}
+}

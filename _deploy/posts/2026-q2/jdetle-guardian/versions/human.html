@@ -1,0 +1,40 @@
+            <p><a href="https://github.com/jdetle/guardian">Guardian</a> is a Rust daemon that measures host resource pressure on developer machines running AI coding agents, and injects that measurement into the agent&rsquo;s context so the agent stops issuing requests that will fail for reasons the model cannot see.</p>
+
+            <p>The motivating observation is straightforward: a coding agent on a 16&nbsp;GB laptop is not the same system as a coding agent on a 96&nbsp;GB workstation, and the model cannot tell which one it is running on. When the host is under memory pressure, completions time out, file reads block, and the IDE stutters. The agent interprets these as transient failures and retries, which makes the pressure worse. A well-behaved agent would slow down. Nothing in the model or the editor currently tells it to.</p>
+
+            <h2>What it does</h2>
+
+            <p><code>guardiand</code> samples a small set of host signals on a five-second interval:</p>
+
+            <ul>
+              <li>CPU pressure and thermal state (via macOS <code>sysctl</code> and IOKit power metrics)</li>
+              <li>Resident and swap memory, per-process for Cursor and Codex</li>
+              <li>Disk space and inode pressure on <code>$HOME</code></li>
+              <li>Docker Desktop footprint, when present</li>
+            </ul>
+
+            <p>It writes the result atomically to <code>~/.guardian/state.json</code> with a monotonic version counter. A CLI (<code>guardian</code>) reads the same state for status, manual snooze, and policy overrides. Editor hooks &mdash; <code>session-start</code>, <code>before-submit-prompt</code>, <code>before-read-file</code>, <code>pre-tool-use</code>, <code>subagent-start</code> &mdash; read <code>state.json</code> and inject a compact pressure summary into the agent&rsquo;s context. The agent now has ground truth about the host.</p>
+
+            <h2>Policy gates</h2>
+
+            <p>An optional gate layer reads <code>hook_policy.json</code> and blocks prompt submission when a configured threshold is exceeded. The default thresholds are conservative: 80% memory, 90% swap, under 5&nbsp;GB free disk. Every gate has an escape hatch: <code>guardian proceed-once</code>, <code>guardian snooze &lt;duration&gt;</code>, and <code>guardian zeno</code> (halve the applicable threshold for the next prompt, iteratively). A block is never a brick; the operator is always one command from override.</p>
+
+            <h2>Architecture</h2>
+
+            <p>The design choice that matters: the daemon owns state, and everything else is a reader. The CLI is a reader. The hooks are readers. There is no IPC, no server socket, no background coordination. Atomic JSON writes plus a version counter give us a consistent read model with zero operational overhead. On crash the daemon restarts and the next sample wins &mdash; there is no state worth reconciling, because any stale read is at most five seconds old.</p>
+
+            <p>Hooks are synchronous scripts invoked by the editor. They read <code>state.json</code>, format the pressure summary, and exit. The target latency budget is under 50&nbsp;ms at p99 on a cold read. A disk-bounded read of a ~2&nbsp;KB file sits well within that budget; caching would add failure modes without meaningful latency gain.</p>
+
+            <h2>Why Rust</h2>
+
+            <p>The daemon runs continuously on developer machines. Footprint and predictability matter. The Rust implementation holds under 15&nbsp;MB RSS at steady state and has no GC pauses. An earlier Node prototype drifted to 80&ndash;120&nbsp;MB and introduced pauses that correlated with the same pressure events the daemon exists to measure &mdash; an untenable feedback loop.</p>
+
+            <h2>What ships</h2>
+
+            <p>The repository contains the daemon, the CLI, Cursor and Codex hook scripts, a default <code>config.toml</code> with documented thresholds, a deferred-work queue for prompts blocked by gates (JSONL plus CLI), and a Dockerized stress-test harness so contributors can verify gate behaviour without saturating their own machines. A SwiftUI menu-bar app is optional and reads the same state file.</p>
+
+            <p>Source: <a href="https://github.com/jdetle/guardian">github.com/jdetle/guardian</a>.</p>
+
+            <h2>Where it fits</h2>
+
+            <p>Guardian is useful when AI-assisted development is mandated across a fleet of standard-issue laptops. A fleet does not run on matched hardware in practice: engineers are on two-year-old MacBook Airs, brand-new MBPs, and everything in between. Mandating agents without measuring host pressure converts the fleet into a stress test. Guardian replaces &ldquo;the IDE is slow today&rdquo; with a legible signal and a policy that keeps prompts from piling up on a box that cannot serve them.</p>

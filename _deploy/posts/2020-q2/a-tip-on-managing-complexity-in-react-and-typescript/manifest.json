@@ -1,0 +1,16 @@
+{
+	"title": "A Tip On Managing Complexity In React and Typescript",
+	"author": "John Detlefs",
+	"date": "April 12, 2020",
+	"defaultVersion": "human",
+	"versions": ["human", "ai"],
+	"authorship": {
+		"human": "human",
+		"ai": "ai"
+	},
+	"heroImage": {
+		"url": "https://images.unsplash.com/photo-1555949963-aa79dcee981c?w=1400&q=80&auto=format&fit=crop",
+		"alt": "Tangled colorful wires and cables",
+		"credit": "Photo by John Barkiple on Unsplash"
+	}
+}

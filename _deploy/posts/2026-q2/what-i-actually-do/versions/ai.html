@@ -1,0 +1,37 @@
+            <h2>Building Reliable AI Systems: A Contractor&apos;s Perspective</h2>
+
+            <p>As artificial intelligence continues to reshape the software development landscape, organizations face an increasingly complex challenge: how to move beyond AI demos and proofs of concept toward production-ready systems that deliver consistent, reliable results. As an AI engineering contractor, I&apos;ve spent the past year developing a comprehensive framework for building the operational infrastructure that makes agentic systems trustworthy at scale.</p>
+
+            <h3>The Core Challenge: From Capability to Reliability</h3>
+
+            <p>It&apos;s worth noting that most teams today have some exposure to AI-assisted development. The challenge isn&apos;t access to capable models — those are increasingly commoditized. The real challenge is building the institutional knowledge, review processes, and orchestration infrastructure that transforms AI capabilities into reliable, production-grade systems. This is where specialized expertise becomes genuinely valuable.</p>
+
+            <h3>Rules-as-Memory: Encoding Institutional Knowledge</h3>
+
+            <p>One of the most impactful approaches I&apos;ve developed is what I call &ldquo;rules-as-memory&rdquo; — a systematic methodology for converting engineering failures into persistent, queryable knowledge that AI agents can access across sessions. When an agent makes a mistake, rather than treating it as an isolated incident, we encode the failure pattern, root cause, and correct solution into a structured rule that becomes part of the agent&apos;s operational context.</p>
+
+            <p>To be fair, this approach requires upfront investment. Building and maintaining a comprehensive rules corpus — our current implementation includes approximately ninety rules across multiple domains — takes time and discipline. However, the returns are significant: agents operating within this system dramatically reduce repeated failure rates, and the rules corpus itself becomes a form of institutional memory that persists regardless of team composition changes.</p>
+
+            <h3>Parallel Orchestration: Scaling Agent Throughput</h3>
+
+            <p>Another key component of a robust agentic engineering practice is the ability to run multiple agents simultaneously without introducing conflicts or inconsistencies. Through the use of git worktrees and carefully designed branch management conventions, it&apos;s possible to maintain separate working environments for each agent session — complete with isolated development servers, database connections, and file system state.</p>
+
+            <p>This approach enables significantly higher throughput than sequential agent execution, while the structured review process ensures that the increased velocity doesn&apos;t come at the cost of quality. Each agent&apos;s output is reviewed against the established rules corpus before integration, creating a natural quality gate that scales with team size.</p>
+
+            <h3>Adversarial Review: Catching Failures Before Production</h3>
+
+            <p>Perhaps the most important component of a mature agentic engineering practice is a structured review process that actively challenges AI-generated outputs before they reach production. The adversarial review framework I&apos;ve developed uses multiple specialized personas — one focused on identifying security vulnerabilities, performance issues, and correctness problems, another providing contextual defense of the implementation decisions, and a synthesizing perspective that balances both viewpoints.</p>
+
+            <p>This multi-perspective review process has proven effective at catching issues that might otherwise slip through: security vulnerabilities in HTTP request handling, missing authentication checks on sensitive API routes, and subtle error handling bugs that would mask failures from monitoring systems. It&apos;s worth noting that this process isn&apos;t a replacement for human review — rather, it&apos;s a first-pass filter that ensures human reviewers can focus their attention on the genuinely complex decisions rather than obvious correctness issues.</p>
+
+            <h3>Hallucination Prevention: Building Trust in Production</h3>
+
+            <p>For organizations deploying AI agents that interact directly with users, hallucination prevention represents one of the most significant challenges. Better prompting strategies and stricter system prompts can help, but they don&apos;t provide the kind of systematic guarantees that production systems require. The grounding approach I&apos;ve developed addresses this through cryptographic verification: each agent response is HMAC-fingerprinted and tagged with explicit source citations, enabling downstream verification that presented information actually comes from authoritative data sources.</p>
+
+            <p>This approach does introduce some latency overhead, but for use cases where accuracy is critical — particularly those involving factual claims to end users — the trade-off is clearly justified. Organizations that have deployed this grounding layer report significantly improved confidence in their agent outputs and reduced incident rates related to factual inaccuracies.</p>
+
+            <h3>Engagement Models</h3>
+
+            <p>I offer three primary engagement structures, each designed to meet teams at their current stage of agentic engineering maturity. Advisory engagements provide strategic guidance and architectural review for teams with existing implementations. Pair-build engagements deliver hands-on collaboration to ship production-ready features while building team capability. Install-the-system engagements provide a comprehensive, fixed-scope implementation of the full agentic engineering infrastructure — including worktrees, rules corpus, review pipelines, and team training.</p>
+
+            <p>Hopefully this overview makes clear what distinguishes serious agentic engineering practice from ad-hoc AI usage. If your organization is ready to build the infrastructure that makes AI agents genuinely reliable, I&apos;d welcome the opportunity to discuss how we might work together.</p>

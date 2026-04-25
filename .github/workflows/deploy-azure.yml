@@ -69,6 +69,7 @@ jobs:
           COSMOS_PASSWORD_SECRET: ${{ secrets.COSMOS_PASSWORD }}
           OPENAI_API_KEY_SECRET: ${{ secrets.OPENAI_API_KEY }}
           POSTHOG_API_KEY_SECRET: ${{ secrets.POSTHOG_API_KEY }}
+          POSTHOG_PERSONAL_API_KEY_SECRET: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
         run: |
           kv_get() {
             local secret_name="$1"
@@ -104,6 +105,16 @@ jobs:
           [ -n "$kv_val" ] && POSTHOG_API_KEY="$kv_val"
           echo "::add-mask::${POSTHOG_API_KEY}"
           echo "POSTHOG_API_KEY=${POSTHOG_API_KEY}" >> "$GITHUB_ENV"
+
+          POSTHOG_PERSONAL_API_KEY="${POSTHOG_PERSONAL_API_KEY_SECRET}"
+          kv_val="$(kv_get "posthog-api-key")"
+          [ -n "$kv_val" ] && POSTHOG_PERSONAL_API_KEY="$kv_val"
+          if [ -n "$POSTHOG_PERSONAL_API_KEY" ]; then
+            echo "::add-mask::${POSTHOG_PERSONAL_API_KEY}"
+            echo "POSTHOG_PERSONAL_API_KEY=${POSTHOG_PERSONAL_API_KEY}" >> "$GITHUB_ENV"
+          fi
+
+          echo "POSTHOG_PROJECT_ID=346322" >> "$GITHUB_ENV"
 
           RUST_SENTRY_DSN="$(kv_get "rust-sentry-dsn")"
           if [ -n "$RUST_SENTRY_DSN" ]; then
@@ -212,6 +223,11 @@ jobs:
             COMMON_SECRETS+=("posthog-api-key=${POSTHOG_API_KEY}")
             COMMON_ENV+=("POSTHOG_API_KEY=secretref:posthog-api-key")
           fi
+          if [ -n "$POSTHOG_PERSONAL_API_KEY" ]; then
+            COMMON_SECRETS+=("posthog-personal-api-key=${POSTHOG_PERSONAL_API_KEY}")
+            COMMON_ENV+=("POSTHOG_PERSONAL_API_KEY=secretref:posthog-personal-api-key")
+          fi
+          COMMON_ENV+=("POSTHOG_PROJECT_ID=${POSTHOG_PROJECT_ID}")
           if [ -n "$RUST_SENTRY_DSN" ]; then
             COMMON_SECRETS+=("rust-sentry-dsn=${RUST_SENTRY_DSN}")
             COMMON_ENV+=("SENTRY_DSN=secretref:rust-sentry-dsn")

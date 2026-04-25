@@ -1,0 +1,63 @@
+{
+	"name": "rust-blog",
+	"version": "0.1.0",
+	"private": true,
+	"packageManager": "bun@1.3.10",
+	"engines": {
+		"node": "20.x"
+	},
+	"scripts": {
+		"dev": "node ./node_modules/next/dist/bin/next dev --turbopack",
+		"build": "node ./node_modules/next/dist/bin/next build",
+		"start": "node ./node_modules/next/dist/bin/next start",
+		"start:azure": "HOSTNAME=0.0.0.0 PORT=${PORT:-8080} node .next/standalone/server.js",
+		"lint": "bunx biome check .",
+		"check:sentry-dsn": "bash scripts/check-sentry-dsn-literals.sh",
+		"test": "bun test lib",
+		"test:ci": "bash scripts/test-ci.sh",
+		"test:e2e": "playwright test",
+		"test:e2e:install": "playwright install chromium",
+		"test:e2e:posthog": "playwright test e2e/posthog.spec.ts",
+		"test:e2e:preview": "bun run scripts/e2e-preview.ts",
+		"verify:posthog-ingestion": "bun run scripts/verify-posthog-ingestion.ts",
+		"verify:analytics-read-apis": "bun run scripts/verify-analytics-read-apis.ts",
+		"smoke:visual": "bun run scripts/visual-smoke-test.ts",
+		"visual-regression": "bun run scripts/visual-regression-check.ts",
+		"analytics-ingest": "cargo run --bin analytics-ingestion",
+		"seed:mock-analytics": "cargo run --bin seed-mock-analytics",
+		"ingest:ga4": "bun run scripts/ingest-env/ga4.ts",
+		"ingest:gtm": "bun run scripts/ingest-env/gtm.ts",
+		"ingest:clarity": "bun run scripts/ingest-env/clarity.ts",
+		"ingest:posthog": "bun run scripts/ingest-env/posthog.ts",
+		"ingest:plausible": "bun run scripts/ingest-env/plausible.ts",
+		"ingest:plausible-script": "bun run scripts/ingest-env/plausible-script.ts",
+		"ingest:meta-pixel": "bun run scripts/ingest-env/meta-pixel.ts",
+		"ingest:analytics-api": "bun run scripts/ingest-env/analytics-api.ts",
+		"ingest:rust-api": "bun run scripts/ingest-env/rust-api.ts",
+		"ingest:google-bigquery": "bun run scripts/ingest-env/google-bigquery.ts",
+		"ingest:meta-token": "bun run scripts/ingest-env/meta-token.ts"
+	},
+	"dependencies": {
+		"@next/third-parties": "^16.1.7",
+		"@sentry/nextjs": "^10.50.0",
+		"motion": "^12.38.0",
+		"next": "^15.3.0",
+		"nuqs": "^2.8.9",
+		"posthog-js": "^1.360.2",
+		"react": "^19.1.0",
+		"react-dom": "^19.1.0",
+		"recharts": "^2.15.0"
+	},
+	"overrides": {
+		"react-is": "^19.0.0"
+	},
+	"devDependencies": {
+		"@anthropic-ai/sdk": "^0.80.0",
+		"@playwright/test": "^1.58.2",
+		"@types/node": "^22.0.0",
+		"@types/react": "^19.1.0",
+		"@types/react-dom": "^19.1.0",
+		"playwright": "^1.58.2",
+		"typescript": "^5.8.0"
+	}
+}

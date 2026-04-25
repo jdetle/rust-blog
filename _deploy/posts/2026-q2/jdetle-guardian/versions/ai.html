@@ -1,0 +1,25 @@
+            <p><a href="https://github.com/jdetle/guardian">Guardian</a> at <strong>github.com/jdetle/guardian</strong> is a macOS stack for <strong>AI coding agents</strong> (Cursor and OpenAI Codex today): sampling, hooks, and policy so the host’s real load shows up in every session.</p>
+
+            <p><strong>Status — AI draft:</strong> I have not done my own pass on tone, claims, or emphasis yet. Treat this as generated scaffolding; I’ll revise under <strong>Human</strong> when I’ve actually read it with coffee.</p>
+
+            <h2>What it actually is</h2>
+
+            <p><a href="https://github.com/jdetle/guardian">Guardian</a> is an <strong>agent resource monitor</strong>: a Rust daemon (<code>guardiand</code>) samples CPU, memory, swap, thermal state, Docker load, Cursor process RSS, and disk pressure on your home volume, then writes atomic state under <code>~/.guardian/</code> (notably <code>state.json</code> and <code>hook_policy.json</code>). Editor hooks inject that reality into every session so the model isn’t flying blind when the host is already on fire. Optional <strong>prompt gates</strong> can block sending a prompt while pressure or Cursor memory is past policy — with explicit <strong>human-in-the-loop</strong> escape hatches (<code>proceed_once</code>, snooze, zeno), so “blocked” never means “bricked.”</p>
+
+            <p>That’s the product in one breath: <em>observable pressure + honest context for agents + daemon-side enforcement + optional gates with resume</em>, pitched at people running agents on <strong>real laptops</strong> (tight RAM, full disks, thermally sad CPUs), not infinite-cloud fantasy hardware.</p>
+
+            <h2>Why that’s worth something</h2>
+
+            <p>Cursor on an older MacBook or 8&nbsp;GB of RAM is not the same product as Cursor on a workstation with headroom. Agents still want parallel shells, subagents, Docker, indexers, and long chats. When the machine is already swapping, completions time out and the UI stutters — not because the model got dumber, but because the <strong>host</strong> ran out of air. Guardian makes “how hard are we pushing this machine?” <strong>legible</strong> to both you and the tool chain, instead of invisible until the fan sounds like a jet.</p>
+
+            <p>For a company, the pitch isn’t “install a cool daemon.” It’s: if you’re <strong>mandating AI-assisted development</strong> on a standard-issue fleet, you’re implicitly mandating load you don’t measure. Help-desk tickets, “my IDE froze,” and people learning to work around the official stack are all symptoms of the same gap. A shared pattern — pressure levels in hook output, optional gates so nobody floods prompts into a box that’s already critical, disk and fork guards, optional Docker throttling — is how you keep <strong>agents useful without turning every laptop into a stress test</strong>. That’s operational hygiene for agent rollout, not a nice-to-have.</p>
+
+            <h2>What ships in the repo (high level)</h2>
+
+            <p>The README lays it out in a table: <code>guardiand</code> for sampling and policy; a <code>guardian</code> CLI for snooze / once / zeno; Cursor hooks (session start, before submit prompt, before read file, pre-tool use, subagent start, …); optional Codex hooks; <code>config.toml</code> for thresholds and gates; a <strong>deferred work queue</strong> (JSONL + CLI) when prompts can’t run yet; an optional SwiftUI menu bar app; stress tests in Docker so validation doesn’t require melting your own machine.</p>
+
+            <p>None of that replaces your security team or your cloud posture — it’s about <strong>local</strong> honesty: what the machine is doing, what Cursor is holding in RAM, whether disk is about to make everything worse, and whether the next prompt is a good idea.</p>
+
+            <p>Open source names collide — “Guardian” appears in several repos. The value prop here is <strong>keeping agents and modest Macs from working against each other</strong>, with hooks and policy you can audit. Evaluation starts from <a href="https://github.com/jdetle/guardian">github.com/jdetle/guardian</a> and the install path in the README.</p>
+
+            <p class="post-template-note"><strong>AI draft:</strong> This entire version is machine-generated. I will replace or rewrite it after human review — facts, emphasis, and whether “big corps should mandate X” is even the right frame. Do not treat it as final author voice or a promise about anyone’s IT policy.</p>

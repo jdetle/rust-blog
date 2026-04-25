@@ -1,0 +1,39 @@
+            <p>The conventional framing &mdash; &ldquo;AI writes code faster&rdquo; &mdash; treats an LLM-backed agent as a typing-speed multiplier. That framing predicts productivity gains proportional to output volume, and the production data does not bear it out. Teams that run agents as pure throughput tools see short-horizon wins and long-horizon decay: regressions slip in, style drifts, context gets lost across sessions, and the review bottleneck becomes the limiting factor.</p>
+
+            <p>Agentic engineering treats the agent as a cognitive collaborator with a well-characterized set of failure modes &mdash; primarily context rot, tool-use errors, and overconfident generation &mdash; and builds the discipline around those failures. The discipline is not interesting in the abstract. It is interesting when measured against specific metrics: time-to-first-correct-patch on benchmarks like <a href="https://www.swebench.com/">SWE-bench</a>, regression rate per merged PR, and the ratio of reviewer time to agent-produced lines of code.</p>
+
+            <h2>What the agent is actually bad at</h2>
+
+            <p>Three failure modes dominate.</p>
+
+            <p><strong>Context management.</strong> An agent&rsquo;s working memory is the prompt. Everything outside the prompt is invisible. Repositories of non-trivial size exceed any single-model context window, so the question is not &ldquo;how big is the context&rdquo; but &ldquo;what gets loaded, when, and by whom.&rdquo; The industry has converged on a handful of patterns &mdash; retrieval-augmented generation, project-level rules, named skills, and <a href="https://modelcontextprotocol.io/">MCP</a> tool servers &mdash; which answer the same question in different layers of the stack.</p>
+
+            <p><strong>Tool-use reliability.</strong> Given a file-read tool, an agent will occasionally read the wrong file, hallucinate contents of files it did not read, or fail to read a file at all and proceed from memory. Tool-use error rates are non-trivial on public evaluations and do not go to zero with scale. They are engineered around, not trained away &mdash; typically with structured tool schemas, post-call verification, and deterministic caches keyed on file hashes.</p>
+
+            <p><strong>Calibration.</strong> An agent will frequently present a fabricated claim with the same confidence as a verified one. Calibration does not improve with model size alone; the published frontier-model calibration curves are reliable evidence of this. It improves with grounding &mdash; the agent citing the source of a claim and the system verifying the citation &mdash; and with explicit uncertainty cues in the prompt contract.</p>
+
+            <p>A shipping agent system addresses all three. A demo addresses none of them.</p>
+
+            <h2>Three patterns that carry the weight</h2>
+
+            <p><strong>Persistent context between sessions.</strong> Every agent session starts cold unless the project gives it a floor of mandatory context. The floor is best expressed as rules &mdash; short, imperative, machine-readable documents that encode decisions the team has already made. Rules are not memory for the agent. They are memory for the team, authored in a form the agent can consume. In this codebase, each rule carries an <code>Origin</code> section describing the class of problem it addresses. Ninety-plus rules compound into a floor of quality no single session has to re-derive.</p>
+
+            <p><strong>Parallel execution without collision.</strong> Running multiple agents on the same repository produces branch conflicts, port collisions, cache corruption, and hours of recovery. Running them in isolated <a href="https://git-scm.com/docs/git-worktree">git worktrees</a> produces none of that. Each worktree gets its own working directory, its own dev server, its own database. Agents do not know about each other. The human reviewer merges approved branches from main and sends rejections back to the originating branch. This is the closest analogue to CI-style isolation available for interactive agent work.</p>
+
+            <p><strong>Structured review before merge.</strong> Plain code review does not scale to machine-generated volume. A structured adversarial-review protocol does: one persona attacks the diff (security, scope creep, silent reversions from rebases), one defends, one synthesizes. The protocol is not a human-review replacement. It is the layer that catches predictable classes of defect &mdash; missing auth guards, mis-scoped PRs, fabricated APIs &mdash; before reviewer attention is spent on them.</p>
+
+            <h2>Grounding for user-facing agents</h2>
+
+            <p>Agents that speak directly to users have a different constraint: every claim must be verifiable at the time it is made. &ldquo;Better prompting&rdquo; is not a grounding strategy; it is a calibration wish. A grounding strategy looks like: every response carries source citations with cryptographic fingerprints, a verification tool lets the agent check claims against a data store before presenting them, and the transport layer preserves the fingerprint so an auditor can reconstruct provenance after the fact. This adds latency. It converts vibes-trustworthy to operationally-trustworthy, which is the only kind of trustworthy that survives contact with a regulator or a serious customer.</p>
+
+            <h2>What to measure</h2>
+
+            <p>Three metrics distinguish a functional agent setup from a demo:</p>
+
+            <ul>
+              <li>Mean time between agent-introduced regressions. Rising is progress &mdash; it means the rules system is learning from each class of defect.</li>
+              <li>Fraction of agent-authored PRs that pass adversarial review unmodified. This reveals whether the rules cover the current problem space.</li>
+              <li>Reviewer time per merged line. Falling is progress; rising is a warning that the agent is generating volume the review layer cannot absorb.</li>
+            </ul>
+
+            <p>If those three move in the right direction over a quarter, the discipline is working. If they do not, the discipline is pantomime, and the sensible response is to either invest in the review layer or reduce the agent&rsquo;s scope of authority until the numbers recover.</p>
