@@ -96,8 +96,9 @@ export function TurnstileGate({ onToken, onError }: TurnstileGateProps) {
 			const script = document.createElement("script");
 			script.id = SCRIPT_ID;
 			script.src = TURNSTILE_API;
-			script.async = true;
-			script.defer = true;
+			// Cloudflare rejects turnstile.ready() when api.js was loaded with async/defer.
+			// Dynamically created <script> defaults to async=true; force false so ready() is valid.
+			script.async = false;
 			script.onload = renderWidget;
 			document.head.appendChild(script);
 		} else {

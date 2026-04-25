@@ -1,0 +1,50 @@
+---
+description: >-
+  Deploy blog/analytics containers to Azure using the Azure CLI (az) and the
+  repo’s script or workflow — not ad-hoc providers or non-Azure CLIs.
+globs:
+  - "scripts/deploy-azure.sh"
+  - ".github/workflows/deploy-azure.yml"
+  - "Dockerfile"
+  - "migrations/**"
+alwaysApply: false
+slug: azure-cli-deploy
+title: Azure CLI deployment
+domain: ops
+ruleType: narrow
+version: 1.0.0
+---
+
+# Azure CLI deployment
+
+## Rule
+
+For **this repository**, “deploy to Azure” means using the **Azure CLI** (`az`) in line with the checked-in automation. Do not substitute `kubectl`, AWS/GCP CLIs, or generic “push a container” instructions unless the user explicitly scopes the task outside Azure.
+
+## Two paths (both `az`-driven)
+
+### 1. Local script — interactive `az login` + Docker
+
+- **Script:** `scripts/deploy-azure.sh [resource-group] [location]`
+- **Prereqs:** `az` installed, `az login`, Docker running, project root `.env` with `COSMOS_*`, `POSTHOG_*`, `CLARITY_*` as documented in the script header.
+- **What it does:** `az group create`, `az acr create` / `az acr login`, `docker build` + `docker push`, `az containerapp env create`, `az containerapp create` or `az containerapp update` with secrets via `secretref:`.
+- Default resource group and app names are **defined in the script** (`jd-analytics-rg`, `jd-analytics-api`, etc.); do not rename them in answers unless the user changes the script.
+
+### 2. CI / production blog service — workflow parity
+
+- **Workflow:** `.github/workflows/deploy-azure.yml` (push to `main` on relevant paths, or `workflow_dispatch`).
+- **Azure CLI steps there include:** `azure/login` (OIDC), `az keyvault secret show`, `az acr build` (ACR Tasks — no local Docker required in CI), `az containerapp env create/show`, `az containerapp create` / `az containerapp update` / `az containerapp registry set` / `az containerapp secret set`, `az containerapp show` for the app FQDN.
+- **Manual deploy** the same stack: mirror those `az` commands with the same subscription, ACR (`PLATFORM_ACR`), resource group (`AZURE_RESOURCE_GROUP`), and managed identity (`id-rust-blog`) as in the workflow env.
+
+## Agent behavior
+
+- When the user asks to **deploy**, **ship to Azure**, or **update Container Apps**, prefer:
+  1. Run **`./scripts/deploy-azure.sh`** from the repo root for the local/Docker path, or
+  2. Describe **exact `az` subcommands** taken from `deploy-azure.yml` / `deploy-azure.sh` for CI parity.
+- Install the Container Apps extension when needed: `az extension add --name containerapp --upgrade --yes`.
+- **CQL migrations** run in CI *before* the image update (`scripts/run-analytics-migrations.sh`); do not skip schema steps when explaining full production deploys.
+
+## Do not
+
+- Invent deploy commands that bypass the repo’s resource names, ACR wiring, or secret patterns.
+- Assume Vercel or another host for the **Rust analytics/blog service** image; that path is Azure Container Apps + ACR as above (the Next.js front end may still use Vercel separately — do not conflate the two unless the user asks).
