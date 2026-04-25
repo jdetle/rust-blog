@@ -11,6 +11,8 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getAnalyticsIngestionBaseUrl } from "@/lib/analytics-ingestion-url";
 
 export const dynamic = "force-dynamic";
+/** Large `avatar_urls` payloads (many base64 PNGs) can take many seconds to transfer; stay within client `USER_PROFILE_FETCH_MS` and above default Vercel 10s cap. */
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
 	const ANALYTICS_API_URL = getAnalyticsIngestionBaseUrl();
@@ -50,7 +52,8 @@ export async function GET(request: NextRequest) {
 		const res = await fetch(url.href, {
 			headers: { Accept: "application/json" },
 			cache: "no-store",
-			signal: AbortSignal.timeout(5_000),
+			// Must exceed small RTT: full portrait history is a multi‑MB JSON body (same order as the browser's own profile call budget; see `USER_PROFILE_FETCH_MS` in `home-fingerprint-avatar.tsx`). A 5s cap routinely aborted before the body finished, yielding empty `avatar_urls` and a single localStorage slide in the hero carousel.
+			signal: AbortSignal.timeout(30_000),
 		});
 
 		if (!res.ok) {

@@ -60,6 +60,8 @@ COSMOS_CONTACT_POINT="$(read_env_var COSMOS_CONTACT_POINT)"
 COSMOS_USERNAME="$(read_env_var COSMOS_USERNAME)"
 COSMOS_PASSWORD="$(read_env_var COSMOS_PASSWORD)"
 POSTHOG_API_KEY="$(read_env_var POSTHOG_API_KEY)"
+POSTHOG_PERSONAL_API_KEY="$(read_env_var POSTHOG_PERSONAL_API_KEY)"
+POSTHOG_PROJECT_ID="$(read_env_var POSTHOG_PROJECT_ID)"
 CLARITY_PROJECT_ID="$(read_env_var CLARITY_PROJECT_ID)"
 CLARITY_EXPORT_TOKEN="$(read_env_var CLARITY_EXPORT_TOKEN)"
 
@@ -151,6 +153,19 @@ if [ -n "$POSTHOG_API_KEY" ]; then
     SECRET_ENV+=(
         "POSTHOG_API_KEY=secretref:posthog-key"
     )
+fi
+
+if [ -n "$POSTHOG_PERSONAL_API_KEY" ]; then
+    SECRET_ARGS+=(
+        "posthog-personal-key=${POSTHOG_PERSONAL_API_KEY}"
+    )
+    SECRET_ENV+=(
+        "POSTHOG_PERSONAL_API_KEY=secretref:posthog-personal-key"
+    )
+fi
+
+if [ -n "$POSTHOG_PROJECT_ID" ]; then
+    ENV_VARS="${ENV_VARS} POSTHOG_PROJECT_ID=${POSTHOG_PROJECT_ID}"
 fi
 
 if [ -n "${CLARITY_EXPORT_TOKEN:-}" ]; then

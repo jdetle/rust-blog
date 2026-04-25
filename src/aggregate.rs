@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 const CLARITY_EXPORT_URL: &str = "https://www.clarity.ms/export-data/api/v1/project-live-insights";
 
-const POSTHOG_EVENTS_URL: &str = "https://us.posthog.com/api/projects";
+const DEFAULT_POSTHOG_HOST: &str = "https://us.posthog.com";
 
 pub struct Aggregator {
     db: Arc<dyn EventSink>,
@@ -33,8 +33,12 @@ impl Aggregator {
     ) -> Self {
         let clarity_export_url =
             std::env::var("CLARITY_EXPORT_URL").unwrap_or_else(|_| CLARITY_EXPORT_URL.to_string());
+        let host = std::env::var("POSTHOG_HOST")
+            .unwrap_or_else(|_| DEFAULT_POSTHOG_HOST.to_string())
+            .trim_end_matches('/')
+            .to_string();
         let project_id = std::env::var("POSTHOG_PROJECT_ID").unwrap_or_else(|_| "1".to_string());
-        let posthog_events_url = format!("{POSTHOG_EVENTS_URL}/{project_id}/events/");
+        let posthog_events_url = format!("{host}/api/projects/{project_id}/events/");
         let db_sink: Arc<dyn EventSink> = db;
         Self::with_endpoints(
             db_sink,
@@ -180,7 +184,23 @@ impl Aggregator {
         let body = match res {
             Ok(resp) if resp.status().is_success() => resp.text().await.unwrap_or_default(),
             Ok(resp) => {
-                tracing::warn!(status = %resp.status(), "PostHog events export returned non-success");
+                let status = resp.status();
+                let err_body = resp.text().await.unwrap_or_default();
+                let snippet: String = err_body.chars().take(800).collect();
+                let code = status.as_u16();
+                if code == 401 || code == 403 {
+                    tracing::warn!(
+                        status = %status,
+                        body = %snippet,
+                        "PostHog events export auth failed — the Events API requires POSTHOG_PERSONAL_API_KEY (Bearer phx_… with query:read). POSTHOG_API_KEY is the project key for /capture/ only."
+                    );
+                } else {
+                    tracing::warn!(
+                        status = %status,
+                        body = %snippet,
+                        "PostHog events export returned non-success"
+                    );
+                }
                 return;
             }
             Err(e) => {

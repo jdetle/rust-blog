@@ -87,7 +87,12 @@ async fn async_main() -> anyhow::Result<()> {
     let username = std::env::var("COSMOS_USERNAME").unwrap_or_else(|_| "jd-analytics".to_string());
     let password = std::env::var("COSMOS_PASSWORD").ok();
 
-    let posthog_api_key = std::env::var("POSTHOG_API_KEY").ok();
+    let posthog_project_key = std::env::var("POSTHOG_API_KEY")
+        .ok()
+        .filter(|k| !k.is_empty());
+    let posthog_personal_key = std::env::var("POSTHOG_PERSONAL_API_KEY")
+        .ok()
+        .filter(|k| !k.is_empty());
     let clarity_token = std::env::var("CLARITY_EXPORT_TOKEN").ok();
     let web_analytics_drain_token = std::env::var("WEB_ANALYTICS_DRAIN_TOKEN").ok();
     let google_creds_path = std::env::var("GOOGLE_APPLICATION_CREDENTIALS").ok();
@@ -120,11 +125,21 @@ async fn async_main() -> anyhow::Result<()> {
         match AnalyticsDb::connect(&contact_point, &username, &pw).await {
             Ok(analytics_db) => {
                 let db = Arc::new(analytics_db);
-                let posthog = posthog_api_key
-                    .as_deref()
-                    .map(|k| Arc::new(PostHogForwarder::new(k.to_string())));
+                let posthog = posthog_project_key
+                    .as_ref()
+                    .map(|k| Arc::new(PostHogForwarder::new(k.clone())));
                 let profile_store: Arc<dyn rust_blog::analytics::ProfileStore> = db.clone();
-                let agg = posthog_api_key.map(|k| {
+                // Events list API requires a personal API key; project key is only valid for /capture/.
+                let posthog_pull_key = posthog_personal_key
+                    .clone()
+                    .or_else(|| posthog_project_key.clone());
+                let agg = posthog_pull_key.map(|k| {
+                    if posthog_personal_key.is_none() && k.starts_with("phc_") {
+                        tracing::warn!(
+                            "POSTHOG_PERSONAL_API_KEY is unset; PostHog event export uses POSTHOG_API_KEY — \
+                             listing events typically returns 403 until you set a personal key (phx_…) with query:read"
+                        );
+                    }
                     Arc::new(Aggregator::new(
                         db.clone(),
                         k,

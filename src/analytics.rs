@@ -391,13 +391,15 @@ impl AnalyticsDb {
         let ssl_context = tls_builder.build();
 
         // Azure Cosmos DB for Apache Cassandra is wire-compatible for queries but does not expose
-        // Scylla-specific system tables (e.g. `system_schema.scylla_tables`). The driver otherwise
-        // probes that table and may log topology warnings or fall back to dummy cluster metadata.
+        // Scylla-specific system tables (e.g. `system_schema.scylla_tables`). The driver probes
+        // that table when schema metadata fetching is enabled — keep it off for Cosmos.
+        // Restrict keyspace metadata to `analytics` to minimize system_schema traffic on Cosmos.
         let session: Session = SessionBuilder::new()
             .known_node(format!("{contact_point}:10350"))
             .user(username, password)
             .ssl_context(Some(ssl_context))
             .fetch_schema_metadata(false)
+            .keyspaces_to_fetch(["analytics"])
             .build()
             .await?;
 
