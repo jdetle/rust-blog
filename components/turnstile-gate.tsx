@@ -5,7 +5,6 @@ import { useEffect, useRef } from "react";
 declare global {
 	interface Window {
 		turnstile?: {
-			ready: (callback: () => void) => void;
 			render: (
 				container: HTMLElement | string,
 				options: TurnstileOptions,
@@ -36,13 +35,6 @@ const SCRIPT_ID = "cf-turnstile-script";
 const TURNSTILE_API =
 	"https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 
-function withTurnstileReady(fn: () => void) {
-	if (window.turnstile?.ready) {
-		window.turnstile.ready(fn);
-	} else {
-		fn();
-	}
-}
 // Trim defensively — env values pulled from some providers (or pasted into
 // .env files) can carry trailing whitespace/newlines, which Turnstile rejects.
 const SITE_KEY = (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "").trim();
@@ -66,23 +58,18 @@ export function TurnstileGate({ onToken, onError }: TurnstileGateProps) {
 			if (!containerRef.current || !window.turnstile) return;
 			if (widgetIdRef.current) return; // already rendered
 
-			withTurnstileReady(() => {
-				if (!containerRef.current || !window.turnstile || widgetIdRef.current)
-					return;
-
-				widgetIdRef.current = window.turnstile.render(containerRef.current, {
-					sitekey: SITE_KEY,
-					callback: onToken,
-					"error-callback": onError,
-					"expired-callback": () => {
-						// Token expired — reset so a fresh one is issued.
-						if (widgetIdRef.current && window.turnstile) {
-							window.turnstile.reset(widgetIdRef.current);
-						}
-					},
-					appearance: "interaction-only",
-					theme: "auto",
-				});
+			widgetIdRef.current = window.turnstile.render(containerRef.current, {
+				sitekey: SITE_KEY,
+				callback: onToken,
+				"error-callback": onError,
+				"expired-callback": () => {
+					// Token expired — reset so a fresh one is issued.
+					if (widgetIdRef.current && window.turnstile) {
+						window.turnstile.reset(widgetIdRef.current);
+					}
+				},
+				appearance: "interaction-only",
+				theme: "auto",
 			});
 		};
 
@@ -101,7 +88,7 @@ export function TurnstileGate({ onToken, onError }: TurnstileGateProps) {
 			script.onload = renderWidget;
 			document.head.appendChild(script);
 		} else {
-			// Script already injected by another instance — poll until turnstile is ready.
+			// Script already injected by another instance — poll until turnstile is available.
 			const poll = setInterval(() => {
 				if (window.turnstile) {
 					clearInterval(poll);

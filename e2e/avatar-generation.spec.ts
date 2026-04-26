@@ -47,9 +47,6 @@ async function stubTurnstile(
 ) {
 	await page.addInitScript((t) => {
 		window.turnstile = {
-			ready: (cb: () => void) => {
-				queueMicrotask(cb);
-			},
 			render: (
 				_container: HTMLElement | string,
 				options: { callback?: (tok: string) => void },
@@ -234,9 +231,9 @@ test.describe("home hero", () => {
 
 		await gotoHome(page);
 
-		await expect(
-			page.getByRole("img", { name: AVATAR_IMG_ALT }),
-		).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByRole("img", { name: AVATAR_IMG_ALT })).toBeVisible({
+			timeout: 20_000,
+		});
 		for (const n of [1, 2, 3, 4] as const) {
 			await expect(
 				page.getByRole("tab", { name: new RegExp(`Portrait ${n} of 4`) }),
@@ -320,7 +317,8 @@ test.describe("home hero", () => {
 				status: 200,
 				headers: {
 					"Content-Type": "application/json; charset=utf-8",
-					"Cache-Control": "private, no-store, no-cache, must-revalidate, max-age=0",
+					"Cache-Control":
+						"private, no-store, no-cache, must-revalidate, max-age=0",
 				},
 				body: JSON.stringify({
 					summary: null,
@@ -333,7 +331,11 @@ test.describe("home hero", () => {
 			});
 		});
 		await page.route("**/api/analytics/generate-avatar**", async (route) => {
-			await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+			await route.fulfill({
+				status: 200,
+				contentType: "application/json",
+				body: "{}",
+			});
 		});
 
 		await gotoHome(page);

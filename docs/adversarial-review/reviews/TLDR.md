@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-04-26 turnstile-ready-script](./2026-04-26-turnstile-ready-script.md)
+  - decision: proceed; remove `turnstile.ready()` usage from the async/deferred explicit Turnstile loader and update the e2e stub
+  - risk: full TypeScript check was blocked by missing app dependencies in the fresh worktree
+  - follow-up: none
+
 - [2026-04-23 sentry-nextjs](./2026-04-23-sentry-nextjs.md)
   - decision: proceed; integrate @sentry/nextjs + gate example routes in production behind SENTRY_ENABLE_EXAMPLE_ROUTES
   - risk: verify GitHub secrets for DSN + SENTRY_AUTH_TOKEN before relying on source maps in prod
