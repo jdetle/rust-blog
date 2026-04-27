@@ -22,7 +22,10 @@ import {
 	computeVerdict,
 	type VpnExitLocationHeuristic,
 } from "@/lib/vpn-detect";
-import { AnalyticsToolsChart } from "./analytics-tools-chart";
+import {
+	type AnalyticsToolProfile,
+	AnalyticsToolsChart,
+} from "./analytics-tools-chart";
 import { EventHistoryViz } from "./event-history-viz";
 import { ExposureMeter } from "./exposure-meter";
 import { IdentityStitchingDiagram } from "./identity-stitching";
@@ -109,7 +112,7 @@ function PosthogSnapshotDd({
 	userEventsLength,
 }: {
 	loaded: boolean;
-	analyticsTools: { name: string; active: boolean }[];
+	analyticsTools: AnalyticsToolProfile[];
 	distinctIdDisplay: string | null;
 	userEventsLength: number;
 }) {
@@ -139,6 +142,57 @@ function PosthogSnapshotDd({
 		</>
 	);
 }
+
+const ANALYTICS_TOOL_BLUEPRINTS: Omit<AnalyticsToolProfile, "active">[] = [
+	{
+		name: "Google Analytics 4",
+		note: "Often wired through gtag or GTM and built for page-level attribution.",
+		capabilities: {
+			pageviews: "yes",
+			customEvents: "yes",
+			sessionReplay: "no",
+			heatmaps: "partial",
+			identity: "yes",
+			crossSite: "partial",
+		},
+	},
+	{
+		name: "Microsoft Clarity",
+		note: "Behavior product focused on replay, click maps, and scroll patterns.",
+		capabilities: {
+			pageviews: "yes",
+			customEvents: "partial",
+			sessionReplay: "yes",
+			heatmaps: "yes",
+			identity: "partial",
+			crossSite: "partial",
+		},
+	},
+	{
+		name: "Plausible",
+		note: "Privacy-first analytics that usually stays lighter on identity.",
+		capabilities: {
+			pageviews: "yes",
+			customEvents: "partial",
+			sessionReplay: "no",
+			heatmaps: "no",
+			identity: "partial",
+			crossSite: "no",
+		},
+	},
+	{
+		name: "PostHog",
+		note: "Product analytics stack with event streams, flags, and optional replay.",
+		capabilities: {
+			pageviews: "yes",
+			customEvents: "yes",
+			sessionReplay: "partial",
+			heatmaps: "partial",
+			identity: "yes",
+			crossSite: "partial",
+		},
+	},
+];
 
 function VerdictBadge({ verdict }: { verdict: string }) {
 	const labels: Record<string, string> = {
@@ -338,9 +392,9 @@ export function ClientProfile({
 	>({});
 	const [fingerprint, setFingerprint] = useState<string | null>(null);
 	const [referral, setReferral] = useState<Record<string, string | null>>({});
-	const [analyticsTools, setAnalyticsTools] = useState<
-		{ name: string; active: boolean }[]
-	>([]);
+	const [analyticsTools, setAnalyticsTools] = useState<AnalyticsToolProfile[]>(
+		[],
+	);
 	const [vpnAssessment, setVpnAssessment] = useState<VpnAssessment | null>(
 		null,
 	);
@@ -627,25 +681,21 @@ export function ClientProfile({
 
 		// ── 8. Analytics tools (delayed) ───────────────────────────────
 		setTimeout(() => {
-			setAnalyticsTools([
-				{
-					name: "Google Analytics 4",
-					active:
-						!!window.gtag || !!(window as { dataLayer?: unknown }).dataLayer,
-				},
-				{
-					name: "Microsoft Clarity",
-					active: !!(window as { clarity?: unknown }).clarity,
-				},
-				{
-					name: "Plausible",
-					active: !!(window as { plausible?: unknown }).plausible,
-				},
-				{
-					name: "PostHog",
-					active: isPostHogSdkReady(),
-				},
+			const activeMap = new Map<string, boolean>([
+				[
+					"Google Analytics 4",
+					!!window.gtag || !!(window as { dataLayer?: unknown }).dataLayer,
+				],
+				["Microsoft Clarity", !!(window as { clarity?: unknown }).clarity],
+				["Plausible", !!(window as { plausible?: unknown }).plausible],
+				["PostHog", isPostHogSdkReady()],
 			]);
+			setAnalyticsTools(
+				ANALYTICS_TOOL_BLUEPRINTS.map((tool) => ({
+					...tool,
+					active: activeMap.get(tool.name) ?? false,
+				})),
+			);
 		}, 1600);
 
 		setSignalCount(signals);
@@ -1552,6 +1602,11 @@ export function ClientProfile({
 			{/* ── Identity stitching (illustrative) ─────────────────────── */}
 			<section className="detect-section">
 				<h2>How identifiers stitch together</h2>
+				<p className="detect-note">
+					No single clue has to be perfect. Analytics tools layer cookies,
+					fingerprints, campaign context, and your activity trail until several
+					weak identifiers resolve into one profile.
+				</p>
 				<IdentityStitchingDiagram
 					canvasFingerprint={fingerprint}
 					distinctId={distinctIdDisplay}
@@ -1559,6 +1614,9 @@ export function ClientProfile({
 						typeof document !== "undefined" &&
 						document.cookie.includes("fingerprint=")
 					}
+					referrerSummary={referral.referrer ?? null}
+					utmSummary={referral.utm ?? null}
+					activityCount={userEvents.length}
 				/>
 			</section>
 
@@ -1633,28 +1691,19 @@ export function ClientProfile({
 			{/* ── Analytics Tools ───────────────────────────────────────── */}
 			<section className="detect-section">
 				<h2>Analytics Tools Watching You</h2>
-				<p className="detect-note">Scripts currently loaded on this page</p>
+				<p className="detect-note">
+					Each row separates <strong>detected here</strong> from what that
+					provider <strong>typically tracks</strong> when teams turn on its
+					features.
+				</p>
 				{analyticsTools.length > 0 ? (
 					<AnalyticsToolsChart tools={analyticsTools} />
 				) : null}
-				<ul className="analytics-list">
-					{analyticsTools.map((t) => (
-						<li key={t.name} className="analytics-item">
-							<span
-								className={`analytics-dot ${t.active ? "dot-active" : "dot-inactive"}`}
-							/>
-							<span>{t.name}</span>
-							<span className="analytics-status">
-								{t.active ? "Active" : "Not loaded"}
-							</span>
-						</li>
-					))}
-				</ul>
 				{gtmPresent ? (
 					<p className="detect-note gtm-callout">
 						<strong>Google Tag Manager</strong> is present. It can load
-						additional tags not listed here &mdash; treat the list above as a{" "}
-						<strong>lower bound</strong>.
+						additional tags after the page boots, so treat this provider view as
+						a <strong>lower bound</strong>, not a complete manifest.
 					</p>
 				) : null}
 			</section>
@@ -1675,8 +1724,8 @@ export function ClientProfile({
 					<div className="event-history-ticker-panel">
 						<h3 className="event-history-subh">Live sketch</h3>
 						<p className="detect-note event-history-ticker-hint">
-							News-style ticker: each line is one stored event; it grows as you
-							browse.
+							Slow vertical ticker: one stored event per line, bounded like a
+							small monitor while the log keeps growing underneath.
 						</p>
 						<ProfileTicker events={userEvents} loading={userEventsLoading} />
 					</div>

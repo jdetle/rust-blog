@@ -1,73 +1,108 @@
 "use client";
 
 import type { ReactElement } from "react";
-import { Cell, Pie, PieChart, Tooltip } from "recharts";
-import {
-	useWhoChartAnimation,
-	WHO_CHART,
-	WhoChartBox,
-} from "@/components/who-are-you/recharts/who-charts-shared";
 
-const tooltipStyle = {
-	backgroundColor: "rgba(242, 236, 224, 0.96)",
-	border: "1px solid rgba(42, 35, 28, 0.12)",
-	borderRadius: 8,
-	color: WHO_CHART.ink,
-	fontSize: 12,
+export type AnalyticsCapabilityKey =
+	| "pageviews"
+	| "customEvents"
+	| "sessionReplay"
+	| "heatmaps"
+	| "identity"
+	| "crossSite";
+
+export type AnalyticsCapabilityValue = "yes" | "partial" | "no";
+
+export type AnalyticsCapabilityMap = Record<
+	AnalyticsCapabilityKey,
+	AnalyticsCapabilityValue
+>;
+
+export type AnalyticsToolProfile = {
+	name: string;
+	active: boolean;
+	note?: string;
+	capabilities: AnalyticsCapabilityMap;
 };
 
-const COLORS = [
-	WHO_CHART.posthog,
-	WHO_CHART.warehouse,
-	WHO_CHART.other,
-	"#7a6b5a",
-];
+const CAPABILITY_LABELS: Record<AnalyticsCapabilityKey, string> = {
+	pageviews: "Page views",
+	customEvents: "Custom events",
+	sessionReplay: "Session replay",
+	heatmaps: "Heatmaps",
+	identity: "ID stitching",
+	crossSite: "Cross-site",
+};
 
-/** Live count of how many listed analytics scripts are active vs not on this page. */
+function capabilityTone(value: AnalyticsCapabilityValue): string {
+	if (value === "yes") return "analytics-capability--yes";
+	if (value === "partial") return "analytics-capability--partial";
+	return "analytics-capability--no";
+}
+
+function capabilityCopy(value: AnalyticsCapabilityValue): string {
+	if (value === "yes") return "Tracks";
+	if (value === "partial") return "Can track";
+	return "Not typical";
+}
+
+/** Hybrid view: live detection plus typical categories each provider can observe. */
 export function AnalyticsToolsChart({
 	tools,
 }: {
-	tools: { name: string; active: boolean }[];
+	tools: AnalyticsToolProfile[];
 }): ReactElement | null {
-	const animate = useWhoChartAnimation();
-
 	if (tools.length === 0) {
 		return null;
 	}
 
-	const activeCount = tools.filter((t) => t.active).length;
-	const inactiveCount = tools.length - activeCount;
-
-	const data = [
-		{ name: "Active on page", value: activeCount, fill: WHO_CHART.posthog },
-		{ name: "Not loaded", value: inactiveCount, fill: "rgba(42, 35, 28, 0.2)" },
-	].filter((d) => d.value > 0);
-
 	return (
-		<div className="analytics-tools-chart-wrap">
-			<WhoChartBox
-				height={200}
-				aria-label={`${activeCount} of ${tools.length} known analytics scripts active`}
-			>
-				<PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-					<Pie
-						data={data}
-						dataKey="value"
-						nameKey="name"
-						cx="50%"
-						cy="50%"
-						innerRadius={44}
-						outerRadius={72}
-						paddingAngle={2}
-						isAnimationActive={animate}
+		<section
+			className="analytics-tools-chart-wrap"
+			aria-label="Detected analytics providers and their typical tracking capabilities"
+		>
+			{tools.map((tool) => (
+				<article key={tool.name} className="analytics-provider-card">
+					<div className="analytics-provider-head">
+						<div>
+							<h3 className="analytics-provider-name">{tool.name}</h3>
+							{tool.note ? (
+								<p className="analytics-provider-note">{tool.note}</p>
+							) : null}
+						</div>
+						<span
+							className={`analytics-provider-status ${
+								tool.active
+									? "analytics-provider-status--active"
+									: "analytics-provider-status--inactive"
+							}`}
+						>
+							{tool.active ? "Detected here" : "Not detected here"}
+						</span>
+					</div>
+					<section
+						className="analytics-capability-grid"
+						aria-label={`${tool.name} tracking categories`}
 					>
-						{data.map((e, i) => (
-							<Cell key={e.name} fill={e.fill ?? COLORS[i % COLORS.length]} />
-						))}
-					</Pie>
-					<Tooltip contentStyle={tooltipStyle} />
-				</PieChart>
-			</WhoChartBox>
-		</div>
+						{(Object.keys(CAPABILITY_LABELS) as AnalyticsCapabilityKey[]).map(
+							(key) => (
+								<div
+									key={key}
+									className={`analytics-capability-card ${capabilityTone(
+										tool.capabilities[key],
+									)}`}
+								>
+									<span className="analytics-capability-label">
+										{CAPABILITY_LABELS[key]}
+									</span>
+									<span className="analytics-capability-value">
+										{capabilityCopy(tool.capabilities[key])}
+									</span>
+								</div>
+							),
+						)}
+					</section>
+				</article>
+			))}
+		</section>
 	);
 }
