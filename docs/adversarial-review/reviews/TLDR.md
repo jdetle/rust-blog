@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-04-27 who-visualization-refresh](./2026-04-27-who-visualization-refresh.md)
+  - decision: proceed; refresh `/who-are-you` identity stitching, provider tracking, and activity ticker visuals
+  - risk: live browser validation not run in this worktree; repo-wide `bunx tsc --noEmit` is blocked by missing app dependencies / ambient types unrelated to this diff
+  - follow-up: none
+
 - [2026-04-26 turnstile-ready-script](./2026-04-26-turnstile-ready-script.md)
   - decision: proceed; remove `turnstile.ready()` usage from the async/deferred explicit Turnstile loader and update the e2e stub
   - risk: full TypeScript check was blocked by missing app dependencies in the fresh worktree
