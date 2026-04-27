@@ -1,5 +1,10 @@
 # Adversarial Review TLDR
 
+- [2026-04-27 linkedin-share-utm](./2026-04-27-linkedin-share-utm.md)
+  - decision: proceed; make share URLs route-aware so blog posts and `/who-are-you` share to LinkedIn with preserved UTM params
+  - risk: LinkedIn popup flow was not manually exercised in-browser in this worktree
+  - follow-up: none
+
 - [2026-04-27 who-visualization-refresh](./2026-04-27-who-visualization-refresh.md)
   - decision: proceed; refresh `/who-are-you` identity stitching, provider tracking, and activity ticker visuals
   - risk: live browser validation not run in this worktree; repo-wide `bunx tsc --noEmit` is blocked by missing app dependencies / ambient types unrelated to this diff

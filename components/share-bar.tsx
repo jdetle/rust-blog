@@ -17,8 +17,11 @@ type SharePlatform =
 	| "copy_link";
 
 interface ShareBarProps {
+	path: string;
 	slug: string;
 	title: string;
+	campaign?: string;
+	content?: string;
 }
 
 const PLATFORMS: { id: SharePlatform; label: string }[] = [
@@ -110,7 +113,13 @@ function getCanvasFingerprint(): string {
 	}
 }
 
-export function ShareBar({ slug, title }: ShareBarProps) {
+export function ShareBar({
+	path,
+	slug,
+	title,
+	campaign = "post_share",
+	content = slug,
+}: ShareBarProps) {
 	const mountTime = useRef(performance.now());
 	const [copied, setCopied] = useState(false);
 
@@ -120,7 +129,12 @@ export function ShareBar({ slug, title }: ShareBarProps) {
 
 	const handleShare = useCallback(
 		(platform: SharePlatform) => {
-			const utmUrl = buildShareUrl(slug, platform);
+			const utmUrl = buildShareUrl({
+				path,
+				platform,
+				campaign,
+				content,
+			});
 			const readingTimeSeconds = Math.round(
 				(performance.now() - mountTime.current) / 1000,
 			);
@@ -151,7 +165,7 @@ export function ShareBar({ slug, title }: ShareBarProps) {
 				window.open(shareUrl, "_blank", "noopener,noreferrer");
 			}
 		},
-		[slug, title],
+		[campaign, content, path, slug, title],
 	);
 
 	return (
