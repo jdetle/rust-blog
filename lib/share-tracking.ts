@@ -1,14 +1,6 @@
 import posthog from "posthog-js";
 import { sendMetaEvent } from "./meta-pixel";
-
-type SharePlatform =
-	| "twitter"
-	| "linkedin"
-	| "reddit"
-	| "hackernews"
-	| "facebook"
-	| "email"
-	| "copy_link";
+import type { SharePlatform } from "./share-url";
 
 interface ShareEventProps {
 	platform: SharePlatform;
@@ -21,17 +13,6 @@ interface ShareEventProps {
 	referrerType: string;
 	canvasFingerprint: string;
 	deviceType: string;
-}
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://jdetle.com";
-
-export function buildShareUrl(slug: string, platform: SharePlatform): string {
-	const base = new URL(`/posts/${encodeURIComponent(slug)}`, SITE_URL);
-	base.searchParams.set("utm_source", platform);
-	base.searchParams.set("utm_medium", "social");
-	base.searchParams.set("utm_campaign", "post_share");
-	base.searchParams.set("utm_content", slug);
-	return base.href;
 }
 
 export function trackShareEvent(props: ShareEventProps): void {
@@ -130,28 +111,4 @@ export function trackShareEvent(props: ShareEventProps): void {
 	}
 }
 
-export function getPlatformShareUrl(
-	platform: SharePlatform,
-	utmUrl: string,
-	title: string,
-): string | null {
-	const encodedUrl = encodeURIComponent(utmUrl);
-	const encodedTitle = encodeURIComponent(title);
-
-	switch (platform) {
-		case "twitter":
-			return `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedTitle}`;
-		case "linkedin":
-			return `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`;
-		case "reddit":
-			return `https://reddit.com/submit?url=${encodedUrl}&title=${encodedTitle}`;
-		case "hackernews":
-			return `https://news.ycombinator.com/submitlink?u=${encodedUrl}&t=${encodedTitle}`;
-		case "facebook":
-			return `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
-		case "email":
-			return `mailto:?subject=${encodedTitle}&body=${encodedUrl}`;
-		case "copy_link":
-			return null;
-	}
-}
+export { buildShareUrl, getPlatformShareUrl } from "./share-url";

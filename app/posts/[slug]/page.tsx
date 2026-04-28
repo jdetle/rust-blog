@@ -97,7 +97,7 @@ export default async function PostPage({ params }: Props) {
 					)}
 
 					<PostReadTracker slug={slug} title={post.title} />
-					<ShareBar slug={slug} title={post.title} />
+					<ShareBar path={`/posts/${slug}`} slug={slug} title={post.title} />
 					<NavRow />
 				</AnimatedFrame>
 			</main>

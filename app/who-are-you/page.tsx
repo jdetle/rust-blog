@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { AnimatedFrame } from "@/components/animated-frame";
 import { NavRow } from "@/components/nav-row";
+import { ShareBar } from "@/components/share-bar";
 import { ClientProfile } from "@/components/who-are-you/client-profile";
 import { getClientIpFromHeaders } from "@/lib/client-ip";
 
@@ -61,6 +62,12 @@ export default async function WhoAreYouPage() {
 					<ClientProfile serverGeo={serverGeo} edgeInfo={edgeInfo} />
 				</article>
 
+				<ShareBar
+					path="/who-are-you"
+					slug="who-are-you"
+					title="Who Are You?"
+					campaign="who_are_you_share"
+				/>
 				<NavRow />
 			</AnimatedFrame>
 		</main>
